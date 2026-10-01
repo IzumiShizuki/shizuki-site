@@ -6,7 +6,7 @@
 ## 同步基线
 
 - 上游稳定版本：`v0.7.11`，commit `6fe68d89`。
-- Shizuki fork：[IzumiShizuki/folia-major](https://github.com/IzumiShizuki/folia-major)，`codex/fix-folia-normal-linkage` 分支，当前已推送并部署提交 `822bcc5c`。历史 `folia-embed` 合并 commit 为 `fa4b6714`，类型兼容修复为 `69a97532`。
+- Shizuki fork：[IzumiShizuki/folia-major](https://github.com/IzumiShizuki/folia-major)，本次工作分支 `codex/unify-folia-workspace`，已验证实现提交 `9b2346e2`。此前已部署的联动/字幕色基线为 `822bcc5c`。历史 `folia-embed` 合并 commit 为 `fa4b6714`，类型兼容修复为 `69a97532`。
 - 完整 fork 差异：[`shizuki-folia-v0.7.11.patch`](shizuki-folia-v0.7.11.patch)，包含后续修复，已验证可应用到干净的上游 v0.7.11 checkout。
 - 本目录的桥接、bootstrap、可视化器与回归测试快照来自已合并源码。旧的 `embedded-history-isolation.patch` 保留作早期嵌入历史补丁参考；当前 fork 差异以完整 v0.7.11 patch 为准。
 
@@ -21,6 +21,7 @@
 3. **`src/bootstrap.tsx` 与 `src/components/app/AppShell.tsx`**：支持 `?embed=1` 或 `#folia-embed-root`，挂载到父页面的播放器容器并切到 player 视图；嵌入态跳过 Folium 客户端和本地封面运行时的独立窗口初始化，保持快速切换。
 4. **Cadenza 可视化器**：长歌词换行时保留 `pretext` 逐行居中布局，避免把单个汉字提为焦点后令其余文字碰撞散开。回归测试为 `test/unit/cadenzaWrappedLyrics.test.ts`。
 5. **网关与依赖源**：保留站点网易云 API 反代与未部署服务的路由边界；KuGou tarball 在 `package.json` 和 lockfile 中统一通过 `gh-proxy.com` 获取。
+6. **嵌入工作区导航**：同文档嵌入使用有界内存返回上下文，不读写主站 URL/history。完整歌单播放交接完整队列与来源，播放墙交接准确槽位，快捷选曲保留队列。暂停/时钟快照保留歌曲、队列与导航上下文身份；停放的播放器不消费键盘或发送播放命令。
 
 网易云登录态以 Folia 当前的 `online_provider:netease:cookie` 为主键，桥仍双写并监听旧版 `netease_cookie`，以兼容历史部署且不让旧数据库凭据覆盖新登录态。
 
@@ -37,6 +38,12 @@
 `822bcc5c` 修复 Lattice 画布歌词没有消费工具栏自定义颜色的问题。外部桥通知 React provider，运行时更新已缓存的主歌词 shader；恢复默认色会恢复主题及副歌颜色，翻译字幕继续使用字幕主题。独立 Folia 保留原主题行为。对应测试 `test/unit/shizukiLatticeLyricColor.integration.test.ts` 驱动真实 bridge、provider 与 glyph scene；受影响 Folia 套件 12 files / 80 tests、TypeScript 检查及 `/music/` 构建通过。
 
 公开完整 patch 为 116469 bytes，与 fork 相对 `6fe68d89` 的差异一致；15 个源码/测试快照与完整 fork 逐字节一致。主站另外修复了 Folia 选曲时忽略 provider、把非数字 ID 当作 0 的身份比较。
+
+## 2026-10-01 工作区切换重构
+
+`9b2346e2` 实现已确认的播放/返回场景。Folia 播放歌单 P2 会替换完整队列；播放墙选 B 保持播放墙，显式沉浸入口打开完整播放器，Esc/返回恢复当前原生歌单或共享队列墙。原生来源 ID 保持不透明，主站以真实歌单代码或 `/music-library/queue` 呈现普通模式返回。完整排查与交付状态见 [本次验证报告](../../openspec/changes/unify-folia-workspace-navigation/verification-report.md)。
+
+本次公开 patch 为 **215292 bytes**，对应精确 `6fe68d89..9b2346e2` 差异；**32 个源码/测试快照**逐字节一致。patch 在干净 v0.7.11 上通过检查并实际应用，全部 49 个变更文件逐项匹配目标 commit blob。Folia 受影响验证为 **36 files / 244 tests**、TypeScript 与 `/music/` 构建通过。最终部署/实机验收将更新下方状态及验证报告。
 
 ## AGPL-3.0 合规
 

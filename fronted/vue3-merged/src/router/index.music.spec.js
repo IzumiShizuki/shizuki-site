@@ -63,4 +63,11 @@ describe('music voice routing', () => {
   it('uses /music-library/music as top menu path', () => {
     expect(routePathByKey['music-library']).toBe('/music-library/music');
   });
+
+  it('routes native current-queue returns to the shared playlist detail view', async () => {
+    await router.push('/music-library/queue');
+
+    expect(router.currentRoute.value.name).toBe('music-library-queue');
+    expect(router.currentRoute.value.matched.at(-1)?.components?.default).toBeTruthy();
+  });
 });

@@ -3,6 +3,7 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 const source = readFileSync(resolve(process.cwd(), 'src/pages/MusicLibraryPage.vue'), 'utf8');
+const coordinatorSource = readFileSync(resolve(process.cwd(), 'src/utils/musicFoliaWorkspaceCoordinator.js'), 'utf8');
 const bridgeSource = readFileSync(
   resolve(process.cwd(), '../../third_party/folia-major/shizukiExternalBridge.ts'),
   'utf8'
@@ -78,15 +79,13 @@ describe('MusicLibraryPage Folia mode handoff', () => {
     const latticeOpen = readFunction('handleOpenFoliaLattice');
     const modeSwitch = readFunction('setFoliaMode');
 
-    expect(playlistSelect).toContain('player.replaceQueueWithTracks');
-    expect(playlistSelect).toContain('pushCurrentTrackToFolia');
+    expect(playlistSelect).toContain('selectPlaylist');
+    expect(latticeOpen).toContain('selectPlaylist');
     expect(playlistSelect).not.toContain("type: 'shizuki:play-tracks'");
-
-    expect(latticeOpen).toContain('player.replaceQueueWithTracks');
-    expect(latticeOpen).toContain('pushCurrentTrackToFolia');
     expect(latticeOpen).not.toContain("type: 'shizuki:play-tracks'");
 
     expect(modeSwitch).toContain("type: 'shizuki:stop-follow-playback'");
+    expect(modeSwitch).toContain("type: 'shizuki:navigate'");
     expect(modeSwitch).not.toContain('pullCurrentTrackFromFolia');
   });
 
@@ -96,7 +95,8 @@ describe('MusicLibraryPage Folia mode handoff', () => {
     expect(source).toContain('class="folia-track-picker"');
     expect(source).toContain(':value="foliaCurrentQueueEntryId"');
     expect(trackSelect).toContain('queueEntryId');
-    expect(trackSelect).toContain('player.selectTrackByIndex');
+    expect(trackSelect).toContain('selectSong');
+    expect(trackSelect).toContain('queueIndex: index');
     expect(source).toContain(':queue-tracks="player.queueDisplayTracks.value"');
     expect(dockSource).toContain('displayQueueTracks');
     expect(dockSource).toContain('emit(\'select-track\', track?.queueEntryId || index)');
@@ -157,25 +157,27 @@ describe('MusicLibraryPage Folia mode handoff', () => {
     expect(source).toContain('mirrorFoliaPlaybackIntent');
     expect(source).toContain('player.playExternalTrack');
     const playbackIntentMirror = readFunction('mirrorFoliaPlaybackIntent');
-    expect(playbackIntentMirror).toContain('replaceQueue: false');
-    expect(playbackIntentMirror).not.toContain('replaceQueue: true');
+    expect(playbackIntentMirror).toContain('selectNativeCollection');
+    expect(playbackIntentMirror).toContain('queuePolicy === \'preserve-or-insert\'');
+    expect(playbackIntentMirror).toContain('queueIndex: selectedIndex');
+    expect(playbackIntentMirror).not.toContain('replaceQueueWithTracks');
   });
 
   it('opens track-specific Folia actions on the resolved current song and player view', () => {
     const trackRequest = readFunction('handleFoliaPlayRequest');
     const modeRequest = readFunction('handleOpenFoliaMode');
-    const viewRequest = readFunction('requestFoliaEmbeddedView');
-    const pendingViewDelivery = readFunction('deliverPendingFoliaView');
+    const viewRequest = readFunction('sendFoliaNavigation');
     const loadEmbed = readFunction('loadFoliaEmbed');
 
-    expect(trackRequest).toContain('readFoliaTrackKey(track)');
-    expect(trackRequest).toContain('player.playExternalTrack?.(track, { replaceQueue: false })');
-    expect(trackRequest.indexOf('player.playExternalTrack')).toBeLessThan(trackRequest.indexOf('setFoliaMode(true'));
-    expect(trackRequest).toContain("requestFoliaEmbeddedView('player')");
-    expect(modeRequest).toContain("requestFoliaEmbeddedView('player')");
-    expect(viewRequest).toContain("foliaPendingView = rawView === 'lattice' ? 'lattice' : 'player'");
-    expect(pendingViewDelivery).toContain("postToFolia({ type: 'shizuki:set-view', view })");
-    expect(loadEmbed).toContain('deliverPendingFoliaView()');
+    expect(trackRequest).toContain('selectSong');
+    expect(trackRequest).toContain("surface: 'immersive'");
+    expect(modeRequest).toContain("view: 'player'");
+    expect(viewRequest).toContain("type: 'shizuki:navigate'");
+    expect(viewRequest).toContain('...request');
+    expect(source).toContain('allocateMusicFoliaNavigationRequestId()');
+    expect(coordinatorSource).toContain('protocolVersion: 1');
+    expect(source).not.toContain("type: 'shizuki:set-view'");
+    expect(loadEmbed).toContain('if (foliaBridgeReady) return true');
   });
 
   it('routes Folia skip controls through the main player so shuffle remains authoritative', () => {
@@ -235,11 +237,13 @@ describe('MusicLibraryPage Folia mode handoff', () => {
 
   it('preserves an existing Folia login before syncing a site-side cookie', () => {
     const loadEmbed = readFunction('loadFoliaEmbed');
+    const setMode = readFunction('setFoliaMode');
     const syncBack = readFunction('syncCookieBackFromFolia');
 
-    expect(loadEmbed).toContain('const foliaCookieSynced = await syncCookieBackFromFolia()');
-    expect(loadEmbed).toContain('if (!foliaCookieSynced) await syncCookieToFolia()');
-    expect(loadEmbed.indexOf('syncCookieBackFromFolia')).toBeLessThan(loadEmbed.indexOf('syncCookieToFolia'));
+    expect(loadEmbed).not.toContain('shizuki:activate-playback-bridge');
+    expect(setMode).toContain('const foliaCookieSynced = await syncCookieBackFromFolia()');
+    expect(setMode).toContain('await syncCookieToFolia()');
+    expect(setMode.indexOf('syncCookieBackFromFolia')).toBeLessThan(setMode.indexOf('syncCookieToFolia'));
     expect(syncBack).toContain("readFoliaNeteaseCookie()");
     expect(syncBack).toContain('await persistFoliaNeteaseCookie(localCookie)');
     expect(syncBack).toContain('return true');

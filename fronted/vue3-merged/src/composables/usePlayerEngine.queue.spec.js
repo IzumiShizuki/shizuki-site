@@ -95,6 +95,129 @@ describe('usePlayerEngine queue identity', () => {
     expect(engine.tracks.value.find((track) => track.trackId === 'next')?.audio).toBe('');
   });
 
+  it('keeps opaque native collection identity without inheriting the previous site playlist code', async () => {
+    const engine = usePlayerEngine();
+    await engine.replaceQueueWithTracks(
+      [{ id: 'site-a', provider: 'netease', title: 'Site A' }],
+      0,
+      false,
+      { sourceCode: 'site-P1', sourceName: 'P1' }
+    );
+    await engine.replaceQueueWithTracks(
+      [{ id: 'native-a', provider: 'navidrome', title: 'Native A' }],
+      0,
+      false,
+      {
+        sourceName: 'Native P2',
+        sourceType: 'folia-native-collection',
+        sourceContext: {
+          kind: 'collection',
+          collection: { source: 'navidrome', type: 'playlist', id: 'opaque:P2', name: 'Native P2' }
+        }
+      }
+    );
+
+    expect(engine.queueSourceContext.value).toEqual({
+      kind: 'collection',
+      collection: { source: 'navidrome', type: 'playlist', id: 'opaque:P2', name: 'Native P2' }
+    });
+    expect(engine.playlistProfile.value).toMatchObject({ playlistCode: '', name: 'Native P2' });
+  });
+
+  it('inserts same-ID tracks from another provider and reuses a same-provider queue entry identity', async () => {
+    const engine = usePlayerEngine();
+    await engine.replaceQueueWithTracks([
+      {
+        id: 'netease:42',
+        trackId: '42',
+        provider: 'netease',
+        title: 'Netease original',
+        audio: 'https://audio.example.com/netease-42.mp3',
+        queueEntryId: 'site-entry-42'
+      }
+    ], 0, false);
+
+    await engine.playExternalTrack({
+      id: '42', trackId: '42', provider: 'navidrome', title: 'Navidrome copy',
+      audio: 'https://audio.example.com/navidrome-42.mp3'
+    }, { replaceQueue: false });
+    expect(engine.tracks.value).toHaveLength(2);
+    expect(engine.tracks.value.map((track) => track.provider)).toEqual(['netease', 'navidrome']);
+
+    await engine.playExternalTrack({
+      id: 'shortcut-alias-42', trackId: '42', provider: 'netease', title: 'Netease refreshed',
+      audio: 'https://audio.example.com/netease-42-new.mp3'
+    }, { replaceQueue: false });
+    expect(engine.tracks.value).toHaveLength(2);
+    expect(engine.tracks.value[0]).toMatchObject({ title: 'Netease refreshed', queueEntryId: 'site-entry-42' });
+  });
+
+  it('does not reset random order when a newer song selection wins during queue replacement', async () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0);
+    let finishReplacementTrack;
+    vi.mocked(resolvePlaybackTrack).mockImplementation(({ trackId }) => {
+      if (trackId === 'new-A') {
+        return new Promise((resolve) => { finishReplacementTrack = resolve; });
+      }
+      return Promise.resolve({});
+    });
+    const engine = usePlayerEngine();
+    await engine.replaceQueueWithTracks([
+      { provider: 'local', trackId: 'old-A', title: 'Old A', audio: 'https://audio.example.com/old-A.mp3' },
+      { provider: 'local', trackId: 'old-B', title: 'Old B', audio: 'https://audio.example.com/old-B.mp3' },
+      { provider: 'local', trackId: 'old-C', title: 'Old C', audio: 'https://audio.example.com/old-C.mp3' }
+    ], 0, false);
+    engine.playMode.value = 'random';
+
+    const replacement = engine.replaceQueueWithTracks([
+      { provider: 'netease', trackId: 'new-A', title: 'New A', lyricText: '[00:01.00]A' },
+      { provider: 'local', trackId: 'new-B', title: 'New B', audio: 'https://audio.example.com/new-B.mp3', lyricText: '[00:01.00]B' },
+      { provider: 'local', trackId: 'new-C', title: 'New C', audio: 'https://audio.example.com/new-C.mp3', lyricText: '[00:01.00]C' }
+    ], 0, true);
+    await vi.waitFor(() => expect(finishReplacementTrack).toBeTypeOf('function'));
+    await engine.selectTrackByIndex(1, true);
+    const winningRandomOrder = engine.queueDisplayTracks.value.map((track) => track.trackId);
+    vi.mocked(Math.random).mockReturnValue(0.99);
+    finishReplacementTrack({ audio: 'https://audio.example.com/new-A.mp3', lyricText: '[00:01.00]A' });
+
+    await expect(replacement).resolves.toBe(false);
+    expect(engine.currentTrack.value?.trackId).toBe('new-B');
+    expect(engine.queueDisplayTracks.value.map((track) => track.trackId)).toEqual(winningRandomOrder);
+  });
+
+  it('does not let an older asynchronous queue replacement reshuffle the newer queue', async () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0);
+    let finishOlderQueue;
+    vi.mocked(resolvePlaybackTrack).mockImplementation(({ trackId }) => {
+      if (trackId === 'older-A') return new Promise((resolve) => { finishOlderQueue = resolve; });
+      return Promise.resolve({});
+    });
+    const engine = usePlayerEngine();
+    await engine.replaceQueueWithTracks([
+      { provider: 'local', trackId: 'base-A', title: 'Base A', audio: 'https://audio.example.com/base-A.mp3' },
+      { provider: 'local', trackId: 'base-B', title: 'Base B', audio: 'https://audio.example.com/base-B.mp3' }
+    ], 0, false);
+    engine.playMode.value = 'random';
+
+    const olderReplacement = engine.replaceQueueWithTracks([
+      { provider: 'netease', trackId: 'older-A', title: 'Older A', lyricText: '[00:01.00]A' },
+      { provider: 'local', trackId: 'older-B', title: 'Older B', audio: 'https://audio.example.com/older-B.mp3' }
+    ], 0, true);
+    await vi.waitFor(() => expect(finishOlderQueue).toBeTypeOf('function'));
+    await engine.replaceQueueWithTracks([
+      { provider: 'local', trackId: 'winner-A', title: 'Winner A', audio: 'https://audio.example.com/winner-A.mp3' },
+      { provider: 'local', trackId: 'winner-B', title: 'Winner B', audio: 'https://audio.example.com/winner-B.mp3' },
+      { provider: 'local', trackId: 'winner-C', title: 'Winner C', audio: 'https://audio.example.com/winner-C.mp3' }
+    ], 1, true);
+    const winningRandomOrder = engine.queueDisplayTracks.value.map((track) => track.trackId);
+    vi.mocked(Math.random).mockReturnValue(0.99);
+    finishOlderQueue({ audio: 'https://audio.example.com/older-A.mp3', lyricText: '[00:01.00]A' });
+
+    await expect(olderReplacement).resolves.toBe(false);
+    expect(engine.currentTrack.value?.trackId).toBe('winner-B');
+    expect(engine.queueDisplayTracks.value.map((track) => track.trackId)).toEqual(winningRandomOrder);
+  });
+
   it('refreshes and reuses an already populated next-track audio URL', async () => {
     vi.mocked(resolvePlaybackTrack).mockResolvedValue({
       audio: 'https://audio.example.com/next-refreshed.mp3'

@@ -55,6 +55,265 @@ index c49eb39c..25ae3954 100644
  
          location / {
              try_files $uri $uri/ /index.html;
+diff --git a/openspec/changes/embedded-workspace-navigation/.openspec.yaml b/openspec/changes/embedded-workspace-navigation/.openspec.yaml
+new file mode 100644
+index 00000000..480ad4de
+--- /dev/null
++++ b/openspec/changes/embedded-workspace-navigation/.openspec.yaml
+@@ -0,0 +1,2 @@
++schema: spec-driven
++created: 2026-10-01
+diff --git a/openspec/changes/embedded-workspace-navigation/design.md b/openspec/changes/embedded-workspace-navigation/design.md
+new file mode 100644
+index 00000000..e3d14c91
+--- /dev/null
++++ b/openspec/changes/embedded-workspace-navigation/design.md
+@@ -0,0 +1,30 @@
++## Context
++
++See proposal.md and the host change `unify-folia-workspace-navigation`. The external bridge directly writes `useAppViewStore` for set-view, while `useAppNavigation` writes the same window history used by the host hash router. FollowSession already parses playlist metadata but does not consume it for navigation. Existing embedded early handoff avoids independent playback but only forwards a selected track.
++
++## Goals / Non-Goals
++
++**Goals:** A focused embedded navigation/selection boundary and real behavioral regression tests, preserving native module structure and high-frequency runtime constraints.
++
++**Non-Goals:** Changing standalone navigation semantics, bypassing Omni/provider normalization, owning a second embedded audio stream or expanding App.tsx with a large new controller.
++
++## Decisions
++
++- Embedded navigation uses bounded memory context and the native navigation action interface, without host history/hash/popstate. Standalone retains existing actions. The legacy set-view adapter enters this same boundary.
++- Host contract: `shizuki:navigate {protocolVersion:1,requestId,view,active,sourceContext?,returnTarget?}`; optional navigate-result ack. Follow-session sourceContext is consumed discretely and retained over clock-only updates.
++- Outbound playback-intent gains `selection:{kind,queuePolicy,sourceContext,selectedIndex?,tracks?}`. Complete native collection playback carries ordered host-resolvable refs and replace policy; shortcuts preserve-or-insert. SourceContext contains opaque collection source/provider/type/id/name and only an explicitly supplied genuine sitePlaylistCode.
++- Current collection snapshots and authoritative queue wall provide return targets. Player/song changes replace a playback layer; top menus/dialogs/posters own one Escape. Hidden embedded input is gated by active lifecycle.
++- Keep continuous clocks outside React state. Retain queue/context identity on equivalent snapshots and clean up subscriptions, animations, pointer/focus locks on exit.
++- Host playlist codes describe the authoritative queue, not a native online collection. Retain a real native snapshot only if its source/provider/type/opaque ID matches; repeated player/song changes replace one return layer, and a missing native snapshot returns to the queue wall. Wall selection preserves exact current queue entry/index even when the source is a native collection.
++- Host protocol IDs remain monotonic across host page remount while the embedded root is parked. Inactive handlers and command relays must return before consuming keys or opening hidden modal surfaces.
++- Reproduce red at real bridge/navigation/queue-controller seams before implementation. Use mounted component/browser interaction for the full input symptom; mocked Pixi or message spies alone cannot prove it.
++
++## Risks / Trade-offs
++
++- [Native collection does not exist in the site library] → Retain opaque source and complete queue; host maps only known site codes.
++- [History isolation changes standalone] → Embedded root guard and explicit standalone regression.
++- [Layer/focus remains blocked after async entry] → Exercise continuing click/keyboard input, Escape and canceled transitions.
++
++## Migration Plan
++
++Root coordinates public snapshots/patch and a joint host/fork release. Build from a clean Git archive, retain previous image and verify actual asset versions and signed-in playback/return workflows. Repository-local tests/types/build and strict OpenSpec validation precede any push or deployment.
+diff --git a/openspec/changes/embedded-workspace-navigation/diagnosis.md b/openspec/changes/embedded-workspace-navigation/diagnosis.md
+new file mode 100644
+index 00000000..bad46b76
+--- /dev/null
++++ b/openspec/changes/embedded-workspace-navigation/diagnosis.md
+@@ -0,0 +1,15 @@
++# Embedded navigation baseline
++
++The host user confirmed playback-only playlist entry: P1 → P2 installs the complete P2 queue and plays its first song. Specific collection selections retain their actual index. Escape must remain in Folia and return to the current playlist.
++
++Before repair, direct installed Node/Vitest execution of `test/unit/shizukiEmbeddedWorkspaceNavigation.integration.test.ts` plus `test/unit/shizukiEmbeddedPlayback.test.ts` produced **3 failed / 5 passed**. Root independently reproduced the result.
++
++- Canonical navigation dispatched through the real external bridge and mounted useAppNavigation leaves the view at home.
++- A real mounted return action following legacy set-view changes the host's history/URL to a collection hash.
++- sendEmbeddedTrackIntent drops the complete native collection selection/context/index payload.
++
++Fresh production host/Folia assets were verified. Wall song B selection, audio clock and Pause worked in one baseline pass; entering the full player changed the host URL to #player, then Escape and the native return button failed to leave that player. The host's mounted SFC separately proves that its Folia pane swallows bubbling Escape.
++
++This establishes navigation, event propagation and selection-context defects. The broader report that every pointer/keyboard operation freezes was not independently reproduced in this pass. Final acceptance must exercise continuing controls and wall movement after selection; do not infer recovery from audio alone.
++
++The host change `unify-folia-workspace-navigation/diagnosis.md` records the full accepted contract, live reproduction and ranked explanations. Preserve native IDs, stable queue entries and existing clock/color/prefetch/audio-owner regressions; standalone history must keep its native behavior.
+diff --git a/openspec/changes/embedded-workspace-navigation/proposal.md b/openspec/changes/embedded-workspace-navigation/proposal.md
+new file mode 100644
+index 00000000..41f3e747
+--- /dev/null
++++ b/openspec/changes/embedded-workspace-navigation/proposal.md
+@@ -0,0 +1,23 @@
++## Why
++
++The site embed can play a selected song without keeping the Folia region interactive or revealing the correct surface, and Escape loses the current playlist. The embedded bridge currently changes a view without the navigation context that native standalone actions expect.
++
++## What Changes
++
++- Introduce a coherent embedded workspace entry/return path that does not write or consume the host browser's navigation history.
++- Preserve full selected collection/queue identity when handing native song choices to the site-owned player, so playlist P2 replaces the shared queue and plays its intended selection.
++- Keep wall playback on the active wall, reveal explicit immersive entries, and return song playback to the active playlist on Escape without leaving Folia.
++- Keep pointer/keyboard operations available after selection, canceled animations, reentry and layer dismissal.
++- Preserve standalone native navigation, Omni data access, the single embedded site audio owner, clocks, lyric-color rendering and existing controls.
++
++## Capabilities
++
++### New Capabilities
++- `embedded-workspace-navigation`: Host-isolated navigation, complete selection context and responsive playlist return in the embedded runtime.
++
++### Modified Capabilities
++None.
++
++## Impact
++
++External bridge and focused navigation/selection modules, app assembly and real hook/bridge tests. The host contract and full accepted scenario matrix are recorded in `shizuki-site/openspec/changes/unify-folia-workspace-navigation`; this repository records its local responsibility and validation. No provider adapter or backend protocol changes are planned.
+diff --git a/openspec/changes/embedded-workspace-navigation/specs/embedded-workspace-navigation/spec.md b/openspec/changes/embedded-workspace-navigation/specs/embedded-workspace-navigation/spec.md
+new file mode 100644
+index 00000000..6db550ae
+--- /dev/null
++++ b/openspec/changes/embedded-workspace-navigation/specs/embedded-workspace-navigation/spec.md
+@@ -0,0 +1,57 @@
++## Purpose
++
++Keep the site-embedded Folia interactive and correctly situated in its current playlist while sharing authoritative playback and preserving the standalone application's native behavior.
++
++## ADDED Requirements
++
++### Requirement: Embedded navigation is isolated
++Embedded Folia SHALL maintain its own bounded navigation context without writing or consuming the host URL, browser history or routing events. Standalone navigation SHALL retain its native behavior.
++
++#### Scenario: Host enters a playback surface
++- **WHEN** a valid latest host navigation request opens a wall or immersive player
++- **THEN** Folia reveals that surface with its source/return context and the host route/history stays unchanged
++
++#### Scenario: Inactive embedded surface
++- **WHEN** the host parks Folia or removes its workspace
++- **THEN** obsolete navigation and hidden input handlers cannot change the active interface
++
++### Requirement: Return preserves the current playlist
++Escape and back from embedded playback SHALL restore the current collection or authoritative queue wall inside Folia, preserving playback and input availability.
++
++#### Scenario: Song changes before return
++- **WHEN** B/C/D are selected in P2 and Escape leaves D's player
++- **THEN** P2 is restored once without traversing earlier songs or returning to initial home
++
++#### Scenario: Top layer dismissal
++- **WHEN** a dialog/menu or expanded poster owns Escape
++- **THEN** only that layer is dismissed and the underlying current playlist remains intact
++
++### Requirement: Complete native selection is handed to the host
++Embedded collection playback SHALL relay the ordered full queue, provider-aware collection source and selected index to the single site-owned audio session. Song-only shortcuts SHALL preserve or insert into the active queue.
++
++#### Scenario: Native playlist replacement
++- **WHEN** the user selects P2 for playback
++- **THEN** the host receives P2's full ordered tracks, opaque source identity and index 0
++- **AND THEN** Folia does not independently resolve or start audio
++
++#### Scenario: Select another song in the collection
++- **WHEN** the user selects B at a specific collection index
++- **THEN** the matching song/index and complete source context are handed off without losing the queue
++
++### Requirement: Selection leaves the interface interactive
++After playback selection, visual entry and subsequent clock updates, the wall/player SHALL remain responsive to pointer and keyboard operations and SHALL display the authoritative song.
++
++#### Scenario: Interact after selection
++- **WHEN** B is selected and audible
++- **THEN** another visible control can be clicked, wall focus/movement can be changed, and Escape restores the current playlist
++
++#### Scenario: Late or canceled work
++- **WHEN** entry is superseded, fails, is canceled or the layout changes
++- **THEN** stale results cannot restore old surfaces and temporary input restrictions are released
++
++### Requirement: Existing playback and visuals remain compatible
++The embedded changes SHALL retain shared clocks, pause/seek ordering, empty Folia-owned audio, primary lyric color/reset and standalone Omni playback paths.
++
++#### Scenario: Reenter paused playback
++- **WHEN** a paused session is projected after reentry
++- **THEN** the correct song, position, lyrics and paused controls appear without independent audio or stale navigation
+diff --git a/openspec/changes/embedded-workspace-navigation/tasks.md b/openspec/changes/embedded-workspace-navigation/tasks.md
+new file mode 100644
+index 00000000..7c8949ea
+--- /dev/null
++++ b/openspec/changes/embedded-workspace-navigation/tasks.md
+@@ -0,0 +1,23 @@
++## 1. Behavioral diagnosis
++
++- [x] 1.1 Add failing real navigation/bridge regressions for host history isolation, playlist return, continued interaction and complete collection handoff.
++- [x] 1.2 Record the exact boundary failures and preserve existing standalone/clock/color behavior as the baseline.
++
++## 2. Embedded workspace implementation
++
++- [x] 2.1 Implement bounded embedded navigation with active lifecycle, latest request acceptance and legacy set-view compatibility.
++- [x] 2.2 Retain collection/queue return context so Escape/back returns to the current Folia playlist and dismisses only the top layer.
++- [x] 2.3 Forward complete ordered native collection tracks, source identity and selected index to the host-owned playback session.
++- [x] 2.4 Preserve responsive pointer/keyboard behavior through selection, clock updates and reentry while retaining stable queue/context identity.
++
++## 3. Validation
++
++- [x] 3.1 Run affected behavioral tests, standalone history regressions and existing controls/clock/lyric-color regressions.
++- [x] 3.2 Run type checking and production build; document established environment-only test limitations honestly.
++- [ ] 3.3 Strictly validate OpenSpec and verify the host's synchronized source snapshots/public patch.
++
++## 4. Authorized delivery
++
++- [ ] 4.1 Commit and push the verified fork change to the user-controlled remote.
++- [ ] 4.2 Coordinate joint clean-context deployment with the host and preserve rollback image/source identity.
++- [ ] 4.3 Verify continuing real input and current-playlist return on fresh production assets and commit the acceptance record.
+diff --git a/openspec/changes/embedded-workspace-navigation/verification-report.md b/openspec/changes/embedded-workspace-navigation/verification-report.md
+new file mode 100644
+index 00000000..72e923da
+--- /dev/null
++++ b/openspec/changes/embedded-workspace-navigation/verification-report.md
+@@ -0,0 +1,29 @@
++# Verification record
++
++## Local implementation review
++
++The host/fork contract and the accepted playback-only playlist rule are implemented. Root independently reviewed the boundary and ran the affected tests, type check and production build after Luna's handoff on 2026-10-01.
++
++| Requirement | Implementation and behavioral evidence |
++| --- | --- |
++| Embedded history isolation | `embeddedWorkspaceNavigation.ts` and `useAppNavigation.ts`; mounted bridge/navigation integration covers host route preservation, real back actions, parked-root stale requests/reentry and standalone history. |
++| Current playlist return | One bounded playback return; matching native source/provider/type/ID uses its actual collection snapshot, otherwise the current queue wall. Repeated B/C/D navigation does not stack prior song pages. |
++| Complete selection handoff | Actual mounted queue controller relays native collection tracks/index and exact wall queue entries. Shortcuts remain queue-preserving and reveal the player. Folia never falls through into standalone audio resolution when parked. |
++| Continuing input | Mounted Lattice click/keyboard and mounted playback shortcut tests. Inactive playback, Lattice and command-palette global key handlers return before consuming input. |
++| Stable playback projection | Bridge integration preserves equivalent queue/current-song references over pause/clock snapshots and does not overwrite newer native navigation with unchanged host context. Existing clock/seek/audio/color regressions remain included. |
++
++Root command:
++
++```powershell
++node node_modules/vitest/vitest.mjs run -c vitest.config.ts test/unit/shizukiEmbeddedPlayback.test.ts test/unit/shizukiExternalBridge.integration.test.ts test/unit/shizukiLatticeLyricColor.integration.test.ts test/unit/buildPlayerViewFlags.embedded.test.ts test/unit/cadenzaWrappedLyrics.test.ts test/unit/shizukiEmbeddedWorkspaceNavigation.integration.test.ts test/unit/shizukiEmbeddedPlaybackController.integration.test.ts test/unit/shizukiEmbeddedKeyboard.integration.test.ts test/unit/latticeEmbeddedWorkspaceInput.integration.test.ts test/unit/navigation test/unit/lattice test/unit/search/searchNavigationStore.test.ts test/unit/gridView
++node node_modules/typescript/bin/tsc --noEmit
++$env:VITE_BASE_PATH='/music'; node node_modules/vite/bin/vite.js build
++```
++
++Outcome after final source-origin review: **36 files / 244 tests passed**, TypeScript passed, production build passed, `git diff --check` passed. Explicit native collection selection carries a detail-row origin marker and always replaces source/queue, including P2 with identical tracks to P1. Unmarked command-palette selections of that same queue preserve its ordering. Builds retain existing chunk-size and ineffective dynamic-import warnings.
++
++The previous complete suite recorded 4,385 passing and 2 skipped tests with one Windows `EPERM` symbolic-link failure in upstream `modSignature`; the same failure was reproduced on clean upstream v0.7.11. This delivery reruns affected suites rather than claiming a new complete-suite pass or weakening that upstream test.
++
++## Delivery status
++
++Public patch/source identity verification, owner-controlled push, joint deployment and fresh real-browser acceptance are still pending. Local mounted tests do not by themselves establish that the full production region remains usable. Record the exact released commit/image/assets and continuing pointer/keyboard plus Escape acceptance here after those gates pass.
+diff --git a/openspec/config.yaml b/openspec/config.yaml
+new file mode 100644
+index 00000000..c4d34ace
+--- /dev/null
++++ b/openspec/config.yaml
+@@ -0,0 +1,32 @@
++schema: spec-driven
++
++# Project context (optional)
++# This is shown to AI when creating artifacts.
++# Add your tech stack, conventions, style guides, domain knowledge, etc.
++# Example:
++#   context: |
++#     Tech stack: TypeScript, React, Node.js
++#     We use conventional commits
++#     Domain: e-commerce platform
++
++# Per-artifact rules (optional)
++# Add custom rules for specific artifacts.
++# Example:
++#   rules:
++#     proposal:
++#       - Keep proposals under 500 words
++#       - Always include a "Non-goals" section
++#     tasks:
++#       - Break tasks into chunks of max 2 hours
++
++# Per-operation guidance (optional)
++# Add advisory guidance for how apply and archive work should be conducted.
++# This is separate from artifact rules above.
++# Example:
++#   operations:
++#     apply:
++#       guidance:
++#         - Keep test summaries concise
++#     archive:
++#       guidance:
++#         - Summarize the archive outcome before finishing
 diff --git a/package-lock.json b/package-lock.json
 index d79d30d5..83130a16 100644
 --- a/package-lock.json
@@ -91,7 +350,7 @@ index c9b5d4eb..fd2dded8 100644
      "onnxruntime-node": "^1.30.0",
      "ws": "^8.21.3"
 diff --git a/src/App.tsx b/src/App.tsx
-index b7bc5696..fb735607 100644
+index b7bc5696..18fdcc13 100644
 --- a/src/App.tsx
 +++ b/src/App.tsx
 @@ -80,6 +80,7 @@ import { usePlaybackAudioBridge } from './hooks/usePlaybackAudioBridge';
@@ -132,6 +391,21 @@ index b7bc5696..fb735607 100644
          if (seekDuringTransitionRef.current(time)) {
              return;
          }
+@@ -2702,8 +2707,12 @@ export default function App() {
+                                 isDaylight={isDaylight}
+                                 onBack={navigateBackFromLattice}
+                                 onOpenPlayer={navigateToPlayer}
+-                                onPlaySong={(song, queue) => {
+-                                    void playSong(song, queue, false, { shouldNavigateToPlayer: false });
++                                onPlaySong={(song, queue, queueIndex) => {
++                                    void playSong(song, queue, false, {
++                                        shouldNavigateToPlayer: false,
++                                        embeddedSelectionIndex: queueIndex,
++                                        embeddedSelectionView: 'lattice',
++                                    });
+                                 }}
+                                 onTogglePlayback={togglePlay}
+                                 onSeek={seekMainAudio}
 diff --git a/src/bootstrap.tsx b/src/bootstrap.tsx
 index c54cbcc5..319cc33d 100644
 --- a/src/bootstrap.tsx
@@ -213,6 +487,132 @@ index 70e393eb..4b15e0f3 100644
              style={{
                  ...appStyle,
                  borderRadius: shouldApplyWindowRadius ? '18px' : undefined,
+diff --git a/src/components/app/home/GridViewOverlayHost.tsx b/src/components/app/home/GridViewOverlayHost.tsx
+index 3cf8ed64..0ce71fee 100644
+--- a/src/components/app/home/GridViewOverlayHost.tsx
++++ b/src/components/app/home/GridViewOverlayHost.tsx
+@@ -5,7 +5,7 @@ import GridView, { GridViewSourceActions } from '../../GridView';
+ import ArtistGridView from '../../ArtistGridView';
+ import { getActiveGridViewCollection, useCollectionNavigationStore } from '../../../stores/useCollectionNavigationStore';
+ import { LocalSong, SongResult, UnifiedSong } from '../../../types';
+-import { resolveNavidromePlaybackCarrier } from '../../../utils/appPlaybackGuards';
++import { getPlaybackSongKey, resolveNavidromePlaybackCarrier } from '../../../utils/appPlaybackGuards';
+ import { deleteFolderSongs, resyncAllFolders, resyncFolder } from '../../../services/localMusicService';
+ import { deleteLocalPlaylist, removeSongsFromLocalPlaylist, updateLocalPlaylist } from '../../../services/localPlaylistService';
+ import { downloadLocalPlaylistM3u8 } from '../../../services/localPlaylistFileService';
+@@ -531,8 +531,21 @@ const GridViewOverlayHost: React.FC<GridViewOverlayHostProps> = ({
+     }, [refreshNavidromePlaylists, selectedCollection]);
+ 
+     const handleSelectTrack = useCallback((track: SongResult, queue: SongResult[]) => {
+-        surfaceProps.onPlaySong(track, queue);
+-    }, [surfaceProps]);
++        if (!selectedCollection) {
++            surfaceProps.onPlaySong(track, queue);
++            return;
++        }
++        const queueIndex = queue.findIndex(item => item === track);
++        const resolvedIndex = queueIndex >= 0
++            ? queueIndex
++            : queue.findIndex(item => getPlaybackSongKey(item) === getPlaybackSongKey(track));
++        surfaceProps.onPlaySong(track, queue, false, {
++            embeddedCollectionSelection: true,
++            ...(resolvedIndex >= 0 ? { embeddedSelectionIndex: resolvedIndex } : {}),
++            embeddedSelectionView: 'lattice',
++            shouldNavigateToPlayer: false,
++        });
++    }, [selectedCollection, surfaceProps]);
+ 
+     const handleAddTrackToQueue = useCallback((track: SongResult) => {
+         const unifiedTrack = track as UnifiedSong;
+diff --git a/src/components/app/home/homeSurfaceTypes.ts b/src/components/app/home/homeSurfaceTypes.ts
+index 2b411021..a0c0c41d 100644
+--- a/src/components/app/home/homeSurfaceTypes.ts
++++ b/src/components/app/home/homeSurfaceTypes.ts
+@@ -13,6 +13,7 @@ import type {
+ } from '../../../types';
+ import type { MediaId, ProviderCollection, ProviderUser } from '../../../types/onlineMusic';
+ import type { NavidromeSong, NavidromeViewSelection } from '../../../types/navidrome';
++import type { PlaybackNavigationOptions } from '../../../types/appPlayback';
+ 
+ // src/components/app/home/homeSurfaceTypes.ts
+ 
+@@ -28,7 +29,7 @@ export type HomeLocalMusicState = {
+ };
+ 
+ export interface HomeSurfaceProps {
+-    onPlaySong: (song: SongResult, playlistCtx?: SongResult[], isFmCall?: boolean) => void;
++    onPlaySong: (song: SongResult, playlistCtx?: SongResult[], isFmCall?: boolean, options?: PlaybackNavigationOptions) => void;
+     onBackToPlayer: () => void;
+     onRefreshUser: () => void;
+     user: ProviderUser | null;
+diff --git a/src/components/app/lattice/Lattice.tsx b/src/components/app/lattice/Lattice.tsx
+index 994ebbde..b4f5445c 100644
+--- a/src/components/app/lattice/Lattice.tsx
++++ b/src/components/app/lattice/Lattice.tsx
+@@ -16,6 +16,7 @@ import LatticeLyricsProvider from './lyrics/LatticeLyricsProvider';
+ import type { LatticeLyricSource } from './lyrics/types';
+ import { getPlaybackSongKey } from '../../../utils/appPlaybackGuards';
+ import { isPrimaryModifierPressed, isSecondaryModifierPressed } from '../../../utils/platform';
++import { isEmbeddedWorkspaceActive, isEmbeddedWorkspaceSurface } from '../../../services/embeddedWorkspaceNavigation';
+ 
+ // Queue display layer; it renders the play queue and never mutates it.
+ 
+@@ -33,7 +34,7 @@ type LatticeProps = {
+     isDaylight: boolean;
+     onBack: () => void;
+     onOpenPlayer: () => void;
+-    onPlaySong: (song: SongResult, queue: SongResult[]) => void;
++    onPlaySong: (song: SongResult, queue: SongResult[], queueIndex: number) => void;
+     onTogglePlayback: () => void;
+     onSeek: (time: number) => void;
+ };
+@@ -68,6 +69,7 @@ export default function Lattice({
+ 
+     useEffect(() => {
+         const handleKeyDown = (event: KeyboardEvent) => {
++            if (isEmbeddedWorkspaceSurface() && !isEmbeddedWorkspaceActive()) return;
+             if (event.repeat
+                 || event.key.toLowerCase() !== 'b'
+                 || !isPrimaryModifierPressed(event)
+@@ -87,7 +89,7 @@ export default function Lattice({
+     // App rebuilds these on every render of its own, and the wall hands them to every poster on
+     // screen. Given a permanent identity here they stop being a reason for those posters to render.
+     const wall = useStableCallbacks({
+-        onPlay: (tile: LatticeTile) => onPlaySong(tile.song, queue),
++        onPlay: (tile: LatticeTile) => onPlaySong(tile.song, queue, tile.queueIndex),
+         onTogglePlayback,
+         onSeek,
+         onOpenPlayer,
+diff --git a/src/components/app/lattice/latticeModel.ts b/src/components/app/lattice/latticeModel.ts
+index 9aab7787..38be4e8d 100644
+--- a/src/components/app/lattice/latticeModel.ts
++++ b/src/components/app/lattice/latticeModel.ts
+@@ -25,8 +25,15 @@ export const buildLatticeTiles = ({
+     queue: SongResult[];
+     currentSong: SongResult | null;
+ }): LatticeTile[] => {
++    const getEntryId = (song: SongResult): string | null => {
++        const entryId = (song as SongResult & { queueEntryId?: unknown }).queueEntryId;
++        return typeof entryId === 'string' && entryId.trim() ? entryId.trim() : null;
++    };
++    const currentEntryId = currentSong ? getEntryId(currentSong) : null;
+     const currentKey = currentSong ? getPlaybackSongKey(currentSong) : null;
+-    const currentIndex = currentKey === null
++    const currentIndex = currentEntryId !== null
++        ? queue.findIndex(song => getEntryId(song) === currentEntryId)
++        : currentKey === null
+         ? -1
+         : queue.findIndex(song => getPlaybackSongKey(song) === currentKey);
+ 
+@@ -36,7 +43,7 @@ export const buildLatticeTiles = ({
+         else if (currentIndex >= 0 && index < currentIndex) section = 'played';
+ 
+         return {
+-            id: getPlaybackSongKey(song),
++            id: getEntryId(song) ?? getPlaybackSongKey(song),
+             queueIndex: index,
+             song,
+             title: song.name,
 diff --git a/src/components/app/lattice/lyrics/LatticeLyricsProvider.tsx b/src/components/app/lattice/lyrics/LatticeLyricsProvider.tsx
 index d2fbc093..026d3427 100644
 --- a/src/components/app/lattice/lyrics/LatticeLyricsProvider.tsx
@@ -388,6 +788,47 @@ index 3ff95ec6..f50e44af 100644
          ),
      };
  };
+diff --git a/src/components/command-palette/commands/searchCommands.ts b/src/components/command-palette/commands/searchCommands.ts
+index 87bb3901..a57ebd8b 100644
+--- a/src/components/command-palette/commands/searchCommands.ts
++++ b/src/components/command-palette/commands/searchCommands.ts
+@@ -1,6 +1,7 @@
+ import { Search } from 'lucide-react';
+ import type { SearchSource } from '../../../stores/useSearchNavigationStore';
+ import type { CommandPaletteCommand, CommandPaletteContext, CommandPaletteSearchSource } from '../types';
++import { isShizukiEmbedSurface } from '../../../services/shizukiEmbeddedPlayback';
+ 
+ // src/components/command-palette/commands/searchCommands.ts
+ // Commands in the `search` group: run a query against one music source and navigate to results.
+@@ -60,7 +61,7 @@ const runSearch = async (
+         context.search.navigateToSearch({
+             query: trimmedQuery,
+             sourceTab,
+-            replace: typeof window !== 'undefined' && Boolean(window.history.state?.search),
++            replace: !isShizukiEmbedSurface() && typeof window !== 'undefined' && Boolean(window.history.state?.search),
+             returnView: 'player',
+         });
+     }
+diff --git a/src/components/command-palette/useCommandPalette.ts b/src/components/command-palette/useCommandPalette.ts
+index 2ebbf236..2ae35b3a 100644
+--- a/src/components/command-palette/useCommandPalette.ts
++++ b/src/components/command-palette/useCommandPalette.ts
+@@ -16,6 +16,7 @@ import { resolveCustomShortcutCommand } from './customShortcut';
+ 
+ // src/components/command-palette/useCommandPalette.ts
+ import { isTextEntryTarget } from '../../utils/keyboardTargets';
++import { isEmbeddedWorkspaceActive, isEmbeddedWorkspaceSurface } from '../../services/embeddedWorkspaceNavigation';
+ 
+ // Manages palette state, keyboard opening, and selected autocomplete item.
+ 
+@@ -474,6 +475,7 @@ export const useCommandPalette = ({
+ 
+     useEffect(() => {
+         const handleKeyDown = (event: KeyboardEvent) => {
++            if (isEmbeddedWorkspaceSurface() && !isEmbeddedWorkspaceActive()) return;
+             // Ordered by who has the stronger claim on the keystroke, not by how the palette is
+             // built. A modifier shortcut can never be mistaken for input, so it goes first; a
+             // surface that reads bare characters outranks every modifier-free palette key, or the
 diff --git a/src/components/visualizer/cadenza/VisualizerCadenza.tsx b/src/components/visualizer/cadenza/VisualizerCadenza.tsx
 index beb77c63..28ac4406 100644
 --- a/src/components/visualizer/cadenza/VisualizerCadenza.tsx
@@ -603,19 +1044,239 @@ index f3aa9a7e..b9f24f6a 100644
                              initial={activeLineContainerMotion.initial}
                              animate={activeLineContainerMotion.animate}
                              exit={activeLineContainerMotion.exit}
+diff --git a/src/hooks/useAppNavigation.ts b/src/hooks/useAppNavigation.ts
+index eb800200..8ffeb0a6 100644
+--- a/src/hooks/useAppNavigation.ts
++++ b/src/hooks/useAppNavigation.ts
+@@ -18,6 +18,13 @@ import { usePlaybackStore } from '../stores/usePlaybackStore';
+ import { usePlaybackEntryViewStore } from '../stores/usePlaybackEntryViewStore';
+ import { setStatusMessage } from '../stores/useStatusMessageStore';
+ import i18n from '../i18n/config';
++import {
++    backEmbeddedWorkspace,
++    isEmbeddedWorkspaceActive,
++    isEmbeddedWorkspaceSurface,
++    navigateEmbeddedWorkspace,
++    retainEmbeddedSourceContext,
++} from '../services/embeddedWorkspaceNavigation';
+ 
+ // src/hooks/useAppNavigation.ts
+ 
+@@ -98,6 +105,17 @@ const getCollectionHash = (collection: GridViewCollectionDescriptor) => (
+     `#collection/${collection.source}/${collection.type}/${encodeURIComponent(String(collection.id))}`
+ );
+ 
++const buildEmbeddedCollectionContext = (collection: GridViewCollectionDescriptor) => ({
++    kind: 'collection' as const,
++    collection: {
++        source: collection.source,
++        ...(collection.source === 'online' ? { providerId: collection.providerId } : {}),
++        type: collection.type,
++        id: String(collection.id),
++        name: collection.name,
++    },
++});
++
+ const LOCAL_MUSIC_LAST_ROW_KEY = 'folia_local_music_last_row';
+ 
+ export const blockLatticeNavigationInFm = (): boolean => {
+@@ -196,6 +214,12 @@ export function useAppNavigation() {
+     }, []);
+ 
+     useEffect(() => {
++        if (isEmbeddedWorkspaceSurface()) {
++            // The host and Folia share one document in an embed. Its router owns browser history;
++            // embedded view transitions use the bounded in-memory workspace instead.
++            resetLocalNavigationContext();
++            return;
++        }
+         const initialView = getStartupView();
+         const initialState = buildHistoryState(initialView);
+         window.history.replaceState(
+@@ -222,6 +246,10 @@ export function useAppNavigation() {
+     }, []);
+ 
+     const navigateToPlayer = useCallback(() => {
++        if (isEmbeddedWorkspaceSurface()) {
++            navigateEmbeddedWorkspace('player');
++            return;
++        }
+         const collection = useCollectionNavigationStore.getState().snapshot;
+         const search = getSearchHistorySnapshot();
+         const historyState = window.history.state as NavigationHistoryState | null;
+@@ -236,14 +264,22 @@ export function useAppNavigation() {
+ 
+     useEffect(() => {
+         if (!isFmMode || currentView !== 'lattice') return;
++        if (isEmbeddedWorkspaceSurface()) {
++            if (isEmbeddedWorkspaceActive()) navigateEmbeddedWorkspace('player');
++            return;
++        }
+         const collection = useCollectionNavigationStore.getState().snapshot;
+         const search = getSearchHistorySnapshot();
+         // FM owns and extends its queue dynamically, so replace a stale Lattice entry instead of
+         // leaving it in browser history where Back would immediately reopen an unsupported view.
+         pushNavigationState({ view: 'player', replace: true, hash: '#player', search, collection });
+-    }, [currentView, isFmMode, pushNavigationState]);
++    }, [currentView, isFmMode, navigateEmbeddedWorkspace, pushNavigationState]);
+ 
+     const navigateToHome = useCallback(() => {
++        if (isEmbeddedWorkspaceSurface()) {
++            navigateEmbeddedWorkspace('home');
++            return;
++        }
+         if (useAppViewStore.getState().view === 'home') {
+             return;
+         }
+@@ -261,6 +297,10 @@ export function useAppNavigation() {
+ 
+     const navigateToLattice = useCallback(() => {
+         if (blockLatticeNavigationInFm()) return;
++        if (isEmbeddedWorkspaceSurface()) {
++            navigateEmbeddedWorkspace('lattice');
++            return;
++        }
+         if (useAppViewStore.getState().view === 'lattice') return;
+         useSearchNavigationStore.getState().hideSearchOverlay();
+         pushNavigationState({
+@@ -305,6 +345,10 @@ export function useAppNavigation() {
+     }, [navigateToLattice, navigateToPlayer]);
+ 
+     const navigateBackFromLattice = useCallback(() => {
++        if (isEmbeddedWorkspaceSurface()) {
++            backEmbeddedWorkspace();
++            return;
++        }
+         const state = window.history.state as NavigationHistoryState | null;
+         if (state?.view === 'lattice' && getAppHistoryIndex(state) > 0) {
+             window.history.back();
+@@ -315,6 +359,14 @@ export function useAppNavigation() {
+ 
+     const navigateDirectHome = useCallback((options?: { clearContext?: boolean; }) => {
+         const clearContext = options?.clearContext ?? true;
++        if (isEmbeddedWorkspaceSurface()) {
++            if (!isEmbeddedWorkspaceActive()) return;
++            if (clearContext) resetLocalNavigationContext();
++            useSearchNavigationStore.getState().hideSearchOverlay();
++            if (clearContext) useCollectionNavigationStore.getState().clear();
++            navigateEmbeddedWorkspace('home', { recordCurrent: false });
++            return;
++        }
+         if (clearContext) {
+             resetLocalNavigationContext();
+         }
+@@ -328,6 +380,10 @@ export function useAppNavigation() {
+     }, [pushNavigationState, resetLocalNavigationContext]);
+ 
+     const navigateBackFromPlayer = useCallback(() => {
++        if (isEmbeddedWorkspaceSurface()) {
++            backEmbeddedWorkspace();
++            return;
++        }
+         const historyState = window.history.state as NavigationHistoryState | null;
+         if (shouldNavigatePlayerBackThroughHistory(historyState)) {
+             window.history.back();
+@@ -347,6 +403,14 @@ export function useAppNavigation() {
+         replace?: boolean;
+         returnView?: SearchReturnView;
+     }) => {
++        if (isEmbeddedWorkspaceSurface()) {
++            if (!isEmbeddedWorkspaceActive()) return;
++            useCollectionNavigationStore.getState().clear();
++            const search = { query, sourceTab, returnView };
++            useSearchNavigationStore.getState().restoreSearch(search);
++            navigateEmbeddedWorkspace('home', { recordCurrent: !replace });
++            return;
++        }
+         useCollectionNavigationStore.getState().clear();
+         const search = { query, sourceTab, returnView };
+         pushNavigationState({
+@@ -359,6 +423,13 @@ export function useAppNavigation() {
+ 
+     const closeSearchView = useCallback(() => {
+         const searchReturnView = useSearchNavigationStore.getState().searchReturnView;
++        if (isEmbeddedWorkspaceSurface()) {
++            if (isEmbeddedWorkspaceActive()) {
++                useSearchNavigationStore.getState().hideSearchOverlay();
++                navigateEmbeddedWorkspace(searchReturnView, { recordCurrent: false });
++            }
++            return;
++        }
+         useSearchNavigationStore.getState().hideSearchOverlay();
+         pushNavigationState({
+             view: searchReturnView,
+@@ -373,7 +444,15 @@ export function useAppNavigation() {
+         collection: GridViewCollectionDescriptor,
+         origin: CollectionNavigationOrigin,
+     ) => {
++        if (isEmbeddedWorkspaceSurface() && !isEmbeddedWorkspaceActive()) return;
+         const snapshot = useCollectionNavigationStore.getState().openRoot(collection, origin);
++        if (isEmbeddedWorkspaceSurface()) {
++            navigateEmbeddedWorkspace('home', {
++                sourceContext: buildEmbeddedCollectionContext(collection),
++                recordCurrent: false,
++            });
++            return;
++        }
+         const search = origin === 'search' ? getSearchHistorySnapshot() : null;
+         pushNavigationState({
+             view: 'home',
+@@ -384,10 +463,18 @@ export function useAppNavigation() {
+     }, [pushNavigationState]);
+ 
+     const pushCollection = useCallback((collection: GridViewCollectionDescriptor) => {
++        if (isEmbeddedWorkspaceSurface() && !isEmbeddedWorkspaceActive()) return;
+         const snapshot = useCollectionNavigationStore.getState().push(collection);
+         if (!snapshot) {
+             return;
+         }
++        if (isEmbeddedWorkspaceSurface()) {
++            navigateEmbeddedWorkspace('home', {
++                sourceContext: buildEmbeddedCollectionContext(collection),
++                recordCurrent: false,
++            });
++            return;
++        }
+         pushNavigationState({
+             view: 'home',
+             hash: getCollectionHash(collection),
+@@ -397,11 +484,12 @@ export function useAppNavigation() {
+     }, [pushNavigationState]);
+ 
+     const backCollection = useCallback(() => {
++        if (isEmbeddedWorkspaceSurface() && !isEmbeddedWorkspaceActive()) return;
+         const snapshot = useCollectionNavigationStore.getState().snapshot;
+         if (!snapshot) {
+             return;
+         }
+-        if (window.history.state?.collection) {
++        if (!isEmbeddedWorkspaceSurface() && window.history.state?.collection) {
+             window.history.back();
+             return;
+         }
+@@ -409,6 +497,8 @@ export function useAppNavigation() {
+         const nextStack = snapshot.stack.slice(0, -1);
+         if (nextStack.length > 0) {
+             useCollectionNavigationStore.getState().restore({ ...snapshot, stack: nextStack });
++            const active = nextStack[nextStack.length - 1];
++            if (isEmbeddedWorkspaceSurface() && active) retainEmbeddedSourceContext(buildEmbeddedCollectionContext(active));
+             return;
+         }
+         useCollectionNavigationStore.getState().clear();
 diff --git a/src/hooks/usePlaybackInteractionBridge.ts b/src/hooks/usePlaybackInteractionBridge.ts
-index 78cca104..babe3d50 100644
+index 78cca104..f07cd709 100644
 --- a/src/hooks/usePlaybackInteractionBridge.ts
 +++ b/src/hooks/usePlaybackInteractionBridge.ts
-@@ -15,6 +15,7 @@ import { setIsPanelOpen, useAppViewStore } from '../stores/useAppViewStore';
+@@ -15,6 +15,8 @@ import { setIsPanelOpen, useAppViewStore } from '../stores/useAppViewStore';
  import { setIsDevDebugOverlayVisible, setIsMemoryMonitorVisible } from '../stores/useAppChromeStore';
  import { useAudioSettingsStore } from '../stores/useAudioSettingsStore';
  import { currentTime } from '../stores/motionSignals';
 +import { sendEmbeddedPlaybackCommand } from '../services/shizukiEmbeddedPlayback';
++import { isEmbeddedWorkspaceActive, isEmbeddedWorkspaceSurface } from '../services/embeddedWorkspaceNavigation';
  
  // src/hooks/usePlaybackInteractionBridge.ts
  
-@@ -137,6 +138,9 @@ export function usePlaybackInteractionBridge({
+@@ -137,6 +139,9 @@ export function usePlaybackInteractionBridge({
              return;
          }
  
@@ -625,29 +1286,142 @@ index 78cca104..babe3d50 100644
          if (activePlaybackContext === 'stage' && stageActiveEntryKind === 'lyrics' && !audioSrc) {
              if (playerState === PlayerState.PLAYING) {
                  pausePlayback();
+@@ -197,6 +202,7 @@ export function usePlaybackInteractionBridge({
+ 
+     useEffect(() => {
+         const handleKeyDown = (event: KeyboardEvent) => {
++            if (isEmbeddedWorkspaceSurface() && !isEmbeddedWorkspaceActive()) return;
+             if (isTextEntryTarget(event.target)) {
+                 return;
+             }
+@@ -244,7 +250,7 @@ export function usePlaybackInteractionBridge({
+                     break;
+                 }
+                 case 'Space':
+-                    if (currentSong && (audioSrc || isNowPlayingStageActive || (activePlaybackContext === 'stage' && stageActiveEntryKind === 'lyrics'))) {
++                    if (currentSong && (audioSrc || isEmbeddedWorkspaceActive() || isNowPlayingStageActive || (activePlaybackContext === 'stage' && stageActiveEntryKind === 'lyrics'))) {
+                         event.preventDefault();
+                         if (isNowPlayingStageActive) {
+                             return;
+@@ -282,6 +288,7 @@ export function usePlaybackInteractionBridge({
+                         // Off the motion value, not the element: during a blend that value is driven
+                         // by the deck on screen, which is the track this key is meant to move.
+                         const nextTime = Math.max(0, currentTime.get() - 5);
++                        if (sendEmbeddedPlaybackCommand('seek', nextTime)) break;
+                         if (!seekDuringTransition?.(nextTime) && audioRef.current) {
+                             audioRef.current.currentTime = nextTime;
+                         }
+@@ -318,6 +325,7 @@ export function usePlaybackInteractionBridge({
+                         // the element holds the ARRIVING track's length, and clamping this track's
+                         // position against it lands past its end.
+                         const nextTime = Math.min(duration || 0, currentTime.get() + 5);
++                        if (sendEmbeddedPlaybackCommand('seek', nextTime)) break;
+                         if (!seekDuringTransition?.(nextTime) && audioRef.current) {
+                             audioRef.current.currentTime = nextTime;
+                         }
 diff --git a/src/hooks/usePlaybackQueueController.ts b/src/hooks/usePlaybackQueueController.ts
-index 5a5f273c..162823d6 100644
+index 5a5f273c..39d41792 100644
 --- a/src/hooks/usePlaybackQueueController.ts
 +++ b/src/hooks/usePlaybackQueueController.ts
-@@ -39,6 +39,7 @@ import { useSearchNavigationStore } from '../stores/useSearchNavigationStore';
+@@ -16,6 +16,7 @@ import type { AudioQualityPreference, MediaId } from '../types/onlineMusic';
+ import type { NextTrackOptions, PlaybackNavigationOptions, SkipPromptMessageKey, UnavailableReplacementRequest } from '../types/appPlayback';
+ import type { NavidromeSong } from '../types/navidrome';
+ import {
++    getPlaybackSourceRef,
+     getPlaybackSongKey,
+     isLocalPlaybackSong,
+     isNavidromePlaybackSong,
+@@ -39,11 +40,66 @@ import { useSearchNavigationStore } from '../stores/useSearchNavigationStore';
  import { showLatticeFmNotice, usePlaybackEntryViewStore } from '../stores/usePlaybackEntryViewStore';
  import { useStableActionSurface } from './useStableCallbacks';
  import { hasBeforePlayHook, runBeforePlayHook } from '../services/hostExtensionHooks';
 +import { isShizukiEmbedSurface, sendEmbeddedTrackIntent } from '../services/shizukiEmbeddedPlayback';
++import { getEmbeddedSourceContext, isEmbeddedWorkspaceActive, normalizeEmbeddedSourceContext, type EmbeddedSourceContext } from '../services/embeddedWorkspaceNavigation';
++import { useCollectionNavigationStore } from '../stores/useCollectionNavigationStore';
  
  // src/hooks/usePlaybackQueueController.ts
  
-@@ -444,6 +445,9 @@ export function usePlaybackQueueController({
+ type SetState<T> = Dispatch<SetStateAction<T>>;
+ 
++const buildEmbeddedSelection = (
++    song: SongResult,
++    requestedQueue: SongResult[],
++    options: PlaybackNavigationOptions,
++) => {
++    const snapshot = useCollectionNavigationStore.getState().snapshot;
++    const collection = snapshot?.stack[snapshot.stack.length - 1];
++    const storedCollectionContext: EmbeddedSourceContext | null = collection ? {
++            kind: 'collection',
++            collection: {
++                source: collection.source,
++                ...(collection.source === 'online' ? { providerId: collection.providerId } : {}),
++                type: collection.type,
++                id: String(collection.id),
++                name: collection.name,
++            },
++        } : null;
++    const context: EmbeddedSourceContext = storedCollectionContext
++        ?? normalizeEmbeddedSourceContext(getEmbeddedSourceContext())
++        ?? { kind: 'queue' };
++    const activeQueue = usePlaybackStore.getState().playQueue;
++    const queue = requestedQueue.length ? requestedQueue : activeQueue.length ? activeQueue : [song];
++    const isNativeCollectionSelection = context.kind === 'collection'
++        && Boolean(collection && context.collection)
++        && requestedQueue.length > 0
++        && options.embeddedCollectionSelection === true;
++    const requestedIndex = options.embeddedSelectionIndex;
++    const selectedIndex = Number.isInteger(requestedIndex) && requestedIndex! >= 0 && requestedIndex! < queue.length
++        ? requestedIndex!
++        : queue.findIndex(item => getPlaybackSongKey(item) === getPlaybackSongKey(song));
++    const selectedQueueSong = selectedIndex >= 0 ? queue[selectedIndex] : null;
++    const selectedSourceRef = selectedQueueSong ? getPlaybackSourceRef(selectedQueueSong) : null;
++    const selectedProvider = selectedSourceRef
++        ? selectedSourceRef.kind === 'online' ? selectedSourceRef.providerId : selectedSourceRef.kind
++        : '';
++    const queueEntryId = selectedQueueSong
++        ? String((selectedQueueSong as SongResult & { queueEntryId?: string; entryId?: string }).queueEntryId
++            ?? (selectedQueueSong as SongResult & { entryId?: string }).entryId
++            ?? `${selectedProvider}:${selectedSourceRef?.mediaId ?? selectedQueueSong.id}@${selectedIndex}`)
++        : undefined;
++    return {
++        kind: isNativeCollectionSelection ? 'collection' as const : 'track' as const,
++        queuePolicy: isNativeCollectionSelection ? 'replace' as const : 'preserve-or-insert' as const,
++        sourceContext: context,
++        ...(selectedIndex >= 0 ? { selectedIndex } : {}),
++        ...(queueEntryId ? { queueEntryId } : {}),
++        ...(isNativeCollectionSelection ? { tracks: queue } : {}),
++        view: options.embeddedSelectionView
++            ?? (isNativeCollectionSelection || options.shouldNavigateToPlayer === false ? 'lattice' : 'player'),
++    };
++};
++
+ type SearchDeps = {
+     submitSearch: (args: {
+         query: string;
+@@ -444,6 +500,13 @@ export function usePlaybackQueueController({
          isFmCall: boolean = false,
          options: PlaybackNavigationOptions = {}
      ) => {
 +        // In the site embed the parent owns resolution, lyrics, and the audio element.
 +        // Forward the user's selection before any Folia-side lookup can race it.
-+        if (sendEmbeddedTrackIntent(requestedSong)) return;
++        if (isShizukiEmbedSurface()) {
++            if (!isEmbeddedWorkspaceActive()) return;
++            sendEmbeddedTrackIntent(requestedSong, buildEmbeddedSelection(requestedSong, queue, options));
++            return;
++        }
          // Extension layers (Folium `playback.beforePlay`) may cancel or redirect this play.
          // Without an installed hook this is skipped entirely, so the common path stays synchronous.
          // The hook is async, so a later playSong may finish its hook first; this call then drops
-@@ -1283,7 +1287,7 @@ export function usePlaybackQueueController({
+@@ -775,7 +838,7 @@ export function usePlaybackQueueController({
+             navigateToSearch({
+                 query: trimmedQuery,
+                 sourceTab,
+-                replace: Boolean(window.history.state?.search),
++                replace: !isShizukiEmbedSurface() && Boolean(window.history.state?.search),
+                 returnView: searchReturnView,
+             });
+         }
+@@ -1283,7 +1346,7 @@ export function usePlaybackQueueController({
          setPlayQueue(nextQueue);
          setStatusMsg({ type: 'success', text: t('status.queueShuffled') || 'Queue Shuffled' });
  
@@ -701,12 +1475,240 @@ index 00000000..1913f8d9
 +installGlobalVisualizerFrameRateLimiter();
 +
 +void import('./bootstrap');
+diff --git a/src/services/embeddedWorkspaceNavigation.ts b/src/services/embeddedWorkspaceNavigation.ts
+new file mode 100644
+index 00000000..df7d5afa
+--- /dev/null
++++ b/src/services/embeddedWorkspaceNavigation.ts
+@@ -0,0 +1,205 @@
++import type { AppView } from '../stores/useAppViewStore';
++import { useAppViewStore } from '../stores/useAppViewStore';
++import { useCollectionNavigationStore, type CollectionNavigationSnapshot } from '../stores/useCollectionNavigationStore';
++import { isShizukiEmbedSurface } from './shizukiEmbeddedPlayback';
++import { isEmbeddedWorkspaceRuntimeActive, setEmbeddedWorkspaceRuntimeActive } from './embeddedWorkspaceRuntime';
++
++export type EmbeddedWorkspaceView = Extract<AppView, 'home' | 'player' | 'lattice'>;
++export type EmbeddedCollectionRef = {
++  source: 'online' | 'local' | 'navidrome';
++  providerId?: string;
++  type: string;
++  id: string;
++  name?: string;
++  sitePlaylistCode?: string;
++};
++export type EmbeddedSourceContext = {
++  kind: 'collection' | 'queue' | 'single';
++  collection?: EmbeddedCollectionRef;
++  sitePlaylistCode?: string;
++};
++
++type EmbeddedEntry = {
++  view: EmbeddedWorkspaceView;
++  collection: CollectionNavigationSnapshot | null;
++  sourceContext: EmbeddedSourceContext | null;
++};
++type HostNavigationRequest = {
++  protocolVersion: 1;
++  requestId: number;
++  view: EmbeddedWorkspaceView;
++  active: boolean;
++  returnTarget?: unknown;
++  sourceContext?: unknown;
++};
++
++let latestHostRequestId = -1;
++let generatedRequestId = 0;
++let sourceContext: EmbeddedSourceContext | null = null;
++let playbackReturn: EmbeddedEntry | null = null;
++
++const isRecord = (value: unknown): value is Record<string, unknown> => (
++  Boolean(value) && typeof value === 'object' && !Array.isArray(value)
++);
++
++const normalizeCollectionRef = (value: unknown): EmbeddedCollectionRef | undefined => {
++  if (!isRecord(value)) return undefined;
++  const source = value.source;
++  const id = String(value.id ?? '').trim();
++  const type = String(value.type ?? '').trim();
++  if (!id || !type || !['online', 'local', 'navidrome'].includes(String(source))) return undefined;
++  const providerId = String(value.providerId ?? '').trim();
++  const name = String(value.name ?? '').trim();
++  const sitePlaylistCode = String(value.sitePlaylistCode ?? '').trim();
++  return {
++    source: source as EmbeddedCollectionRef['source'],
++    ...(providerId ? { providerId } : {}),
++    type,
++    id,
++    ...(name ? { name } : {}),
++    ...(sitePlaylistCode ? { sitePlaylistCode } : {}),
++  };
++};
++
++export const normalizeEmbeddedSourceContext = (value: unknown): EmbeddedSourceContext | null => {
++  if (!isRecord(value) || !['collection', 'queue', 'single'].includes(String(value.kind))) return null;
++  const kind = value.kind as EmbeddedSourceContext['kind'];
++  const collection = normalizeCollectionRef(value.collection);
++  const sitePlaylistCode = String(value.sitePlaylistCode ?? collection?.sitePlaylistCode ?? '').trim();
++  return {
++    kind,
++    ...(collection ? { collection } : {}),
++    ...(sitePlaylistCode ? { sitePlaylistCode } : {}),
++  };
++};
++
++const captureEntry = (): EmbeddedEntry => ({
++  view: useAppViewStore.getState().view as EmbeddedWorkspaceView,
++  collection: useCollectionNavigationStore.getState().snapshot,
++  sourceContext,
++});
++
++const matchesNativeCollection = (context: EmbeddedSourceContext | null): boolean => {
++  const ref = context?.kind === 'collection' ? context.collection : undefined;
++  if (!ref) return false;
++  const current = useCollectionNavigationStore.getState().snapshot;
++  const activeCollection = current?.stack[current.stack.length - 1];
++  return Boolean(activeCollection && activeCollection.source === ref.source
++    && String(activeCollection.id) === ref.id && activeCollection.type === ref.type
++    && ('providerId' in activeCollection ? activeCollection.providerId : undefined) === ref.providerId);
++};
++
++export const isEmbeddedWorkspaceSurface = isShizukiEmbedSurface;
++export const isEmbeddedWorkspaceActive = (): boolean => isShizukiEmbedSurface() && isEmbeddedWorkspaceRuntimeActive();
++export const getEmbeddedSourceContext = (): EmbeddedSourceContext | null => sourceContext;
++
++export const retainEmbeddedSourceContext = (value: unknown): void => {
++  const normalized = normalizeEmbeddedSourceContext(value);
++  if (!normalized) return;
++  if (JSON.stringify(normalized) === JSON.stringify(sourceContext)) return;
++  sourceContext = normalized;
++  // A source change invalidates a stale P1 return target. Preserve only a real Folia collection
++  // snapshot that still matches the host's provider-aware reference; never fabricate one from IDs.
++  const matchingCollection = matchesNativeCollection(normalized);
++  playbackReturn = matchingCollection
++    ? { view: 'home', collection: useCollectionNavigationStore.getState().snapshot, sourceContext: normalized }
++    : null;
++  if (!matchingCollection && useCollectionNavigationStore.getState().snapshot?.stack.length) {
++    useCollectionNavigationStore.getState().clear();
++  }
++};
++
++export const navigateEmbeddedWorkspace = (
++  view: EmbeddedWorkspaceView,
++  options: { sourceContext?: unknown; returnTarget?: unknown; recordCurrent?: boolean } = {},
++): boolean => {
++  if (!isShizukiEmbedSurface() || !isEmbeddedWorkspaceRuntimeActive()) return false;
++  const context = normalizeEmbeddedSourceContext(options.sourceContext);
++  if (context) retainEmbeddedSourceContext(context);
++  if (options.recordCurrent !== false && (view === 'player' || view === 'lattice')) {
++    const current = captureEntry();
++    if (!playbackReturn && matchesNativeCollection(sourceContext)) {
++      playbackReturn = { ...current, view: 'home' };
++    } else if (!playbackReturn && !matchesNativeCollection(sourceContext)
++      && current.view === 'lattice' && view === 'player') {
++      playbackReturn = current;
++    }
++  }
++  useAppViewStore.getState().setView(view);
++  return true;
++};
++
++export const applyEmbeddedHostNavigation = (value: unknown): { ok: boolean; view?: EmbeddedWorkspaceView } => {
++  if (!isShizukiEmbedSurface() || !isRecord(value) || value.protocolVersion !== 1
++    || !Number.isSafeInteger(value.requestId) || Number(value.requestId) <= latestHostRequestId
++    || !['home', 'player', 'lattice'].includes(String(value.view)) || typeof value.active !== 'boolean') {
++    return { ok: false };
++  }
++  latestHostRequestId = Number(value.requestId);
++  if (value.active === false) {
++    setEmbeddedWorkspaceRuntimeActive(false);
++    return { ok: true, view: useAppViewStore.getState().view as EmbeddedWorkspaceView };
++  }
++  const context = normalizeEmbeddedSourceContext(value.sourceContext)
++    ?? normalizeEmbeddedSourceContext(value.returnTarget);
++  if (context) retainEmbeddedSourceContext(context);
++  setEmbeddedWorkspaceRuntimeActive(true);
++  return { ok: navigateEmbeddedWorkspace(value.view as EmbeddedWorkspaceView, {
++    sourceContext: context ?? undefined,
++    returnTarget: value.returnTarget,
++  }), view: value.view as EmbeddedWorkspaceView };
++};
++
++export const applyLegacyEmbeddedView = (value: unknown): boolean => {
++  if (!isShizukiEmbedSurface() || (value !== 'home' && value !== 'player' && value !== 'lattice')) return false;
++  generatedRequestId = Math.max(generatedRequestId + 1, latestHostRequestId + 1);
++  const snapshot = useCollectionNavigationStore.getState().snapshot;
++  const collection = snapshot?.stack[snapshot.stack.length - 1];
++  const legacyContext = collection ? {
++    kind: 'collection',
++    collection: {
++      source: collection.source,
++      ...(collection.source === 'online' ? { providerId: collection.providerId } : {}),
++      type: collection.type,
++      id: String(collection.id),
++      name: collection.name,
++    },
++  } : undefined;
++  return applyEmbeddedHostNavigation({
++    protocolVersion: 1,
++    requestId: generatedRequestId,
++    view: value,
++    active: true,
++    ...(legacyContext ? { sourceContext: legacyContext } : {}),
++  }).ok;
++};
++
++export const backEmbeddedWorkspace = (): boolean => {
++  if (!isEmbeddedWorkspaceActive()) return false;
++  if (playbackReturn?.collection?.stack.length) {
++    useCollectionNavigationStore.getState().restore(playbackReturn.collection);
++    sourceContext = playbackReturn.sourceContext ?? sourceContext;
++    playbackReturn = null;
++    useAppViewStore.getState().setView('home');
++    return true;
++  }
++
++  const currentView = useAppViewStore.getState().view;
++  const currentCollection = useCollectionNavigationStore.getState().snapshot;
++  if (currentCollection?.stack.length && matchesNativeCollection(sourceContext)) {
++    useAppViewStore.getState().setView('home');
++    return true;
++  }
++  // The authoritative queue wall is the safe Folia-local return when no real native collection
++  // snapshot exists. Site playlist codes and queue metadata are never treated as Folia collection IDs.
++  useAppViewStore.getState().setView('lattice');
++  playbackReturn = null;
++  return true;
++};
++
++export const resetEmbeddedWorkspaceForTests = (): void => {
++  setEmbeddedWorkspaceRuntimeActive(false);
++  generatedRequestId = 0;
++  sourceContext = null;
++  playbackReturn = null;
++};
+diff --git a/src/services/embeddedWorkspaceRuntime.ts b/src/services/embeddedWorkspaceRuntime.ts
+new file mode 100644
+index 00000000..323ea49a
+--- /dev/null
++++ b/src/services/embeddedWorkspaceRuntime.ts
+@@ -0,0 +1,7 @@
++let active = false;
++
++export const isEmbeddedWorkspaceRuntimeActive = (): boolean => active;
++
++export const setEmbeddedWorkspaceRuntimeActive = (nextActive: boolean): void => {
++  active = nextActive;
++};
 diff --git a/src/services/shizukiEmbeddedPlayback.ts b/src/services/shizukiEmbeddedPlayback.ts
 new file mode 100644
-index 00000000..d35717af
+index 00000000..3ff2f050
 --- /dev/null
 +++ b/src/services/shizukiEmbeddedPlayback.ts
-@@ -0,0 +1,55 @@
+@@ -0,0 +1,117 @@
++import { getPlaybackSourceRef } from '../utils/appPlaybackGuards';
++import type { SongResult } from '../types';
++import { isEmbeddedWorkspaceRuntimeActive } from './embeddedWorkspaceRuntime';
++
 +type PlaybackCommand = {
 +  type: 'shizuki:playback-command';
 +  action: 'play' | 'pause' | 'seek' | 'next' | 'previous';
@@ -718,6 +1720,17 @@ index 00000000..d35717af
 +  track: unknown;
 +  positionMs: number;
 +  playing: true;
++  selection?: EmbeddedPlaybackSelection;
++};
++
++export type EmbeddedPlaybackSelection = {
++  kind: 'track' | 'collection' | 'shortcut';
++  queuePolicy: 'replace' | 'preserve-or-insert';
++  sourceContext?: unknown;
++  selectedIndex?: number;
++  queueEntryId?: string;
++  tracks?: unknown[];
++  view?: 'lattice' | 'player';
 +};
 +
 +type PlaybackClock = { set: (seconds: number) => void };
@@ -738,7 +1751,7 @@ index 00000000..d35717af
 +);
 +
 +const postToSite = (message: PlaybackCommand | PlaybackIntent): boolean => {
-+  if (!isShizukiEmbedSurface() || typeof window === 'undefined') return false;
++  if (!isShizukiEmbedSurface() || !isEmbeddedWorkspaceRuntimeActive() || typeof window === 'undefined') return false;
 +  try {
 +    window.parent.postMessage(message, '*');
 +    return true;
@@ -756,18 +1769,65 @@ index 00000000..d35717af
 +  ...(action === 'seek' ? { positionMs: Math.max(0, Math.round(Number(positionSec || 0) * 1000)) } : {}),
 +});
 +
-+export const sendEmbeddedTrackIntent = (track: unknown): boolean => postToSite({
++export const normalizeEmbeddedTrackRef = (track: unknown): unknown => {
++  if (!track || typeof track !== 'object' || Array.isArray(track)) return track;
++  const value = track as Record<string, unknown>;
++  const rawSourceRef = value.sourceRef;
++  const explicitProvider = String(value.providerId ?? value.provider ?? '').trim();
++  const rawId = value.trackId ?? value.track_id ?? value.id;
++  const sourceRef = rawSourceRef && typeof rawSourceRef === 'object'
++    ? rawSourceRef
++    : explicitProvider && rawId !== undefined
++      ? { kind: 'online', providerId: explicitProvider, mediaId: String(rawId) }
++      : getPlaybackSourceRef(value as unknown as SongResult);
++  const resolvedSource = sourceRef as ReturnType<typeof getPlaybackSourceRef>;
++  const id = resolvedSource.mediaId || value.trackId || value.track_id || value.id;
++  const provider = resolvedSource.kind === 'online' ? resolvedSource.providerId : resolvedSource.kind;
++  return {
++    ...value,
++    ...(id !== undefined ? { trackId: String(id), id: String(id) } : {}),
++    provider: String(provider),
++    providerId: String(provider),
++    sourceRef: resolvedSource,
++  };
++};
++
++const embeddedQueueEntryId = (track: unknown, index: number): string => {
++  if (track && typeof track === 'object' && !Array.isArray(track)) {
++    const value = track as Record<string, unknown>;
++    const existing = String(value.queueEntryId ?? value.entryId ?? '').trim();
++    if (existing) return existing;
++    const normalized = normalizeEmbeddedTrackRef(value) as Record<string, unknown>;
++    return `${String(normalized.providerId ?? 'track')}:${String(normalized.trackId ?? index)}@${index}`;
++  }
++  return `track:${index}@${index}`;
++};
++
++export const sendEmbeddedTrackIntent = (track: unknown, selection?: EmbeddedPlaybackSelection): boolean => postToSite({
 +  type: 'shizuki:playback-intent',
-+  track,
++  track: normalizeEmbeddedTrackRef(track),
 +  positionMs: 0,
 +  playing: true,
++  ...(selection ? { selection: {
++    ...selection,
++    ...(Number.isInteger(selection.selectedIndex) && selection.selectedIndex! >= 0
++      && Array.isArray(selection.tracks) && selection.selectedIndex! < selection.tracks.length
++      ? { queueEntryId: embeddedQueueEntryId(selection.tracks[selection.selectedIndex!], selection.selectedIndex!) }
++      : {}),
++    ...(Array.isArray(selection.tracks)
++      ? { tracks: selection.tracks.map((item, index) => ({
++        ...(normalizeEmbeddedTrackRef(item) as Record<string, unknown>),
++        queueEntryId: embeddedQueueEntryId(item, index),
++      })) }
++      : {}),
++  } } : {}),
 +});
 diff --git a/src/shizukiExternalBridge.ts b/src/shizukiExternalBridge.ts
 new file mode 100644
-index 00000000..6071700f
+index 00000000..48654ae0
 --- /dev/null
 +++ b/src/shizukiExternalBridge.ts
-@@ -0,0 +1,1161 @@
+@@ -0,0 +1,1240 @@
 +/**
 + * Shizuki-site external bridge for the Folia (AGPL-3.0) web player.
 + *
@@ -783,6 +1843,13 @@ index 00000000..6071700f
 +import { currentTime, lyricCurrentTime } from './stores/motionSignals';
 +import { findLatestActiveLineIndex } from './utils/appPlaybackHelpers';
 +import { projectEmbeddedPlaybackClock } from './services/shizukiEmbeddedPlayback';
++import {
++  applyEmbeddedHostNavigation,
++  applyLegacyEmbeddedView,
++  isEmbeddedWorkspaceActive,
++  normalizeEmbeddedSourceContext,
++  retainEmbeddedSourceContext,
++} from './services/embeddedWorkspaceNavigation';
 +
 +const COOKIE_STORAGE_KEYS = ['online_provider:netease:cookie', 'netease_cookie'];
 +const EMBED_AUDIO_SELECTOR = '#folia-embed-root audio';
@@ -794,6 +1861,7 @@ index 00000000..6071700f
 +  track: UnknownRecord | null;
 +  queue: UnknownRecord[];
 +  playlist: UnknownRecord | null;
++  sourceContext: UnknownRecord | null;
 +  lyrics: UnknownRecord[];
 +  lyricRenderMode: string;
 +  lyricIndex: number;
@@ -810,6 +1878,9 @@ index 00000000..6071700f
 +let applyingFollowSession = false;
 +let latestFollowSessionVersion = -1;
 +let latestFollowLyricsFingerprint = '';
++let latestFollowQueueFingerprint = '';
++let latestFollowSourceContextFingerprint = '';
++let latestFollowTrackFingerprint: string | null | undefined;
 +let audioLockInstalled = false;
 +let progressSeekBridgeInstalled = false;
 +let navigationBridgeInstalled = false;
@@ -1321,8 +2392,9 @@ index 00000000..6071700f
 +
 +function readFollowSong(rawTrack: UnknownRecord | null | undefined): SongResult | null {
 +  if (!rawTrack) return null;
-+  const id = Number(rawTrack.foliaId ?? rawTrack.id ?? rawTrack.trackId ?? rawTrack.track_id);
-+  if (!Number.isFinite(id) || id <= 0) return null;
++  const rawId = rawTrack.foliaId ?? rawTrack.id ?? rawTrack.trackId ?? rawTrack.track_id;
++  const id = typeof rawId === 'number' ? rawId : String(rawId ?? '').trim();
++  if (!id || (typeof id === 'number' && (!Number.isFinite(id) || id <= 0))) return null;
 +  const rawArtists = Array.isArray(rawTrack.artists) ? rawTrack.artists : [];
 +  const artistText = String(rawTrack.artist || '').trim();
 +  const artists = rawArtists.length
@@ -1355,9 +2427,43 @@ index 00000000..6071700f
 +
 +function readFollowQueue(rawQueue: unknown): SongResult[] {
 +  if (!Array.isArray(rawQueue)) return [];
-+  return rawQueue
-+    .map((item) => (item && typeof item === 'object' ? readFollowSong(item as UnknownRecord) : null))
-+    .filter((item): item is SongResult => item !== null);
++  return rawQueue.flatMap((item, index) => {
++    if (!item || typeof item !== 'object') return [];
++    const song = readFollowSong(item as UnknownRecord);
++    if (!song) return [];
++    const sourceRef = song.sourceRef;
++    const provider = sourceRef?.kind === 'online' ? sourceRef.providerId : sourceRef?.kind || 'track';
++    const providedEntryId = String((song as SongResult & { queueEntryId?: unknown }).queueEntryId ?? '').trim();
++    return [{
++      ...song,
++      queueEntryId: providedEntryId || `${provider}:${sourceRef?.mediaId ?? song.id}@${index}`,
++    } as SongResult];
++  });
++}
++
++function buildFollowQueueFingerprint(queue: SongResult[]): string {
++  return JSON.stringify(queue.map((song) => ({
++    entryId: String((song as SongResult & { queueEntryId?: unknown }).queueEntryId ?? ''),
++    id: String(song.id),
++    sourceRef: song.sourceRef,
++    name: song.name,
++    artists: song.artists,
++    album: song.album,
++    durationMs: song.durationMs,
++  })));
++}
++
++function buildFollowTrackFingerprint(song: SongResult | null): string | null {
++  if (!song) return null;
++  return JSON.stringify({
++    entryId: String((song as SongResult & { queueEntryId?: unknown }).queueEntryId ?? ''),
++    id: String(song.id),
++    sourceRef: song.sourceRef,
++    name: song.name,
++    artists: song.artists,
++    album: song.album,
++    durationMs: song.durationMs,
++  });
 +}
 +
 +function readSeconds(value: unknown, fallback = 0): number {
@@ -1455,12 +2561,16 @@ index 00000000..6071700f
 +  const track = data.track && typeof data.track === 'object' ? data.track as UnknownRecord : null;
 +  const queue = Array.isArray(data.queue) ? data.queue.filter((item): item is UnknownRecord => Boolean(item) && typeof item === 'object') : [];
 +  const playlist = data.playlist && typeof data.playlist === 'object' ? data.playlist as UnknownRecord : null;
++  const sourceContext = data.sourceContext && typeof data.sourceContext === 'object'
++    ? data.sourceContext as UnknownRecord
++    : null;
 +  const lyrics = Array.isArray(data.lyrics) ? data.lyrics.filter((item): item is UnknownRecord => Boolean(item) && typeof item === 'object') : [];
 +  return {
 +    version,
 +    track,
 +    queue,
 +    playlist,
++    sourceContext,
 +    lyrics,
 +    lyricRenderMode: String(data.lyricRenderMode || 'original'),
 +    lyricIndex: Number.isInteger(Number(data.lyricIndex)) ? Number(data.lyricIndex) : -1,
@@ -1553,7 +2663,7 @@ index 00000000..6071700f
 +}
 +
 +function readEmbeddedProgressPosition(target: HTMLInputElement): number | null {
-+  if (!followPlaybackActive) return null;
++  if (!followPlaybackActive || !isEmbeddedWorkspaceActive()) return null;
 +  const duration = Math.max(0, Number(usePlaybackStore.getState().duration) || 0);
 +  const minimum = Number(target.min || 0);
 +  const maximum = Number(target.max);
@@ -1659,7 +2769,7 @@ index 00000000..6071700f
 +  if (navigationBridgeInstalled || typeof document === 'undefined') return;
 +  navigationBridgeInstalled = true;
 +  document.addEventListener('click', (event) => {
-+    if (!followPlaybackActive) return;
++    if (!followPlaybackActive || !isEmbeddedWorkspaceActive()) return;
 +    const action = readNavigationAction(event.target);
 +    if (!action) return;
 +    event.preventDefault();
@@ -1676,19 +2786,39 @@ index 00000000..6071700f
 +  if (session.version < latestFollowSessionVersion) return;
 +  latestFollowSessionVersion = session.version;
 +  followPlaybackActive = true;
++  const normalizedSourceContext = normalizeEmbeddedSourceContext(session.sourceContext);
++  if (normalizedSourceContext) {
++    const sourceContextFingerprint = JSON.stringify(normalizedSourceContext);
++    if (sourceContextFingerprint !== latestFollowSourceContextFingerprint) {
++      latestFollowSourceContextFingerprint = sourceContextFingerprint;
++      retainEmbeddedSourceContext(normalizedSourceContext);
++    }
++  }
 +  applyingFollowSession = true;
 +
 +  const store = usePlaybackStore.getState();
 +  const song = readFollowSong(session.track);
++  const trackFingerprint = buildFollowTrackFingerprint(song);
++  const trackChanged = trackFingerprint !== latestFollowTrackFingerprint;
++  const projectedSong = trackChanged ? song : store.currentSong;
 +  const queue = readFollowQueue(session.queue);
++  const projectedQueue = queue.length ? queue : (projectedSong ? [projectedSong] : []);
++  const queueFingerprint = buildFollowQueueFingerprint(projectedQueue);
++  const queueChanged = queueFingerprint !== latestFollowQueueFingerprint;
 +  const lyricsFingerprint = buildFollowLyricsFingerprint(session.lyrics, song, session.durationMs);
 +  const lyricsChanged = lyricsFingerprint !== latestFollowLyricsFingerprint;
 +  try {
 +    lockEmbeddedAudio();
 +    store.setAudioSrc(null);
-+    store.setCurrentSong(song);
-+    store.setPlayQueue(queue.length ? queue : (song ? [song] : []));
-+    store.setCachedCoverUrl(String(song?.album?.coverUrl || ''));
++    if (trackChanged) {
++      latestFollowTrackFingerprint = trackFingerprint;
++      store.setCurrentSong(song);
++    }
++    if (queueChanged) {
++      latestFollowQueueFingerprint = queueFingerprint;
++      store.setPlayQueue(projectedQueue);
++    }
++    store.setCachedCoverUrl(String(projectedSong?.album?.coverUrl || ''));
 +    store.setDuration(Math.max(0, Number(session.durationMs || 0) / 1000));
 +    if (lyricsChanged) {
 +      const lyrics = buildFollowLyrics(session.lyrics, song, session.durationMs);
@@ -1711,6 +2841,9 @@ index 00000000..6071700f
 +  followClockPlaying = false;
 +  latestFollowSessionVersion = -1;
 +  latestFollowLyricsFingerprint = '';
++  latestFollowQueueFingerprint = '';
++  latestFollowSourceContextFingerprint = '';
++  latestFollowTrackFingerprint = undefined;
 +  if (followClockFrame) window.cancelAnimationFrame(followClockFrame);
 +  followClockFrame = 0;
 +  lockEmbeddedAudio();
@@ -1844,10 +2977,16 @@ index 00000000..6071700f
 +  }
 +  if (type === 'shizuki:set-view') {
 +    const view = String(data.view || '').trim();
-+    if (view === 'player' || view === 'lattice') {
-+      import('./stores/useAppViewStore')
-+        .then(({ useAppViewStore }) => useAppViewStore.getState().setView(view as 'player' | 'lattice'))
-+        .catch(() => {});
++    if (view === 'player' || view === 'lattice' || view === 'home') {
++      applyLegacyEmbeddedView(view);
++    }
++    return;
++  }
++  if (type === 'shizuki:navigate') {
++    const result = applyEmbeddedHostNavigation(data);
++    const requestId = Number(data.requestId);
++    if (Number.isSafeInteger(requestId)) {
++      postToParent({ type: 'shizuki:navigate-result', protocolVersion: 1, requestId, ...result });
 +    }
 +    return;
 +  }
@@ -1929,6 +3068,23 @@ index 00000000..6071700f
 +    delete (window as unknown as { __shizukiPendingCookie?: string }).__shizukiPendingCookie;
 +  }
 +}
+diff --git a/src/types/appPlayback.ts b/src/types/appPlayback.ts
+index 592018a7..f28a3841 100644
+--- a/src/types/appPlayback.ts
++++ b/src/types/appPlayback.ts
+@@ -15,6 +15,12 @@ import type { MediaId } from './onlineMusic';
+ // Shared playback-specific types extracted from App.tsx.
+ export type PlaybackNavigationOptions = {
+     shouldNavigateToPlayer?: boolean;
++    /** The exact queue slot selected from an embedded playback wall. */
++    embeddedSelectionIndex?: number;
++    /** Keep wall selections on the wall; explicit immersive entry remains a navigation action. */
++    embeddedSelectionView?: 'lattice' | 'player';
++    /** Set only by a native collection-detail row, whose playable queue replaces the shared queue. */
++    embeddedCollectionSelection?: boolean;
+     unavailableSkipCount?: number;
+     unifiedQueue?: SongResult[];
+     /**
 diff --git a/test/unit/buildPlayerViewFlags.embedded.test.ts b/test/unit/buildPlayerViewFlags.embedded.test.ts
 new file mode 100644
 index 00000000..37b611f0
@@ -2051,17 +3207,214 @@ index 00000000..4a4892d9
 +        }
 +    });
 +});
+diff --git a/test/unit/latticeEmbeddedWorkspaceInput.integration.test.ts b/test/unit/latticeEmbeddedWorkspaceInput.integration.test.ts
+new file mode 100644
+index 00000000..ee2cbfda
+--- /dev/null
++++ b/test/unit/latticeEmbeddedWorkspaceInput.integration.test.ts
+@@ -0,0 +1,98 @@
++// @vitest-environment jsdom
++import { afterEach, describe, expect, it, vi } from 'vitest';
++import { act, createElement } from 'react';
++import { createRoot, type Root } from 'react-dom/client';
++import Lattice from '../../src/components/app/lattice/Lattice';
++import { currentTime } from '../../src/stores/motionSignals';
++import { PlayerState, type SongResult } from '../../src/types';
++import { applyEmbeddedHostNavigation, resetEmbeddedWorkspaceForTests } from '../../src/services/embeddedWorkspaceNavigation';
++
++let reactRoot: Root | null = null;
++const song = (id: string): SongResult => ({
++  id,
++  name: `Track ${id}`,
++  artists: [{ id: 1, name: 'Artist' }],
++  album: { id: 1, name: 'Album' },
++  durationMs: 90000,
++  sourceRef: { kind: 'online', providerId: 'qq', mediaId: id },
++});
++
++const renderLattice = (currentSong: SongResult, onBack: () => void) => createElement(Lattice, {
++  controls: {
++    playback: {
++      prev: vi.fn(), next: vi.fn(), toggleLoop: vi.fn(), shuffleQueue: vi.fn(),
++      toggleSongLike: vi.fn(), isSongLiked: vi.fn(() => false), isFmMode: false,
++    },
++    loopMode: 'off', invokeCommandById: vi.fn(), canInvokeCommandById: vi.fn(() => false),
++  },
++  lyrics: null,
++  lyricSource: { lyrics: null, translationLyrics: null, romajiLyrics: null },
++  lyricKeywordColoringEnabled: false,
++  currentSong,
++  playerState: PlayerState.PLAYING,
++  currentTime,
++  playbackDuration: 90,
++  canTogglePlayback: true,
++  queue: [song('B'), song('C')],
++  isDaylight: false,
++  onBack,
++  onOpenPlayer: vi.fn(),
++  onPlaySong: vi.fn(),
++  onTogglePlayback: vi.fn(),
++  onSeek: vi.fn(),
++} as never);
++
++describe('mounted Lattice input after an embedded playback update', () => {
++  afterEach(async () => {
++    if (reactRoot) await act(async () => { reactRoot?.unmount(); });
++    reactRoot = null;
++    document.body.replaceChildren();
++    resetEmbeddedWorkspaceForTests();
++    delete (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT;
++    vi.restoreAllMocks();
++  });
++
++  it('keeps the mounted wall click and keyboard routes live while active and dormant while parked', async () => {
++    (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
++    vi.stubGlobal('matchMedia', vi.fn(() => ({
++      matches: true,
++      addEventListener: vi.fn(),
++      removeEventListener: vi.fn(),
++    })));
++    vi.stubGlobal('ResizeObserver', class {
++      constructor(private readonly callback: ResizeObserverCallback) {}
++      observe(target: Element) {
++        this.callback([{ target, contentRect: { width: 1280, height: 720 } } as ResizeObserverEntry], this as unknown as ResizeObserver);
++      }
++      unobserve() {}
++      disconnect() {}
++    });
++    const embed = document.createElement('div');
++    embed.id = 'folia-embed-root';
++    document.body.append(embed);
++    const host = document.createElement('div');
++    document.body.append(host);
++    reactRoot = createRoot(host);
++    const onBack = vi.fn();
++
++    expect(applyEmbeddedHostNavigation({ protocolVersion: 1, requestId: 900, active: true, view: 'lattice' }).ok).toBe(true);
++    await act(async () => { reactRoot?.render(renderLattice(song('B'), onBack)); });
++    await act(async () => { host.querySelector<HTMLButtonElement>('.lattice-back')?.click(); });
++    expect(onBack).toHaveBeenCalledOnce();
++
++    const activeShortcut = new KeyboardEvent('keydown', {
++      code: 'KeyB', key: 'b', ctrlKey: true, bubbles: true, cancelable: true,
++    });
++    await act(async () => { window.dispatchEvent(activeShortcut); });
++    expect(activeShortcut.defaultPrevented).toBe(true);
++    expect(onBack).toHaveBeenCalledTimes(2);
++
++    expect(applyEmbeddedHostNavigation({ protocolVersion: 1, requestId: 901, active: false, view: 'lattice' }).ok).toBe(true);
++    const parkedShortcut = new KeyboardEvent('keydown', {
++      code: 'KeyB', key: 'b', ctrlKey: true, bubbles: true, cancelable: true,
++    });
++    await act(async () => { window.dispatchEvent(parkedShortcut); });
++    expect(parkedShortcut.defaultPrevented).toBe(false);
++    expect(onBack).toHaveBeenCalledTimes(2);
++  });
++});
+diff --git a/test/unit/shizukiEmbeddedKeyboard.integration.test.ts b/test/unit/shizukiEmbeddedKeyboard.integration.test.ts
+new file mode 100644
+index 00000000..b681a9ab
+--- /dev/null
++++ b/test/unit/shizukiEmbeddedKeyboard.integration.test.ts
+@@ -0,0 +1,77 @@
++// @vitest-environment jsdom
++import { afterEach, describe, expect, it, vi } from 'vitest';
++import { act, createElement } from 'react';
++import { createRoot, type Root } from 'react-dom/client';
++import { usePlaybackInteractionBridge } from '../../src/hooks/usePlaybackInteractionBridge';
++import { applyEmbeddedHostNavigation, resetEmbeddedWorkspaceForTests } from '../../src/services/embeddedWorkspaceNavigation';
++import { useAppViewStore } from '../../src/stores/useAppViewStore';
++import { usePlaybackStore } from '../../src/stores/usePlaybackStore';
++import { PlayerState, type SongResult } from '../../src/types';
++
++let reactRoot: Root | null = null;
++const track: SongResult = {
++  id: 73,
++  name: 'Keyboard track',
++  artists: [{ id: 1, name: 'Artist' }],
++  album: { id: 1, name: 'Album' },
++  durationMs: 90000,
++};
++
++const Probe = () => {
++  usePlaybackInteractionBridge({
++    stageActiveEntryKind: null,
++    isNowPlayingStageActive: false,
++    audioRef: { current: null },
++    stageLyricsClockRef: { current: { startTimeSec: 0, endTimeSec: 0, baseTimeSec: 0, startedAtMs: null } },
++    cyclePlayerChromeVisibilityMode: vi.fn(),
++    handleNextTrack: vi.fn(),
++    handlePrevTrack: vi.fn(),
++    navigateBackFromPlayer: vi.fn(),
++    pausePlayback: vi.fn(),
++    resumePlayback: vi.fn(async () => undefined),
++    syncStageLyricsClock: vi.fn(),
++  });
++  return createElement('div');
++};
++
++describe('embedded player keyboard boundary', () => {
++  afterEach(async () => {
++    if (reactRoot) await act(async () => { reactRoot?.unmount(); });
++    reactRoot = null;
++    document.body.replaceChildren();
++    useAppViewStore.setState({ view: 'home', isPanelOpen: false });
++    usePlaybackStore.setState({ currentSong: null, audioSrc: null, lyrics: null, duration: 0,
++      playerState: PlayerState.IDLE, currentLineIndex: -1, playQueue: [] });
++    resetEmbeddedWorkspaceForTests();
++    delete (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT;
++    vi.restoreAllMocks();
++    vi.unstubAllGlobals();
++  });
++
++  it('relays Space while active, then leaves the same key untouched when parked', async () => {
++    (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
++    const root = document.createElement('div');
++    root.id = 'folia-embed-root';
++    document.body.append(root);
++    const postMessage = vi.fn();
++    vi.stubGlobal('window', Object.assign(window, { parent: { postMessage } }));
++    useAppViewStore.setState({ view: 'player', isPanelOpen: false });
++    usePlaybackStore.setState({ currentSong: track, audioSrc: null, playerState: PlayerState.PLAYING, duration: 90 });
++    expect(applyEmbeddedHostNavigation({ protocolVersion: 1, requestId: 700, active: true, view: 'player' }).ok).toBe(true);
++    const host = document.createElement('div');
++    document.body.append(host);
++    reactRoot = createRoot(host);
++    await act(async () => { reactRoot?.render(createElement(Probe)); });
++
++    const activeSpace = new KeyboardEvent('keydown', { code: 'Space', key: ' ', bubbles: true, cancelable: true });
++    await act(async () => { window.dispatchEvent(activeSpace); });
++    expect(activeSpace.defaultPrevented).toBe(true);
++    expect(postMessage).toHaveBeenLastCalledWith({ type: 'shizuki:playback-command', action: 'pause' }, '*');
++
++    expect(applyEmbeddedHostNavigation({ protocolVersion: 1, requestId: 701, active: false, view: 'player' }).ok).toBe(true);
++    const parkedSpace = new KeyboardEvent('keydown', { code: 'Space', key: ' ', bubbles: true, cancelable: true });
++    await act(async () => { window.dispatchEvent(parkedSpace); });
++    expect(parkedSpace.defaultPrevented).toBe(false);
++    expect(postMessage).toHaveBeenCalledTimes(1);
++  });
++});
 diff --git a/test/unit/shizukiEmbeddedPlayback.test.ts b/test/unit/shizukiEmbeddedPlayback.test.ts
 new file mode 100644
-index 00000000..6bed28bd
+index 00000000..d8980074
 --- /dev/null
 +++ b/test/unit/shizukiEmbeddedPlayback.test.ts
-@@ -0,0 +1,60 @@
+@@ -0,0 +1,134 @@
 +import { afterEach, describe, expect, it, vi } from 'vitest';
 +import { isShizukiEmbedSurface, projectEmbeddedPlaybackClock, sendEmbeddedPlaybackCommand, sendEmbeddedTrackIntent } from '../../src/services/shizukiEmbeddedPlayback';
++import { applyEmbeddedHostNavigation, resetEmbeddedWorkspaceForTests } from '../../src/services/embeddedWorkspaceNavigation';
++
++let requestId = 500;
++
++const activateEmbed = (active = true) => {
++  expect(applyEmbeddedHostNavigation({
++    protocolVersion: 1, requestId: requestId++, view: 'player', active,
++  }).ok).toBe(true);
++};
 +
 +describe('Shizuki embedded playback relay', () => {
 +  afterEach(() => {
++    resetEmbeddedWorkspaceForTests();
 +    vi.unstubAllGlobals();
 +    vi.restoreAllMocks();
 +  });
@@ -2079,6 +3432,7 @@ index 00000000..6bed28bd
 +    const postMessage = vi.fn();
 +    vi.stubGlobal('document', { getElementById: () => ({}) });
 +    vi.stubGlobal('window', { parent: { postMessage } });
++    activateEmbed();
 +
 +    expect(sendEmbeddedPlaybackCommand('pause')).toBe(true);
 +    expect(sendEmbeddedPlaybackCommand('seek', 42.25)).toBe(true);
@@ -2092,11 +3446,18 @@ index 00000000..6bed28bd
 +    const postMessage = vi.fn();
 +    vi.stubGlobal('document', { getElementById: () => ({}) });
 +    vi.stubGlobal('window', { parent: { postMessage } });
++    activateEmbed();
 +    const track = { id: 17, name: 'Selected' };
 +
 +    expect(sendEmbeddedTrackIntent(track)).toBe(true);
 +    expect(postMessage).toHaveBeenCalledWith({
-+      type: 'shizuki:playback-intent', track, positionMs: 0, playing: true,
++      type: 'shizuki:playback-intent',
++      track: {
++        id: '17', trackId: '17', name: 'Selected', provider: 'netease', providerId: 'netease',
++        sourceRef: { kind: 'online', providerId: 'netease', mediaId: '17' },
++      },
++      positionMs: 0,
++      playing: true,
 +    }, '*');
 +  });
 +
@@ -2105,6 +3466,17 @@ index 00000000..6bed28bd
 +    expect(isShizukiEmbedSurface()).toBe(true);
 +    vi.stubGlobal('document', { getElementById: () => null });
 +    expect(isShizukiEmbedSurface()).toBe(false);
++  });
++
++  it('does not send playback commands or intents from a parked embedded workspace', () => {
++    const postMessage = vi.fn();
++    vi.stubGlobal('document', { getElementById: () => ({}) });
++    vi.stubGlobal('window', { parent: { postMessage } });
++    activateEmbed(false);
++
++    expect(sendEmbeddedPlaybackCommand('pause')).toBe(false);
++    expect(sendEmbeddedTrackIntent({ id: 18 })).toBe(false);
++    expect(postMessage).not.toHaveBeenCalled();
 +  });
 +
 +  it('leaves standalone Folia playback on its existing path', () => {
@@ -2116,13 +3488,530 @@ index 00000000..6bed28bd
 +    expect(sendEmbeddedTrackIntent({ id: 18 })).toBe(false);
 +    expect(postMessage).not.toHaveBeenCalled();
 +  });
++  it('hands off a complete native collection selection with source identity and its real queue index', () => {
++    const postMessage = vi.fn();
++    vi.stubGlobal('document', { getElementById: () => ({}) });
++    vi.stubGlobal('window', { parent: { postMessage } });
++    activateEmbed();
++    const tracks = [
++      { id: 17, provider: 'netease', name: 'A' },
++      { id: 'opaque-b', provider: 'qq', name: 'B' },
++      { id: 19, provider: 'netease', name: 'C' },
++    ];
++    const selection = {
++      kind: 'collection',
++      queuePolicy: 'replace',
++      selectedIndex: 1,
++      tracks,
++      sourceContext: {
++        kind: 'collection',
++        collection: { source: 'online', providerId: 'qq', type: 'playlist', id: 'P2', name: 'P2' },
++      },
++    };
++
++    expect((sendEmbeddedTrackIntent as (track: unknown, selection: unknown) => boolean)(tracks[1], selection)).toBe(true);
++    const queueEntryIds = tracks.map((track, index) => `${track.provider}:${track.id}@${index}`);
++    expect(postMessage).toHaveBeenCalledWith({
++      type: 'shizuki:playback-intent',
++      track: {
++        ...tracks[1], id: 'opaque-b', trackId: 'opaque-b', providerId: 'qq',
++        sourceRef: { kind: 'online', providerId: 'qq', mediaId: 'opaque-b' },
++      },
++      positionMs: 0,
++      playing: true,
++      selection: {
++        ...selection,
++        queueEntryId: queueEntryIds[1],
++        tracks: tracks.map((track, index) => ({
++          ...track,
++          id: String(track.id),
++          trackId: String(track.id),
++          providerId: track.provider,
++          sourceRef: { kind: 'online', providerId: track.provider, mediaId: String(track.id) },
++          queueEntryId: queueEntryIds[index],
++        })),
++      },
++    }, '*');
++  });
++});
+diff --git a/test/unit/shizukiEmbeddedPlaybackController.integration.test.ts b/test/unit/shizukiEmbeddedPlaybackController.integration.test.ts
+new file mode 100644
+index 00000000..8ca75dd5
+--- /dev/null
++++ b/test/unit/shizukiEmbeddedPlaybackController.integration.test.ts
+@@ -0,0 +1,246 @@
++// @vitest-environment jsdom
++import { afterEach, describe, expect, it, vi } from 'vitest';
++import { act, createElement } from 'react';
++import { createRoot, type Root } from 'react-dom/client';
++import { usePlaybackQueueController } from '../../src/hooks/usePlaybackQueueController';
++import { useCollectionNavigationStore } from '../../src/stores/useCollectionNavigationStore';
++import { usePlaybackStore } from '../../src/stores/usePlaybackStore';
++import { applyEmbeddedHostNavigation, resetEmbeddedWorkspaceForTests } from '../../src/services/embeddedWorkspaceNavigation';
++import { PlayerState, type SongResult } from '../../src/types';
++import type { PlaybackNavigationOptions } from '../../src/types/appPlayback';
++
++let reactRoot: Root | null = null;
++let playSelected: ((song: SongResult, queue: SongResult[], isFm: boolean, options?: PlaybackNavigationOptions) => Promise<void>) | null = null;
++let hostRequestId = 800;
++
++const activateEmbed = () => {
++  expect(applyEmbeddedHostNavigation({ protocolVersion: 1, requestId: hostRequestId++, active: true, view: 'lattice' }).ok).toBe(true);
++};
++
++const song = (id: string | number, providerId: string, name: string): SongResult => ({
++  id, name, artists: [{ id: 1, name: 'Artist' }], album: { id: 1, name: 'Album' }, durationMs: 120000,
++  sourceRef: { kind: 'online', providerId: providerId as 'netease' | 'qq', mediaId: String(id) },
++});
++
++const Probe = () => {
++  const controller = usePlaybackQueueController({} as never);
++  playSelected = controller.playSong;
++  return createElement('div');
++};
++
++const mount = async () => {
++  (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
++  const host = document.createElement('div');
++  document.body.append(host);
++  reactRoot = createRoot(host);
++  await act(async () => { reactRoot?.render(createElement(Probe)); });
++};
++
++describe('embedded queue controller selection handoff', () => {
++  afterEach(async () => {
++    if (reactRoot) await act(async () => { reactRoot?.unmount(); });
++    reactRoot = null;
++    playSelected = null;
++    document.body.replaceChildren();
++    useCollectionNavigationStore.getState().clear();
++    usePlaybackStore.setState({ currentSong: null, audioSrc: null, lyrics: null, duration: 0,
++      playerState: PlayerState.IDLE, currentLineIndex: -1, playQueue: [] });
++    resetEmbeddedWorkspaceForTests();
++    delete (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT;
++    vi.restoreAllMocks();
++    vi.unstubAllGlobals();
++  });
++
++  it('keeps repeated wall selections on the existing queue with exact provider-aware slots', async () => {
++    const root = document.createElement('div');
++    root.id = 'folia-embed-root';
++    document.body.append(root);
++    const postMessage = vi.fn();
++    vi.stubGlobal('window', Object.assign(window, { parent: { postMessage } }));
++    activateEmbed();
++    const queue = [song(42, 'netease', 'A'), song(42, 'qq', 'B'), song('opaque-3', 'qq', 'C')];
++    useCollectionNavigationStore.getState().openRoot({
++      source: 'online', providerId: 'qq', type: 'playlist', id: 'P2', name: 'P2',
++    }, 'home');
++    await mount();
++
++    await act(async () => {
++      await playSelected?.(queue[1], queue, false, {
++        embeddedSelectionIndex: 1,
++        embeddedSelectionView: 'lattice',
++      });
++      await playSelected?.(queue[2], queue, false, {
++        embeddedSelectionIndex: 2,
++        embeddedSelectionView: 'lattice',
++      });
++    });
++
++    expect(postMessage).toHaveBeenCalledTimes(2);
++    const [firstMessage] = postMessage.mock.calls[0];
++    const [secondMessage] = postMessage.mock.calls[1];
++    expect(firstMessage).toMatchObject({
++      type: 'shizuki:playback-intent',
++      track: { id: '42', provider: 'qq', providerId: 'qq', trackId: '42' },
++      selection: {
++        kind: 'track', queuePolicy: 'preserve-or-insert', selectedIndex: 1, view: 'lattice',
++        queueEntryId: 'qq:42@1',
++        sourceContext: { kind: 'collection', collection: { source: 'online', providerId: 'qq', type: 'playlist', id: 'P2' } },
++      },
++    });
++    expect(secondMessage).toMatchObject({
++      track: { id: 'opaque-3', provider: 'qq', trackId: 'opaque-3' },
++      selection: { kind: 'track', queuePolicy: 'preserve-or-insert', selectedIndex: 2, view: 'lattice', queueEntryId: 'qq:opaque-3@2' },
++    });
++    expect((firstMessage as { selection: { tracks?: unknown[] } }).selection.tracks).toBeUndefined();
++    expect((secondMessage as { selection: { tracks?: unknown[] } }).selection.tracks).toBeUndefined();
++    expect(usePlaybackStore.getState().audioSrc).toBeNull();
++  });
++
++  it('replaces the queue for a native collection-detail selection and starts from its real selected slot', async () => {
++    const root = document.createElement('div');
++    root.id = 'folia-embed-root';
++    document.body.append(root);
++    const postMessage = vi.fn();
++    vi.stubGlobal('window', Object.assign(window, { parent: { postMessage } }));
++    activateEmbed();
++    const queue = [song(42, 'netease', 'A'), song(42, 'qq', 'B'), song('opaque-3', 'qq', 'C')];
++    useCollectionNavigationStore.getState().openRoot({
++      source: 'online', providerId: 'qq', type: 'playlist', id: 'P2', name: 'P2',
++    }, 'home');
++    await mount();
++
++    await act(async () => {
++      await playSelected?.(queue[1], queue, false, {
++        embeddedCollectionSelection: true,
++        embeddedSelectionIndex: 1,
++        embeddedSelectionView: 'lattice',
++      });
++    });
++
++    expect(postMessage.mock.calls[0]?.[0]).toMatchObject({
++      type: 'shizuki:playback-intent',
++      selection: {
++        kind: 'collection', queuePolicy: 'replace', selectedIndex: 1, queueEntryId: 'qq:42@1',
++        view: 'lattice', tracks: [
++          { id: '42', providerId: 'netease', queueEntryId: 'netease:42@0' },
++          { id: '42', providerId: 'qq', queueEntryId: 'qq:42@1' },
++          { id: 'opaque-3', providerId: 'qq', queueEntryId: 'qq:opaque-3@2' },
++        ],
++      },
++    });
++  });
++
++  it('keeps a song-only shortcut on the host queue-preserve path', async () => {
++    const root = document.createElement('div');
++    root.id = 'folia-embed-root';
++    document.body.append(root);
++    const postMessage = vi.fn();
++    vi.stubGlobal('window', Object.assign(window, { parent: { postMessage } }));
++    activateEmbed();
++    const selected = song('site-track', 'netease', 'Shortcut');
++    await mount();
++
++    await act(async () => { await playSelected?.(selected, [], false); });
++
++    expect(postMessage.mock.calls[0]?.[0]).toMatchObject({
++      type: 'shizuki:playback-intent', track: { id: 'site-track', providerId: 'netease' },
++      selection: { kind: 'track', queuePolicy: 'preserve-or-insert', sourceContext: { kind: 'queue' }, view: 'player' },
++    });
++  });
++
++  it('does not mistake a single shortcut for native collection playback when a collection snapshot is open', async () => {
++    const root = document.createElement('div');
++    root.id = 'folia-embed-root';
++    document.body.append(root);
++    const postMessage = vi.fn();
++    vi.stubGlobal('window', Object.assign(window, { parent: { postMessage } }));
++    activateEmbed();
++    useCollectionNavigationStore.getState().openRoot({
++      source: 'online', providerId: 'qq', type: 'playlist', id: 'P2', name: 'P2',
++    }, 'home');
++    usePlaybackStore.setState({ playQueue: [song('existing', 'netease', 'Existing')] });
++    await mount();
++
++    await act(async () => { await playSelected?.(song('shortcut-id', 'netease', 'Shortcut'), [], false); });
++
++    expect(postMessage.mock.calls[0]?.[0]).toMatchObject({
++      type: 'shizuki:playback-intent',
++      selection: {
++        kind: 'track', queuePolicy: 'preserve-or-insert', view: 'player',
++        sourceContext: { kind: 'collection', collection: { id: 'P2', providerId: 'qq' } },
++      },
++    });
++    const shortcutSelection = (postMessage.mock.calls[0]?.[0] as { selection: { tracks?: unknown[]; selectedIndex?: number } }).selection;
++    expect(shortcutSelection.tracks).toBeUndefined();
++    expect(shortcutSelection.selectedIndex).toBeUndefined();
++  });
++
++  it('preserves the already-shared native queue when command-palette playback passes that same queue', async () => {
++    const root = document.createElement('div');
++    root.id = 'folia-embed-root';
++    document.body.append(root);
++    const postMessage = vi.fn();
++    vi.stubGlobal('window', Object.assign(window, { parent: { postMessage } }));
++    activateEmbed();
++    useCollectionNavigationStore.getState().openRoot({
++      source: 'online', providerId: 'qq', type: 'playlist', id: 'P2', name: 'P2',
++    }, 'home');
++    const sharedQueue = [song(1, 'qq', 'A'), song(2, 'netease', 'B'), song(3, 'qq', 'C')]
++      .map((item, index) => Object.assign(item, { queueEntryId: `shared-${index}` }));
++    usePlaybackStore.setState({ playQueue: sharedQueue });
++    await mount();
++
++    await act(async () => {
++      await playSelected?.(sharedQueue[1], sharedQueue, false, { shouldNavigateToPlayer: true });
++    });
++
++    expect(postMessage.mock.calls[0]?.[0]).toMatchObject({
++      type: 'shizuki:playback-intent',
++      selection: {
++        kind: 'track', queuePolicy: 'preserve-or-insert', selectedIndex: 1,
++        queueEntryId: 'shared-1',
++        sourceContext: { kind: 'collection', collection: { id: 'P2', providerId: 'qq' } },
++        view: 'player',
++      },
++    });
++    expect((postMessage.mock.calls[0]?.[0] as { selection: { tracks?: unknown[] } }).selection.tracks).toBeUndefined();
++  });
++
++  it('replaces the source context for an explicitly selected native collection with identical queue contents', async () => {
++    const root = document.createElement('div');
++    root.id = 'folia-embed-root';
++    document.body.append(root);
++    const postMessage = vi.fn();
++    vi.stubGlobal('window', Object.assign(window, { parent: { postMessage } }));
++    activateEmbed();
++    useCollectionNavigationStore.getState().openRoot({
++      source: 'online', providerId: 'qq', type: 'playlist', id: 'P2', name: 'P2',
++    }, 'home');
++    const sharedQueue = [song(1, 'qq', 'A'), song(2, 'netease', 'B'), song(3, 'qq', 'C')]
++      .map((item, index) => Object.assign(item, { queueEntryId: `shared-${index}` }));
++    usePlaybackStore.setState({ playQueue: sharedQueue });
++    await mount();
++
++    await act(async () => {
++      await playSelected?.(sharedQueue[1], sharedQueue, false, {
++        embeddedCollectionSelection: true,
++        embeddedSelectionIndex: 1,
++        embeddedSelectionView: 'lattice',
++      });
++    });
++
++    expect(postMessage.mock.calls[0]?.[0]).toMatchObject({
++      type: 'shizuki:playback-intent',
++      selection: {
++        kind: 'collection', queuePolicy: 'replace', selectedIndex: 1,
++        queueEntryId: 'shared-1', view: 'lattice',
++        sourceContext: { kind: 'collection', collection: { id: 'P2', providerId: 'qq' } },
++        tracks: [
++          { id: '1', providerId: 'qq', queueEntryId: 'shared-0' },
++          { id: '2', providerId: 'netease', queueEntryId: 'shared-1' },
++          { id: '3', providerId: 'qq', queueEntryId: 'shared-2' },
++        ],
++      },
++    });
++  });
++});
+diff --git a/test/unit/shizukiEmbeddedWorkspaceNavigation.integration.test.ts b/test/unit/shizukiEmbeddedWorkspaceNavigation.integration.test.ts
+new file mode 100644
+index 00000000..e7af3dea
+--- /dev/null
++++ b/test/unit/shizukiEmbeddedWorkspaceNavigation.integration.test.ts
+@@ -0,0 +1,214 @@
++// @vitest-environment jsdom
++import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
++import { act, createElement } from 'react';
++import { createRoot, type Root } from 'react-dom/client';
++import { installShizukiExternalBridge } from '../../src/shizukiExternalBridge';
++import { useAppNavigation } from '../../src/hooks/useAppNavigation';
++import { useAppViewStore } from '../../src/stores/useAppViewStore';
++import { useCollectionNavigationStore } from '../../src/stores/useCollectionNavigationStore';
++import { usePlaybackStore } from '../../src/stores/usePlaybackStore';
++import { PlayerState } from '../../src/types';
++import { resetEmbeddedWorkspaceForTests } from '../../src/services/embeddedWorkspaceNavigation';
++
++let reactRoot: Root | null = null;
++let navigation: ReturnType<typeof useAppNavigation> | null = null;
++
++const Probe = () => {
++  navigation = useAppNavigation();
++  return createElement('div', null,
++    createElement('button', {
++      id: 'return-to-collection',
++      onClick: () => navigation?.navigateBackFromLattice(),
++    }, 'Return'),
++    createElement('button', {
++      id: 'open-player',
++      onClick: () => navigation?.navigateToPlayer(),
++    }, 'Open player'),
++    createElement('button', {
++      id: 'player-back',
++      onClick: () => navigation?.navigateBackFromPlayer(),
++    }, 'Player back'),
++  );
++};
++
++const mountNavigation = async () => {
++  const host = document.createElement('div');
++  document.body.append(host);
++  reactRoot = createRoot(host);
++  await act(async () => { reactRoot?.render(createElement(Probe)); });
++};
++
++describe('embedded workspace navigation boundary', () => {
++  beforeEach(() => {
++    (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
++  });
++
++  afterEach(async () => {
++    if (reactRoot) await act(async () => { reactRoot?.unmount(); });
++    reactRoot = null;
++    navigation = null;
++    document.body.replaceChildren();
++    useAppViewStore.setState({ view: 'home' });
++    useCollectionNavigationStore.getState().clear();
++    usePlaybackStore.setState({ currentSong: null, audioSrc: null, lyrics: null, duration: 0,
++      playerState: PlayerState.IDLE, currentLineIndex: -1, playQueue: [] });
++    resetEmbeddedWorkspaceForTests();
++    delete (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT;
++    vi.restoreAllMocks();
++    vi.unstubAllGlobals();
++  });
++
++  it('routes the versioned host navigation request through the embedded workspace', async () => {
++    const embedRoot = document.createElement('div');
++    embedRoot.id = 'folia-embed-root';
++    document.body.append(embedRoot);
++    vi.spyOn(window, 'setInterval').mockReturnValue(1 as unknown as ReturnType<typeof setInterval>);
++    vi.stubGlobal('requestAnimationFrame', vi.fn(() => 1));
++    vi.stubGlobal('cancelAnimationFrame', vi.fn());
++    installShizukiExternalBridge();
++    await mountNavigation();
++    const collection = { source: 'online', providerId: 'netease', type: 'playlist', id: 'p2', name: 'P2' } as const;
++    useCollectionNavigationStore.getState().openRoot(collection, 'home');
++
++    await act(async () => {
++      window.dispatchEvent(new MessageEvent('message', { data: {
++        type: 'shizuki:navigate', protocolVersion: 1, requestId: 4, active: true, view: 'lattice',
++        returnTarget: { source: 'online', providerId: 'netease', type: 'playlist', id: 'p2', name: 'P2' },
++        sourceContext: { kind: 'collection', collection: { source: 'online', providerId: 'netease',
++          type: 'playlist', id: 'p2', name: 'P2' } },
++      } }));
++    });
++
++    expect(useAppViewStore.getState().view).toBe('lattice');
++    expect(useCollectionNavigationStore.getState().snapshot?.stack.at(-1)).toMatchObject({ id: 'p2', name: 'P2' });
++  });
++
++  it('returns to the active Folia collection without mutating host history', async () => {
++    const embedRoot = document.createElement('div');
++    embedRoot.id = 'folia-embed-root';
++    document.body.append(embedRoot);
++    vi.spyOn(window, 'setInterval').mockReturnValue(1 as unknown as ReturnType<typeof setInterval>);
++    vi.stubGlobal('requestAnimationFrame', vi.fn(() => 1));
++    vi.stubGlobal('cancelAnimationFrame', vi.fn());
++    installShizukiExternalBridge();
++    await mountNavigation();
++    const collection = { source: 'online', providerId: 'netease', type: 'playlist', id: 'p2', name: 'P2' } as const;
++    useCollectionNavigationStore.getState().openRoot(collection, 'home');
++    await act(async () => {
++      window.dispatchEvent(new MessageEvent('message', { data: { type: 'shizuki:set-view', view: 'lattice' } }));
++    });
++    const before = { href: window.location.href, length: window.history.length, state: window.history.state };
++
++    await act(async () => {
++      document.getElementById('return-to-collection')?.click();
++    });
++
++    expect(useAppViewStore.getState().view).toBe('home');
++    expect(useCollectionNavigationStore.getState().snapshot?.stack.at(-1)).toMatchObject({ id: 'p2' });
++    expect({ href: window.location.href, length: window.history.length, state: window.history.state }).toEqual(before);
++  });
++
++  it('keeps one P2 return target through repeated player navigation requests', async () => {
++    const embedRoot = document.createElement('div');
++    embedRoot.id = 'folia-embed-root';
++    document.body.append(embedRoot);
++    vi.spyOn(window, 'setInterval').mockReturnValue(1 as unknown as ReturnType<typeof setInterval>);
++    vi.stubGlobal('requestAnimationFrame', vi.fn(() => 1));
++    vi.stubGlobal('cancelAnimationFrame', vi.fn());
++    installShizukiExternalBridge();
++    await mountNavigation();
++    const collection = { source: 'online', providerId: 'qq', type: 'playlist', id: 'p2', name: 'P2' } as const;
++    useCollectionNavigationStore.getState().openRoot(collection, 'home');
++    const context = { kind: 'collection', collection };
++
++    await act(async () => {
++      window.dispatchEvent(new MessageEvent('message', { data: {
++        type: 'shizuki:navigate', protocolVersion: 1, requestId: 100, active: true,
++        view: 'lattice', sourceContext: context,
++      } }));
++    });
++    await act(async () => { document.getElementById('open-player')?.click(); });
++    await act(async () => {
++      window.dispatchEvent(new MessageEvent('message', { data: {
++        type: 'shizuki:navigate', protocolVersion: 1, requestId: 101, active: true,
++        view: 'player', sourceContext: context,
++      } }));
++      window.dispatchEvent(new MessageEvent('message', { data: {
++        type: 'shizuki:navigate', protocolVersion: 1, requestId: 102, active: true,
++        view: 'player', sourceContext: context,
++      } }));
++    });
++    const beforeBack = { href: window.location.href, length: window.history.length, state: window.history.state };
++
++    await act(async () => { document.getElementById('player-back')?.click(); });
++
++    expect(useAppViewStore.getState().view).toBe('home');
++    expect(useCollectionNavigationStore.getState().snapshot?.stack.at(-1)).toMatchObject({ id: 'p2' });
++    expect({ href: window.location.href, length: window.history.length, state: window.history.state }).toEqual(beforeBack);
++  });
++
++  it('falls back to the Folia queue wall after the source changes away from a stale collection', async () => {
++    const embedRoot = document.createElement('div');
++    embedRoot.id = 'folia-embed-root';
++    document.body.append(embedRoot);
++    vi.spyOn(window, 'setInterval').mockReturnValue(1 as unknown as ReturnType<typeof setInterval>);
++    vi.stubGlobal('requestAnimationFrame', vi.fn(() => 1));
++    vi.stubGlobal('cancelAnimationFrame', vi.fn());
++    installShizukiExternalBridge();
++    await mountNavigation();
++    useCollectionNavigationStore.getState().openRoot({
++      source: 'online', providerId: 'netease', type: 'playlist', id: 'stale-p1', name: 'Stale P1',
++    }, 'home');
++    await act(async () => {
++      window.dispatchEvent(new MessageEvent('message', { data: {
++        type: 'shizuki:navigate', protocolVersion: 1, requestId: 103, active: true,
++        view: 'player', sourceContext: { kind: 'queue' },
++      } }));
++    });
++    expect(useCollectionNavigationStore.getState().snapshot).toBeNull();
++
++    await act(async () => { document.getElementById('player-back')?.click(); });
++
++    expect(useAppViewStore.getState().view).toBe('lattice');
++    expect(useCollectionNavigationStore.getState().snapshot).toBeNull();
++  });
++
++  it('rejects a stale request after parking and accepts the next host-lifetime request on reentry', async () => {
++    const embedRoot = document.createElement('div');
++    embedRoot.id = 'folia-embed-root';
++    document.body.append(embedRoot);
++    vi.spyOn(window, 'setInterval').mockReturnValue(1 as unknown as ReturnType<typeof setInterval>);
++    vi.stubGlobal('requestAnimationFrame', vi.fn(() => 1));
++    vi.stubGlobal('cancelAnimationFrame', vi.fn());
++    installShizukiExternalBridge();
++    await mountNavigation();
++
++    const dispatch = async (requestId: number, active: boolean, view: 'lattice' | 'player') => {
++      await act(async () => {
++        window.dispatchEvent(new MessageEvent('message', { data: {
++          type: 'shizuki:navigate', protocolVersion: 1, requestId, active, view,
++        } }));
++      });
++    };
++    await dispatch(104, true, 'lattice');
++    await dispatch(105, false, 'lattice');
++    await dispatch(104, true, 'player');
++    expect(useAppViewStore.getState().view).toBe('lattice');
++    await dispatch(106, true, 'player');
++    expect(useAppViewStore.getState().view).toBe('player');
++  });
++
++  it('keeps native hash history behavior when no embed root exists', async () => {
++    vi.stubGlobal('requestAnimationFrame', vi.fn(() => 1));
++    vi.stubGlobal('cancelAnimationFrame', vi.fn());
++    window.localStorage.removeItem('open_player_on_launch');
++    window.history.replaceState(null, '', '/');
++    await mountNavigation();
++
++    await act(async () => { navigation?.navigateToPlayer(); });
++
++    expect(window.location.hash).toBe('#player');
++    expect((window.history.state as { view?: string } | null)?.view).toBe('player');
++    expect(window.history.length).toBeGreaterThan(1);
++  });
 +});
 diff --git a/test/unit/shizukiExternalBridge.integration.test.ts b/test/unit/shizukiExternalBridge.integration.test.ts
 new file mode 100644
-index 00000000..33f6fcc5
+index 00000000..877b4958
 --- /dev/null
 +++ b/test/unit/shizukiExternalBridge.integration.test.ts
-@@ -0,0 +1,109 @@
+@@ -0,0 +1,170 @@
 +// @vitest-environment jsdom
 +import { afterEach, describe, expect, it, vi } from 'vitest';
 +import { installShizukiExternalBridge } from '../../src/shizukiExternalBridge';
@@ -2130,6 +4019,8 @@ index 00000000..33f6fcc5
 +import { currentTime, lyricCurrentTime } from '../../src/stores/motionSignals';
 +import { usePlaybackStore } from '../../src/stores/usePlaybackStore';
 +import { PlayerState } from '../../src/types';
++import { getEmbeddedSourceContext, resetEmbeddedWorkspaceForTests, retainEmbeddedSourceContext } from '../../src/services/embeddedWorkspaceNavigation';
++import { useCollectionNavigationStore } from '../../src/stores/useCollectionNavigationStore';
 +
 +describe('same-document Folia playback bridge', () => {
 +  afterEach(() => {
@@ -2144,6 +4035,8 @@ index 00000000..33f6fcc5
 +      currentLineIndex: -1,
 +      playQueue: [],
 +    });
++    useCollectionNavigationStore.getState().clear();
++    resetEmbeddedWorkspaceForTests();
 +    currentTime.set(0);
 +    lyricCurrentTime.set(0);
 +  });
@@ -2163,6 +4056,11 @@ index 00000000..33f6fcc5
 +    vi.stubGlobal('cancelAnimationFrame', vi.fn());
 +    vi.spyOn(window, 'setInterval').mockReturnValue(1 as unknown as ReturnType<typeof setInterval>);
 +    installShizukiExternalBridge();
++
++    window.dispatchEvent(new MessageEvent('message', {
++      data: { type: 'shizuki:navigate', protocolVersion: 1, requestId: 2000, active: true, view: 'player' },
++    }));
++    postMessage.mockClear();
 +
 +    window.dispatchEvent(new MessageEvent('message', {
 +      data: { type: 'shizuki:set-lyric-color', color: '#abcdef' },
@@ -2195,6 +4093,7 @@ index 00000000..33f6fcc5
 +    expect(currentTime.get()).toBe(12.5);
 +    expect(lyricCurrentTime.get()).toBe(12.5);
 +    expect(usePlaybackStore.getState().currentSong?.id).toBe(7);
++    const projectedSong = usePlaybackStore.getState().currentSong;
 +    expect(audio.pause).toHaveBeenCalledOnce();
 +    expect(audio.getAttribute('src') ?? '').toBe('');
 +    expect(postMessage).not.toHaveBeenCalled();
@@ -2206,6 +4105,7 @@ index 00000000..33f6fcc5
 +    expect(currentTime.get()).toBe(18);
 +    expect(lyricCurrentTime.get()).toBe(18);
 +    expect(usePlaybackStore.getState().lyrics).toBe(projectedLyrics);
++    expect(usePlaybackStore.getState().currentSong).toBe(projectedSong);
 +    expect(audio.pause).toHaveBeenCalledTimes(2);
 +    expect(postMessage).not.toHaveBeenCalled();
 +
@@ -2230,6 +4130,56 @@ index 00000000..33f6fcc5
 +    progress.dispatchEvent(new Event('input', { bubbles: true }));
 +    expect(postMessage).toHaveBeenNthCalledWith(3, { type: 'shizuki:playback-command', action: 'seek', positionMs: 24000 }, '*');
 +    expect(audio.pause).toHaveBeenCalledTimes(2);
++  });
++
++  it('keeps queue identity and native browsing context stable across follow-clock snapshots', () => {
++    const root = document.createElement('div');
++    root.id = 'folia-embed-root';
++    document.body.append(root);
++    vi.stubGlobal('requestAnimationFrame', vi.fn(() => 1));
++    vi.stubGlobal('cancelAnimationFrame', vi.fn());
++    vi.spyOn(window, 'setInterval').mockReturnValue(1 as unknown as ReturnType<typeof setInterval>);
++    installShizukiExternalBridge();
++    window.dispatchEvent(new MessageEvent('message', {
++      data: { type: 'shizuki:navigate', protocolVersion: 1, requestId: 2001, active: true, view: 'lattice' },
++    }));
++    useCollectionNavigationStore.getState().openRoot({
++      source: 'online', providerId: 'qq', type: 'playlist', id: 'P1', name: 'P1',
++    }, 'home');
++    const session = {
++      version: 10,
++      track: { id: 'opaque-b', name: 'B', providerId: 'qq', sourceRef: { kind: 'online', providerId: 'qq', mediaId: 'opaque-b' }, queueEntryId: 'entry-b' },
++      queue: [
++        { id: 'opaque-a', name: 'A', providerId: 'qq', sourceRef: { kind: 'online', providerId: 'qq', mediaId: 'opaque-a' }, queueEntryId: 'entry-a' },
++        { id: 'opaque-b', name: 'B', providerId: 'qq', sourceRef: { kind: 'online', providerId: 'qq', mediaId: 'opaque-b' }, queueEntryId: 'entry-b' },
++      ],
++      sourceContext: { kind: 'collection', collection: { source: 'online', providerId: 'qq', type: 'playlist', id: 'P1', name: 'P1' } },
++      playlist: null,
++      lyrics: [], lyricRenderMode: 'original', lyricIndex: -1,
++      positionMs: 8000, durationMs: 90000, playing: true,
++    };
++    window.dispatchEvent(new MessageEvent('message', { data: { type: 'shizuki:follow-playback', session } }));
++
++    const originalQueue = usePlaybackStore.getState().playQueue;
++    const originalSong = usePlaybackStore.getState().currentSong;
++    expect(usePlaybackStore.getState().currentSong?.id).toBe('opaque-b');
++    expect(usePlaybackStore.getState().playQueue.map((song) => (song as { queueEntryId?: string }).queueEntryId))
++      .toEqual(['entry-a', 'entry-b']);
++    useCollectionNavigationStore.getState().openRoot({
++      source: 'online', providerId: 'qq', type: 'playlist', id: 'P2', name: 'P2',
++    }, 'home');
++    retainEmbeddedSourceContext({
++      kind: 'collection', collection: { source: 'online', providerId: 'qq', type: 'playlist', id: 'P2', name: 'P2' },
++    });
++
++    window.dispatchEvent(new MessageEvent('message', {
++      data: { type: 'shizuki:follow-playback', session: { ...session, version: 11, positionMs: 9000 } },
++    }));
++
++    expect(usePlaybackStore.getState().playQueue).toBe(originalQueue);
++    expect(usePlaybackStore.getState().currentSong).toBe(originalSong);
++    expect(getEmbeddedSourceContext()?.collection?.id).toBe('P2');
++    expect(useCollectionNavigationStore.getState().snapshot?.stack.at(-1)?.id).toBe('P2');
 +  });
 +});
 diff --git a/test/unit/shizukiLatticeLyricColor.integration.test.ts b/test/unit/shizukiLatticeLyricColor.integration.test.ts

@@ -1,10 +1,12 @@
-import { flushPromises, shallowMount } from '@vue/test-utils';
+import { flushPromises, mount, shallowMount } from '@vue/test-utils';
 import { computed, ref } from 'vue';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocked = vi.hoisted(() => ({
   api: {},
   authenticated: true,
+  router: {},
+  route: {},
   user: { userId: 'site-user-1' },
   auth: {},
   player: {},
@@ -13,8 +15,8 @@ const mocked = vi.hoisted(() => ({
 
 vi.mock('vue-router', () => ({
   RouterView: { template: '<div />' },
-  useRoute: () => ({ path: '/music-library/music', fullPath: '/music-library/music', query: {}, params: {}, meta: {} }),
-  useRouter: () => ({ push: vi.fn(), replace: vi.fn() })
+  useRoute: () => mocked.route,
+  useRouter: () => mocked.router
 }));
 vi.mock('../composables/useAuthSession', () => ({ useAuthSession: () => mocked.auth }));
 vi.mock('../composables/playerBridge', () => ({ usePlayerBridge: () => mocked.player }));
@@ -32,6 +34,7 @@ vi.mock('../services/musicApi', () => {
 });
 
 import MusicLibraryPage from './MusicLibraryPage.vue';
+import { MUSIC_LIBRARY_CONTEXT_KEY } from '../composables/musicLibraryContext';
 
 function makePlayer() {
   const refs = new Map();
@@ -66,6 +69,8 @@ function resetMocks({ authenticated = true, userId = 'site-user-1', boundRows = 
     redirectToAuth: vi.fn()
   };
   mocked.authenticated = authenticated;
+  mocked.router = { push: vi.fn(), replace: vi.fn() };
+  mocked.route = { name: 'music-library-music', path: '/music-library/music', fullPath: '/music-library/music', query: {}, params: {}, meta: {} };
   mocked.player = makePlayer();
   mocked.ui = new Proxy({}, {
     get: (_target, key) => {
@@ -78,6 +83,10 @@ function resetMocks({ authenticated = true, userId = 'site-user-1', boundRows = 
     getMusicLibraryHome: vi.fn().mockResolvedValue({}),
     listMusicProviders: vi.fn().mockResolvedValue([]),
     getMyMusicLibrarySidebar: vi.fn().mockResolvedValue({ defaultPlaylist: null }),
+    getPlaylistBundleByCode: vi.fn(async (code) => ({
+      profile: { playlistCode: code, name: code },
+      tracks: [{ id: `${code}-first` }, { id: `${code}-second` }]
+    })),
     getMetingStatus: vi.fn().mockResolvedValue({}),
     getMusicSourceAccountStatus: vi.fn().mockResolvedValue(boundRows),
     upsertMusicSourceAccountCookie: vi.fn().mockResolvedValue({}),
@@ -98,11 +107,269 @@ describe('MusicLibraryPage stored Folia account entry integration', () => {
     vi.clearAllMocks();
   });
 
-  async function mountPage() {
-    const wrapper = shallowMount(MusicLibraryPage, { global: { stubs: { transition: false } } });
+  async function mountPage({ teleport = false } = {}) {
+    const mountFn = teleport ? mount : shallowMount;
+    const wrapper = mountFn(MusicLibraryPage, {
+      ...(teleport ? { attachTo: document.body } : {}),
+      global: { stubs: { transition: false, MusicVisualizerLayer: true } }
+    });
     for (let turn = 0; turn < 4; turn += 1) await flushPromises();
     return wrapper;
   }
+
+  it('does not swallow Escape from the embedded Folia surface before its active view can handle it', async () => {
+    const wrapper = await mountPage({ teleport: true });
+    const forwardedEscape = vi.fn();
+    window.addEventListener('keydown', forwardedEscape);
+    try {
+      const host = wrapper.get('.folia-embed-host').element;
+      host.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      expect(forwardedEscape).toHaveBeenCalledOnce();
+    } finally {
+      window.removeEventListener('keydown', forwardedEscape);
+      wrapper.unmount();
+    }
+  });
+
+  it('hands a native Folia collection to the host player as its complete ordered queue', async () => {
+    const wrapper = await mountPage();
+    window.dispatchEvent(new CustomEvent('shizuki:open-folia-mode'));
+    await flushPromises();
+    const tracks = [{ id: 'native-a', provider: 'navidrome' }, { id: 'native-b', provider: 'navidrome' }];
+
+    window.dispatchEvent(new MessageEvent('message', {
+      data: {
+        type: 'shizuki:playback-intent',
+        track: tracks[1],
+        selection: {
+          kind: 'collection',
+          queuePolicy: 'replace',
+          selectedIndex: 0,
+          tracks,
+          sourceContext: {
+            kind: 'collection',
+            collection: { source: 'navidrome', type: 'playlist', id: 'opaque-collection', name: 'Native Mix' }
+          }
+        }
+      }
+    }));
+    await flushPromises();
+
+    const [installedTracks, startIndex, autoPlay, source] = mocked.player.replaceQueueWithTracks.mock.calls[0];
+    expect(installedTracks).toHaveLength(2);
+    expect(installedTracks.map((item) => item.id)).toEqual(['native-a', 'native-b']);
+    expect(installedTracks.map((item) => item.provider)).toEqual(['navidrome', 'navidrome']);
+    expect([startIndex, autoPlay]).toEqual([0, true]);
+    expect(source).toMatchObject({ sourceType: 'folia-native-collection', sourceContext: expect.any(Object) });
+    expect(source).not.toHaveProperty('sourceCode');
+
+    wrapper.unmount();
+  });
+
+  it('shows a loader error and retries against the current Folia entry', async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = vi.fn().mockRejectedValue(new Error('temporary network failure'));
+    const wrapper = await mountPage({ teleport: true });
+    try {
+      window.dispatchEvent(new CustomEvent('shizuki:open-folia-mode'));
+      for (let turn = 0; turn < 5; turn += 1) await flushPromises();
+      let runtimeScript = document.querySelector('script[src="/music/runtime-config.js"]');
+      expect(runtimeScript).toBeTruthy();
+      runtimeScript.dispatchEvent(new Event('error'));
+      for (let turn = 0; turn < 5; turn += 1) await flushPromises();
+
+      expect(wrapper.get('.folia-entry-status').text()).toContain('failed to load /music/runtime-config.js');
+      const retry = wrapper.get('.folia-entry-status button');
+      expect(retry.text()).toBe('重试 Folia');
+      await retry.trigger('click');
+      for (let turn = 0; turn < 5; turn += 1) await flushPromises();
+      runtimeScript = document.querySelector('script[src="/music/runtime-config.js"]');
+      expect(runtimeScript).toBeTruthy();
+      runtimeScript.dispatchEvent(new Event('load'));
+      for (let turn = 0; turn < 5; turn += 1) await flushPromises();
+
+      expect(globalThis.fetch).toHaveBeenCalledWith(expect.stringMatching(/^\/music\/\?__shizuki_embed=/), { cache: 'no-store' });
+      expect(wrapper.get('.folia-entry-status').text()).toContain('temporary network failure');
+    } finally {
+      wrapper.unmount();
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('mounts Folia from its current hashed entry and delivers the canonical navigation on a cold load', async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      text: async () => '<script type="module" crossorigin src="/music/assets/Lattice-cold-entry.js"></script>'
+    });
+    const wrapper = await mountPage({ teleport: true });
+    const postMessage = vi.spyOn(window, 'postMessage');
+    try {
+      window.dispatchEvent(new CustomEvent('shizuki:open-folia-mode'));
+      for (let turn = 0; turn < 4; turn += 1) await flushPromises();
+      const mainScript = document.querySelector('script[src="/music/assets/Lattice-cold-entry.js"]');
+      expect(mainScript).toBeTruthy();
+      document.getElementById('folia-embed-root').appendChild(document.createElement('div'));
+      mainScript.dispatchEvent(new Event('load'));
+      for (let turn = 0; turn < 8; turn += 1) await flushPromises();
+
+      expect(postMessage).toHaveBeenCalledWith(expect.objectContaining({ type: 'shizuki:activate-playback-bridge' }), window.location.origin);
+      expect(postMessage).toHaveBeenCalledWith(expect.objectContaining({
+        type: 'shizuki:navigate',
+        protocolVersion: 1,
+        view: 'player',
+        active: true
+      }), window.location.origin);
+      expect(wrapper.find('.folia-entry-status').exists()).toBe(false);
+    } finally {
+      postMessage.mockRestore();
+      wrapper.unmount();
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('does not activate Folia when a cold entry finishes after the page unmounts', async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      text: async () => '<script type="module" crossorigin src="/music/assets/Lattice-unmount-entry.js"></script>'
+    });
+    const wrapper = await mountPage({ teleport: true });
+    const postMessage = vi.spyOn(window, 'postMessage');
+    window.dispatchEvent(new CustomEvent('shizuki:open-folia-mode'));
+    try {
+      for (let turn = 0; turn < 5; turn += 1) await flushPromises();
+      const mainScript = document.querySelector('script[src="/music/assets/Lattice-unmount-entry.js"]');
+      expect(mainScript).toBeTruthy();
+
+      wrapper.unmount();
+      document.getElementById('folia-embed-root')?.appendChild(document.createElement('div'));
+      mainScript.dispatchEvent(new Event('load'));
+      for (let turn = 0; turn < 8; turn += 1) await flushPromises();
+
+      expect(postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'shizuki:activate-playback-bridge' }), window.location.origin);
+      expect(postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'shizuki:navigate', active: true }), window.location.origin);
+    } finally {
+      postMessage.mockRestore();
+      if (wrapper.exists()) wrapper.unmount();
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('does not activate Folia when entry is cancelled before its queued activation runs', async () => {
+    const wrapper = await mountPage({ teleport: true });
+    const postMessage = vi.spyOn(window, 'postMessage');
+    try {
+      window.dispatchEvent(new CustomEvent('shizuki:open-folia-mode'));
+      await wrapper.get('.folia-library-btn').trigger('click');
+      for (let turn = 0; turn < 5; turn += 1) await flushPromises();
+
+      expect(postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'shizuki:activate-playback-bridge' }), window.location.origin);
+      expect(postMessage).toHaveBeenCalledWith(expect.objectContaining({
+        type: 'shizuki:navigate',
+        active: false
+      }), window.location.origin);
+      expect(window.localStorage.getItem('shizuki.music.foliaMode')).toBe('0');
+    } finally {
+      postMessage.mockRestore();
+      wrapper.unmount();
+    }
+  });
+
+  it('renders the concise shared-player dock only while Folia is active', async () => {
+    const wrapper = await mountPage({ teleport: true });
+    expect(wrapper.find('.folia-compact-dock').exists()).toBe(false);
+    window.dispatchEvent(new CustomEvent('shizuki:open-folia-mode'));
+    await flushPromises();
+    expect(wrapper.find('.folia-compact-dock').exists()).toBe(true);
+    expect(wrapper.find('.folia-compact-dock .ctrl-btn.primary').exists()).toBe(true);
+    await wrapper.get('.folia-compact-dock').trigger('click');
+    await wrapper.get('.folia-compact-dock .ctrl-btn.primary').trigger('click');
+    expect(mocked.router.push).not.toHaveBeenCalled();
+    expect(mocked.player.togglePlay).toHaveBeenCalledOnce();
+    expect(window.localStorage.getItem('shizuki.music.foliaMode')).toBe('1');
+    wrapper.unmount();
+  });
+
+  it('returns a native Folia collection to the current queue route without fetching a site playlist', async () => {
+    const wrapper = await mountPage({ teleport: true });
+    mocked.player.queueSourceContext.value = {
+      kind: 'collection',
+      collection: { source: 'navidrome', type: 'playlist', id: 'opaque:P2', name: 'Native P2' }
+    };
+
+    await wrapper.get('.folia-library-btn').trigger('click');
+    await flushPromises();
+
+    expect(mocked.router.push).toHaveBeenCalledWith({ name: 'music-library-queue' });
+    expect(mocked.api.getPlaylistBundleByCode).not.toHaveBeenCalled();
+    wrapper.unmount();
+  });
+
+  it('provides the shared queue as a local detail source without loading a backend playlist', async () => {
+    const queue = [
+      { id: '42', trackId: '42', provider: 'netease', queueEntryId: 'queue-entry-a' },
+      { id: '42', trackId: '42', provider: 'netease', queueEntryId: 'queue-entry-b' }
+    ];
+    mocked.route = {
+      name: 'music-library-queue', path: '/music-library/queue', fullPath: '/music-library/queue', query: {}, params: {}, meta: {}
+    };
+    mocked.player.tracks.value = queue;
+    mocked.player.queueDisplayTracks.value = queue;
+    mocked.player.queueSourceContext.value = {
+      kind: 'collection',
+      collection: { source: 'navidrome', type: 'playlist', id: 'opaque:P2', name: 'Native P2' }
+    };
+    mocked.player.playlistProfile.value = { playlistCode: '', name: 'Native P2' };
+    const wrapper = await mountPage();
+    const context = wrapper.vm.$.provides[MUSIC_LIBRARY_CONTEXT_KEY];
+
+    expect(context.currentPlaylistProfile.value).toMatchObject({ playlistCode: '', name: 'Native P2' });
+    expect(context.currentPlaylistAllTracks.value).toEqual(queue);
+    expect(context.currentPlaylistLoading.value).toBe(false);
+    expect(context.currentPlaylistError.value).toBe('');
+    await context.playTrackInCurrentPlaylist(1);
+    expect(mocked.player.selectTrackByIndex).toHaveBeenCalledWith(1, true);
+    expect(mocked.player.replaceQueueWithTracks).not.toHaveBeenCalled();
+    expect(mocked.api.getPlaylistBundleByCode).not.toHaveBeenCalled();
+    wrapper.unmount();
+  });
+
+  it('selects the exact duplicate queue entry from a Folia wall without replacing the shared queue', async () => {
+    const wrapper = await mountPage();
+    window.dispatchEvent(new CustomEvent('shizuki:open-folia-mode'));
+    const queue = [
+      { id: 'repeat-42', trackId: '42', provider: 'netease', queueEntryId: 'entry-a', title: 'A' },
+      { id: 'repeat-42', trackId: '42', provider: 'netease', queueEntryId: 'entry-b', title: 'B' }
+    ];
+    mocked.player.tracks.value = queue;
+    mocked.player.currentTrack.value = queue[0];
+    mocked.player.selectTrackByIndex.mockImplementation(async (index) => {
+      mocked.player.currentTrack.value = queue[index];
+      return true;
+    });
+
+    window.dispatchEvent(new MessageEvent('message', {
+      data: {
+        type: 'shizuki:playback-intent',
+        track: queue[1],
+        selection: {
+          kind: 'track',
+          queuePolicy: 'preserve-or-insert',
+          selectedIndex: 1,
+          embeddedSelectionView: 'lattice',
+          sourceContext: { kind: 'queue', sitePlaylistCode: 'default_public' }
+        }
+      }
+    }));
+    await flushPromises();
+
+    expect(mocked.player.selectTrackByIndex).toHaveBeenCalledWith(1, true);
+    expect(mocked.player.currentTrack.value.queueEntryId).toBe('entry-b');
+    expect(mocked.player.replaceQueueWithTracks).not.toHaveBeenCalled();
+    expect(mocked.player.playExternalTrack).not.toHaveBeenCalled();
+    wrapper.unmount();
+  });
 
   it('persists Folia authorization, imports playlists, and refreshes the sidebar on normal entry', async () => {
     const wrapper = await mountPage();
@@ -222,7 +489,7 @@ describe('MusicLibraryPage stored Folia account entry integration', () => {
       if (shouldSwitch) {
         expect(mocked.player.playExternalTrack).toHaveBeenCalledWith(
           expect.objectContaining({ provider: foliaTrackB.provider, title: foliaTrackB.name }),
-          { replaceQueue: false }
+          expect.objectContaining({ replaceQueue: false, queuePolicy: 'preserve-or-insert' })
         );
         expect(mocked.player.currentTrack.value).toMatchObject({
           id: String(foliaTrackB.id), trackId: String(foliaTrackB.trackId), provider: foliaTrackB.provider,

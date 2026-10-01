@@ -1026,6 +1026,82 @@
   }
 }
 
+/* Folia keeps one concise shared-player strip above its embedded surface. */
+.folia-embed-pane > .music-library-dock.folia-compact-dock {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: max(12px, env(safe-area-inset-bottom));
+  z-index: 4;
+  width: auto;
+  max-width: none;
+  height: 58px;
+  grid-template-areas: 'track controls progress';
+  grid-template-columns: minmax(0, 1fr) auto minmax(72px, 0.7fr);
+  grid-template-rows: 1fr;
+  column-gap: 12px;
+  padding: 6px 14px;
+  border-radius: 16px !important;
+  cursor: default;
+}
+
+.folia-embed-pane > .music-library-dock.folia-compact-dock > .tw-spectrum,
+.folia-embed-pane > .music-library-dock.folia-compact-dock .utility-block,
+.folia-embed-pane > .music-library-dock.folia-compact-dock .ctrl-btn:not(.primary),
+.folia-embed-pane > .music-library-dock.folia-compact-dock .time {
+  display: none;
+}
+
+.folia-embed-pane > .music-library-dock.folia-compact-dock .track-block {
+  grid-area: track;
+  grid-template-columns: 36px minmax(0, 1fr);
+  gap: 8px;
+}
+
+.folia-embed-pane > .music-library-dock.folia-compact-dock .cover {
+  width: 36px;
+  height: 36px;
+}
+
+.folia-embed-pane > .music-library-dock.folia-compact-dock .title,
+.folia-embed-pane > .music-library-dock.folia-compact-dock .artist {
+  max-width: 100%;
+}
+
+.folia-embed-pane > .music-library-dock.folia-compact-dock .controls {
+  grid-area: controls;
+  justify-content: center;
+}
+
+.folia-embed-pane > .music-library-dock.folia-compact-dock .ctrl-btn.primary {
+  width: 36px;
+  height: 36px;
+}
+
+.folia-embed-pane > .music-library-dock.folia-compact-dock .dock-progress-row {
+  grid-area: progress;
+  display: block;
+  width: 100%;
+  min-width: 0;
+}
+
+.folia-embed-pane > .music-library-dock.folia-compact-dock .twl-progress-wrap,
+.folia-embed-pane > .music-library-dock.folia-compact-dock .twl-progress-track {
+  height: 100%;
+}
+
+.folia-embed-pane > .music-library-dock.folia-compact-dock .dock-queue {
+  display: none;
+}
+
+@media (max-width: 560px) {
+  .folia-embed-pane > .music-library-dock.folia-compact-dock {
+    grid-template-columns: minmax(0, 1fr) auto minmax(54px, 0.55fr);
+    column-gap: 8px;
+    padding: 6px 10px;
+  }
+}
+
 /* ============================================================
  * 9. 动效降级
  * ============================================================ */
