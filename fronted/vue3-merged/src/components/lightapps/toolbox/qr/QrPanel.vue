@@ -1,5 +1,13 @@
 <template>
-  <section class="qr-panel" :class="`is-${mode}`">
+  <section
+    class="qr-panel"
+    :class="`is-${mode}`"
+    @paste="onScanPaste"
+    @dragenter="onScanDragEnter"
+    @dragover="onScanDragOver"
+    @dragleave="onScanDragLeave"
+    @drop="onScanDrop"
+  >
     <div class="qr-panel-body">
       <div class="qr-controls">
         <template v-if="mode === 'generate'">
@@ -66,13 +74,13 @@
               ref="scanFileInputRef"
               class="qr-hidden-input"
               type="file"
-              accept="image/png,image/jpeg,image/webp,image/gif"
+              accept="image/*"
               @change="onScanFileChange"
             />
           </div>
 
           <p class="pane-hint">
-            支持本地图片、剪贴板图片与摄像头实时扫码；识别全部在浏览器本地完成，图片不会上传。
+            点击识别框后按 Ctrl+V / Cmd+V 粘贴截图，或直接拖入图片；识别在本地完成，图片不会上传。
           </p>
 
           <!--
@@ -85,14 +93,10 @@
             <canvas ref="cameraCanvasRef" class="qr-hidden-input"></canvas>
           </div>
 
-          <div v-if="scanPreviewUrl" class="qr-scan-preview">
-            <img :src="scanPreviewUrl" alt="待识别的二维码图片" />
-          </div>
-
           <div class="qr-result" :class="{ 'has-value': scanResult }">
             <div class="qr-result-head">
               <span class="qr-kind">{{ scanResultKindLabel }}</span>
-              <small>{{ scanStatus }}</small>
+              <small role="status" aria-live="polite">{{ scanStatus }}</small>
             </div>
             <textarea
               :value="scanResult"
@@ -161,7 +165,23 @@
       </div>
 
       <div class="qr-preview">
-        <div v-if="previewBusy" class="qr-preview-stage">
+        <div
+          v-if="mode === 'scan'"
+          ref="scanInputRef"
+          class="qr-preview-stage qr-scan-input"
+          :class="{ 'is-dragging': scanDragActive }"
+          tabindex="0"
+          role="region"
+          aria-label="二维码图片识别框，点击后粘贴或拖入图片"
+          :aria-busy="scanBusy"
+          @click="focusScanInput"
+        >
+          <img v-if="scanPreviewUrl" :src="scanPreviewUrl" alt="待识别的二维码图片" class="qr-preview-image" draggable="false" />
+          <i v-else class="fas fa-paste" aria-hidden="true"></i>
+          <strong>{{ scanDragActive ? '松开即可识别图片' : scanBusy ? '正在识别二维码…' : '粘贴或拖入二维码图片' }}</strong>
+          <span>点击此框后按 Ctrl+V / Cmd+V，也可拖入本地图片</span>
+        </div>
+        <div v-else-if="previewBusy" class="qr-preview-stage">
           <i class="fas fa-circle-notch fa-spin" aria-hidden="true"></i>
           <span>正在生成二维码…</span>
         </div>
@@ -173,7 +193,7 @@
           <span>{{ previewPlaceholder }}</span>
         </div>
 
-        <div class="qr-preview-actions">
+        <div v-if="mode !== 'scan'" class="qr-preview-actions">
           <button class="chip-btn ripple-trigger" type="button" :disabled="!currentPayload" @click="copyCurrentPayload">
             复制内容
           </button>
@@ -203,6 +223,8 @@ import {
   buildWifiQrPayload,
   decodeQrImageData,
   describeQrContentKind,
+  findQrImageFile,
+  isQrImageFile,
   isUrlLike,
   normalizeQrDownloadFileName,
   normalizeQrRenderOptions,
@@ -229,8 +251,11 @@ const scanResult = ref('');
 const scanPreviewUrl = ref('');
 const readingClipboard = ref(false);
 const cameraActive = ref(false);
+const scanBusy = ref(false);
+const scanDragActive = ref(false);
 
 const scanFileInputRef = ref(null);
+const scanInputRef = ref(null);
 const cameraVideoRef = ref(null);
 const cameraCanvasRef = ref(null);
 
@@ -245,6 +270,8 @@ let cameraRequestId = 0;
 let lastCameraScanAt = 0;
 let scanPreviewObjectUrl = '';
 let scanDecodeTaskId = 0;
+let scanInputSessionId = 0;
+let scanDragDepth = 0;
 
 const wifiPayload = computed(() => (wifiState.ssid ? buildWifiQrPayload(wifiState) : ''));
 
@@ -277,6 +304,72 @@ function setError(message) {
 
 function triggerScanFileInput() {
   scanFileInputRef.value?.click();
+}
+
+function focusScanInput() {
+  scanInputRef.value?.focus();
+}
+
+function resetScanDrag() {
+  scanDragDepth = 0;
+  scanDragActive.value = false;
+}
+
+function invalidateScanInput() {
+  scanInputSessionId += 1;
+  readingClipboard.value = false;
+  scanBusy.value = false;
+  resetScanDrag();
+}
+
+function onScanDragEnter(event) {
+  if (props.mode !== 'scan') return;
+  event.preventDefault();
+  event.stopPropagation();
+  scanDragDepth += 1;
+  scanDragActive.value = true;
+}
+
+function onScanDragOver(event) {
+  if (props.mode !== 'scan') return;
+  event.preventDefault();
+  event.stopPropagation();
+  if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy';
+  scanDragActive.value = true;
+}
+
+function onScanDragLeave(event) {
+  if (props.mode !== 'scan') return;
+  event.preventDefault();
+  event.stopPropagation();
+  scanDragDepth = Math.max(0, scanDragDepth - 1);
+  if (!scanDragDepth) scanDragActive.value = false;
+}
+
+function onScanPaste(event) {
+  if (props.mode !== 'scan') return;
+  event.preventDefault();
+  event.stopPropagation();
+  const file = findQrImageFile(event.clipboardData);
+  if (!file) {
+    setError('剪贴板中没有图片，请复制二维码图片或截图后再粘贴');
+    return;
+  }
+  decodeImageBlob(file, '粘贴图片');
+}
+
+function onScanDrop(event) {
+  if (props.mode !== 'scan') return;
+  event.preventDefault();
+  event.stopPropagation();
+  resetScanDrag();
+  focusScanInput();
+  const file = findQrImageFile(event.dataTransfer);
+  if (!file) {
+    setError('请拖入本地图片文件，例如 PNG、JPG 或 WebP');
+    return;
+  }
+  decodeImageBlob(file, '拖入图片');
 }
 
 function revokeScanPreviewUrl() {
@@ -350,15 +443,20 @@ function loadImageElement(url) {
 }
 
 async function decodeImageBlob(blob, sourceLabel) {
+  if (props.mode !== 'scan') return;
+  invalidateScanInput();
   stopCameraScan(false);
   const taskId = ++scanDecodeTaskId;
-
-  const objectUrl = URL.createObjectURL(blob);
+  scanBusy.value = true;
+  scanResult.value = '';
+  scanStatus.value = `${sourceLabel}识别中…`;
   revokeScanPreviewUrl();
-  scanPreviewObjectUrl = objectUrl;
-  scanPreviewUrl.value = objectUrl;
+  scanPreviewUrl.value = '';
 
   try {
+    const objectUrl = URL.createObjectURL(blob);
+    scanPreviewObjectUrl = objectUrl;
+    scanPreviewUrl.value = objectUrl;
     const image = await loadImageElement(objectUrl);
     if (taskId !== scanDecodeTaskId || props.mode !== 'scan') return;
     const canvas = document.createElement('canvas');
@@ -375,6 +473,8 @@ async function decodeImageBlob(blob, sourceLabel) {
     if (taskId !== scanDecodeTaskId || props.mode !== 'scan') return;
     scanStatus.value = `${sourceLabel}识别失败`;
     setError(error?.message || '二维码识别失败');
+  } finally {
+    if (taskId === scanDecodeTaskId) scanBusy.value = false;
   }
 }
 
@@ -382,31 +482,40 @@ async function onScanFileChange(event) {
   const file = event?.target?.files?.[0];
   if (event?.target) event.target.value = '';
   if (!file) return;
+  if (!isQrImageFile(file)) {
+    setError('请选择图片文件，例如 PNG、JPG 或 WebP');
+    return;
+  }
   await decodeImageBlob(file, '图片');
 }
 
 async function readClipboardImage() {
+  if (props.mode !== 'scan' || readingClipboard.value) return;
   if (!globalThis.navigator?.clipboard?.read) {
-    setError('当前浏览器不支持剪贴板图片读取，请改用本地图片导入');
+    setError('当前浏览器不支持直接读取剪贴板，请点击识别框后按 Ctrl+V / Cmd+V 粘贴图片');
     return;
   }
 
+  const sessionId = ++scanInputSessionId;
+  const isCurrent = () => sessionId === scanInputSessionId && props.mode === 'scan';
   readingClipboard.value = true;
   try {
     const items = await navigator.clipboard.read();
+    if (!isCurrent()) return;
     for (const item of items) {
       const imageType = item.types.find((type) => type.startsWith('image/'));
       if (!imageType) continue;
       const blob = await item.getType(imageType);
+      if (!isCurrent()) return;
       await decodeImageBlob(blob, '剪贴板');
-      readingClipboard.value = false;
       return;
     }
     setError('剪贴板中没有可识别的图片');
   } catch (error) {
-    setError(error?.message || '剪贴板读取失败');
+    if (!isCurrent()) return;
+    setError('剪贴板读取失败，请点击识别框后按 Ctrl+V / Cmd+V 粘贴图片');
   } finally {
-    readingClipboard.value = false;
+    if (isCurrent()) readingClipboard.value = false;
   }
 }
 
@@ -451,6 +560,8 @@ async function startCameraScan() {
     return;
   }
 
+  invalidateScanInput();
+  scanDecodeTaskId += 1;
   const requestId = ++cameraRequestId;
   let requestedStream = null;
   scanStatus.value = '正在请求摄像头权限…';
@@ -595,6 +706,7 @@ function resetPanel() {
     resetPreviewAssets();
     return;
   }
+  invalidateScanInput();
   scanDecodeTaskId += 1;
   stopCameraScan(false);
   revokeScanPreviewUrl();
@@ -629,6 +741,7 @@ watch(
   () => props.mode,
   (value, previous) => {
     if (previous === 'scan' && value !== 'scan') {
+      invalidateScanInput();
       scanDecodeTaskId += 1;
       stopCameraScan(false);
       revokeScanPreviewUrl();
@@ -648,6 +761,7 @@ watch(
 
 onBeforeUnmount(() => {
   previewTaskId += 1;
+  invalidateScanInput();
   scanDecodeTaskId += 1;
   stopCameraScan(false);
   revokeScanPreviewUrl();
@@ -789,16 +903,14 @@ onBeforeUnmount(() => {
   display: none;
 }
 
-.qr-camera,
-.qr-scan-preview {
+.qr-camera {
   border: 1px solid var(--tool-border);
   border-radius: 12px;
   overflow: hidden;
   background: rgba(var(--glass-rgb), 0.18);
 }
 
-.qr-camera-video,
-.qr-scan-preview img {
+.qr-camera-video {
   display: block;
   width: 100%;
   max-height: 280px;
@@ -857,6 +969,29 @@ onBeforeUnmount(() => {
 .qr-preview-stage > i {
   font-size: 26px;
   color: rgba(var(--accent-rgb), 0.88);
+}
+
+.qr-scan-input {
+  border-style: dashed;
+  cursor: text;
+}
+
+.qr-scan-input:focus-visible,
+.qr-scan-input.is-dragging {
+  outline: 2px solid rgba(var(--accent-rgb), 0.7);
+  outline-offset: 2px;
+  border-color: rgba(var(--accent-rgb), 0.7);
+  background-color: rgba(var(--accent-rgb), 0.12);
+}
+
+.qr-scan-input strong {
+  color: var(--tool-text);
+  font-size: 14px;
+}
+
+.qr-scan-input > span {
+  font-size: 12px;
+  line-height: 1.6;
 }
 
 .qr-preview-image {

@@ -6,8 +6,10 @@ import {
   decodeQrImageData,
   describeQrContentKind,
   escapeWifiQrValue,
+  findQrImageFile,
   inferQrContentKind,
   isQrToolMode,
+  isQrImageFile,
   isUrlLike,
   normalizeQrDownloadFileName,
   normalizeQrRenderOptions,
@@ -15,6 +17,26 @@ import {
 } from './qrToolsCore';
 
 describe('qrToolsCore', () => {
+  it('selects image transfer items first and falls back to local files', () => {
+    const image = new File(['image'], 'pasted.png', { type: 'image/png' });
+    const fallback = new File(['image'], 'fallback.JPG');
+    expect(findQrImageFile({
+      items: [{ kind: 'string', type: 'text/html' }, { kind: 'file', getAsFile: () => image }],
+      files: [fallback]
+    })).toBe(image);
+    expect(findQrImageFile({ items: [{ kind: 'file', getAsFile: () => null }], files: [fallback] })).toBe(fallback);
+    expect(findQrImageFile({ files: [new File(['text'], 'notes.txt')] })).toBeNull();
+    expect(findQrImageFile(null)).toBeNull();
+  });
+
+  it('accepts image MIME types and uses extensions only when MIME metadata is absent', () => {
+    expect(isQrImageFile(new File(['image'], 'clipboard', { type: 'image/png' }))).toBe(true);
+    expect(isQrImageFile(new File(['image'], 'SCAN.PNG'))).toBe(true);
+    expect(isQrImageFile(new File(['text'], 'fake.png', { type: 'text/plain' }))).toBe(false);
+    expect(isQrImageFile(new File(['text'], 'notes.txt'))).toBe(false);
+    expect(isQrImageFile(null)).toBe(false);
+  });
+
   it('escapes wifi payload values', () => {
     expect(escapeWifiQrValue('Cafe;WiFi:2.4G\\Guest,Zone')).toBe('Cafe\\;WiFi\\:2.4G\\\\Guest\\,Zone');
   });
