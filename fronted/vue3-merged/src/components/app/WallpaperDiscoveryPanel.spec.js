@@ -91,7 +91,8 @@ describe('WallpaperDiscoveryPanel', () => {
 
     expect(searchWorkshopWallpapers).toHaveBeenCalledWith(
       expect.objectContaining({ page: 1, sort: 'trend' }),
-      authorizedFetch
+      authorizedFetch,
+      { forceRefresh: false }
     );
     expect(wrapper.text()).toContain('Rainy Night Cafe');
     expect(wrapper.text()).toContain('City Lights');
@@ -169,7 +170,8 @@ describe('WallpaperDiscoveryPanel', () => {
 
     expect(searchWallhavenWallpapers).toHaveBeenCalledWith(
       expect.objectContaining({ page: 1, purity: '100' }),
-      authorizedFetch
+      authorizedFetch,
+      { forceRefresh: false }
     );
     expect(wrapper.text()).toContain('动漫壁纸 · x8gxgz');
     expect(wrapper.text()).toContain('3840x2160');
@@ -192,24 +194,22 @@ describe('WallpaperDiscoveryPanel', () => {
     await wrapper.find('[aria-label="Workshop 类型"]').setValue('Scene');
     await wrapper.find('[aria-label="Workshop 风格"]').setValue('Anime');
     await wrapper.find('[aria-label="Workshop 分辨率"]').setValue('1920 x 1080');
-    await flushPromises();
-
-    expect(searchWorkshopWallpapers).toHaveBeenLastCalledWith(
+    await vi.waitFor(() => expect(searchWorkshopWallpapers).toHaveBeenLastCalledWith(
       expect.objectContaining({ tags: ['Scene', 'Anime', '1920 x 1080'] }),
-      authorizedFetch
-    );
+      authorizedFetch,
+      { forceRefresh: false }
+    ));
 
     await wrapper.setProps({ source: 'wallhaven' });
     await flushPromises();
     await wrapper.find('[aria-label="轻微敏感分级"]').setValue(true);
     await wrapper.find('[aria-label="Wallhaven 比例"]').setValue('21x9,32x9');
     await wrapper.find('[aria-label="Wallhaven 顺序"]').setValue('asc');
-    await flushPromises();
-
-    expect(searchWallhavenWallpapers).toHaveBeenLastCalledWith(
+    await vi.waitFor(() => expect(searchWallhavenWallpapers).toHaveBeenLastCalledWith(
       expect.objectContaining({ purity: '110', ratios: '21x9,32x9', order: 'asc' }),
-      authorizedFetch
-    );
+      authorizedFetch,
+      { forceRefresh: false }
+    ));
   });
 
   it('uses explicit age-rating checkboxes and keeps a safe fallback selected', async () => {
@@ -222,23 +222,26 @@ describe('WallpaperDiscoveryPanel', () => {
     expect(sketchy.element.checked).toBe(false);
 
     await sketchy.setValue(true);
-    expect(searchWallhavenWallpapers).toHaveBeenLastCalledWith(
+    await vi.waitFor(() => expect(searchWallhavenWallpapers).toHaveBeenLastCalledWith(
       expect.objectContaining({ purity: '110' }),
-      authorizedFetch
-    );
+      authorizedFetch,
+      { forceRefresh: false }
+    ));
 
     await safe.setValue(false);
-    expect(searchWallhavenWallpapers).toHaveBeenLastCalledWith(
+    await vi.waitFor(() => expect(searchWallhavenWallpapers).toHaveBeenLastCalledWith(
       expect.objectContaining({ purity: '010' }),
-      authorizedFetch
-    );
+      authorizedFetch,
+      { forceRefresh: false }
+    ));
 
     await sketchy.setValue(false);
     expect(wrapper.get('[aria-label="安全分级"]').element.checked).toBe(true);
-    expect(searchWallhavenWallpapers).toHaveBeenLastCalledWith(
+    await vi.waitFor(() => expect(searchWallhavenWallpapers).toHaveBeenLastCalledWith(
       expect.objectContaining({ purity: '100' }),
-      authorizedFetch
-    );
+      authorizedFetch,
+      { forceRefresh: false }
+    ));
   });
 
   it('gives expanded native options an explicit readable theme surface', () => {
@@ -273,17 +276,56 @@ describe('WallpaperDiscoveryPanel', () => {
     expect(wrapper.text()).toContain('55%');
   });
 
+  it('offers retry only for the failed workshop item and never shows fallback as 100 percent', async () => {
+    const wrapper = mountPanel({
+      importState: {
+        lastImportJobId: 9003,
+        lastImportJobSourceType: 'WORKSHOP',
+        lastImportJobStatus: 'FALLBACK_REQUIRED',
+        lastImportJobProgressStage: 'FALLBACK_REQUIRED',
+        lastImportJobProgressPercent: 100,
+        lastImportWorkshopItemId: '2141505896',
+        lastImportJobFallbackHint: 'Steam Guard validation required'
+      }
+    });
+    await flushPromises();
+    await wrapper.findAll('.discovery-item')[0].trigger('click');
+
+    expect(wrapper.find('.import-button').text()).toContain('重试下载');
+    const progress = wrapper.get('[role="progressbar"]');
+    expect(progress.attributes('aria-valuenow')).toBeUndefined();
+    expect(progress.attributes('aria-busy')).toBe('false');
+    expect(wrapper.text()).toContain('自动下载未完成');
+    expect(wrapper.text()).toContain('Steam Guard validation required');
+    await wrapper.find('.import-button').trigger('click');
+    expect(wrapper.emitted('import-workshop')?.[0]?.[0]).toMatchObject({ itemId: '2141505896' });
+
+    await wrapper.findAll('.discovery-item')[1].trigger('click');
+    expect(wrapper.find('.import-button').text()).toContain('导入壁纸');
+  });
+
+  it('exposes an accessible filter disclosure for narrow layouts', async () => {
+    const wrapper = mountPanel();
+    const toggle = wrapper.get('.filter-disclosure-toggle');
+    expect(toggle.attributes('aria-controls')).toBe('wallpaper-filter-controls');
+    expect(toggle.attributes('aria-expanded')).toBe('false');
+    expect(wrapper.get('#wallpaper-filter-controls').classes()).toContain('is-collapsed');
+    await toggle.trigger('click');
+    expect(wrapper.get('.filter-disclosure-toggle').attributes('aria-expanded')).toBe('true');
+    expect(wrapper.get('#wallpaper-filter-controls').classes()).not.toContain('is-collapsed');
+  });
+
   it('falls back through preview candidates and can retry the proxy preview', async () => {
     const wrapper = mountPanel();
     await flushPromises();
 
     const firstCard = wrapper.findAll('.discovery-item')[0];
     const preview = firstCard.find('img');
-    expect(preview.attributes('src')).toBe('/preview/workshop/2141505896');
+    expect(preview.attributes('src')).toBe('https://img.example/1.jpg');
 
     await preview.trigger('error');
     await wrapper.vm.$nextTick();
-    expect(firstCard.find('img').attributes('src')).toBe('https://img.example/1.jpg');
+    expect(firstCard.find('img').attributes('src')).toBe('/preview/workshop/2141505896');
 
     await firstCard.find('img').trigger('error');
     await wrapper.vm.$nextTick();
@@ -291,7 +333,7 @@ describe('WallpaperDiscoveryPanel', () => {
 
     await firstCard.find('.preview-retry').trigger('click');
     await wrapper.vm.$nextTick();
-    expect(firstCard.find('img').attributes('src')).toBe('/preview/workshop/2141505896');
+    expect(firstCard.find('img').attributes('src')).toBe('https://img.example/1.jpg');
   });
 
   it('keeps online discovery available to guests while protecting import actions', async () => {
@@ -300,7 +342,8 @@ describe('WallpaperDiscoveryPanel', () => {
 
     expect(searchWorkshopWallpapers).toHaveBeenCalledWith(
       expect.objectContaining({ page: 1, sort: 'trend' }),
-      null
+      null,
+      { forceRefresh: false }
     );
     expect(wrapper.find('.discovery-item')).toBeTruthy();
     await wrapper.find('.discovery-item').trigger('click');

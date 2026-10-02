@@ -1,7 +1,8 @@
 [CmdletBinding()]
 param(
     [string]$VaultPath = 'C:\Users\IzumiShizuki\Documents\Obsidian Vault',
-    [string]$NodePath = 'D:\environment\nodejs\runtime\node-v24.17.0-win-x64\node.exe'
+    [string]$NodePath = 'D:\environment\nodejs\runtime\node-v24.17.0-win-x64\node.exe',
+    [switch]$PluginOnly
 )
 
 $ErrorActionPreference = 'Stop'
@@ -35,7 +36,7 @@ function Read-JsonObject([string]$Path) {
 }
 
 function Write-Json([string]$Path, $Value) {
-    $json = $Value | ConvertTo-Json -Depth 100
+    $json = ConvertTo-Json -InputObject $Value -Depth 100
     $normalized = ($json -replace "`r`n", "`n") + "`n"
     [System.IO.File]::WriteAllText($Path, $normalized, [System.Text.UTF8Encoding]::new($false))
 }
@@ -70,6 +71,21 @@ foreach ($name in @('manifest.json', 'core.js', 'styles.css')) {
     Copy-Item -LiteralPath (Join-Path $pluginRoot $name) -Destination (Join-Path $targetPluginDir $name) -Force
 }
 Copy-Item -LiteralPath (Join-Path $pluginRoot 'dist\main.js') -Destination (Join-Path $targetPluginDir 'main.js') -Force
+
+if ($PluginOnly) {
+    $communityPath = Join-Path $obsidianDir 'community-plugins.json'
+    $enabledPlugins = @()
+    if (Test-Path -LiteralPath $communityPath -PathType Leaf) {
+        $enabledPlugins = @(Get-Content -LiteralPath $communityPath -Raw | ConvertFrom-Json)
+    }
+    if ($enabledPlugins -notcontains 'shizuki-site-publisher') {
+        $enabledPlugins += 'shizuki-site-publisher'
+        Write-Json $communityPath ([object[]]$enabledPlugins)
+    }
+    Write-Host "Installed Shizuki Site Publisher at $targetPluginDir"
+    Write-Host 'Plugin-only mode preserved all unrelated vault settings and plugin IDs.'
+    return
+}
 
 $pluginDataPath = Join-Path $targetPluginDir 'data.json'
 $pluginData = Read-JsonObject $pluginDataPath

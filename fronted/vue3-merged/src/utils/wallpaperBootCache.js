@@ -10,6 +10,7 @@
 export const SNAPSHOT_STORAGE_KEY = 'shizuki.wallpaperBoot.cache.v1';
 export const IMAGE_CACHE_NAME = 'shizuki-wallpaper-images-v1';
 const MAX_CACHED_IMAGES = 4;
+export const MAX_CACHED_IMAGE_BYTES = 16 * 1024 * 1024;
 
 function safeWindow() {
   return typeof window !== 'undefined' ? window : null;
@@ -58,7 +59,12 @@ export function readBootWallpaperSnapshot() {
       url,
       key,
       wallpaperId: Number(parsed.wallpaperId) || 0,
-      savedAt: Number(parsed.savedAt) || 0
+      savedAt: Number(parsed.savedAt) || 0,
+      accountId: String(parsed.accountId || '').trim(),
+      visibility: String(parsed.visibility || (parsed.profile ? 'PUBLIC' : 'UNKNOWN')).toUpperCase(),
+      scope: String(parsed.scope || 'global').toLowerCase() === 'route' ? 'route' : 'global',
+      routeKey: String(parsed.routeKey || '').trim(),
+      profile: normalizeCachedProfile(parsed.profile)
     };
   } catch {
     return null;
@@ -68,7 +74,8 @@ export function readBootWallpaperSnapshot() {
 export function writeBootWallpaperSnapshot(snapshot) {
   const win = safeWindow();
   if (!win) return false;
-  const url = String(snapshot?.url || '').trim();
+  const profile = normalizeCachedProfile(snapshot?.profile);
+  const url = String(snapshot?.url || profile?.preview || profile?.src || '').trim();
   const key = stableWallpaperCacheKey(url);
   if (!url || !key) return false;
   try {
@@ -78,6 +85,11 @@ export function writeBootWallpaperSnapshot(snapshot) {
         url,
         key,
         wallpaperId: Number(snapshot?.wallpaperId) || 0,
+        accountId: String(snapshot?.accountId || '').trim(),
+        visibility: String(snapshot?.visibility || profile?.visibility || 'PUBLIC').toUpperCase(),
+        scope: String(snapshot?.scope || 'global').toLowerCase() === 'route' ? 'route' : 'global',
+        routeKey: String(snapshot?.routeKey || '').trim(),
+        profile,
         savedAt: Date.now()
       })
     );
@@ -85,6 +97,33 @@ export function writeBootWallpaperSnapshot(snapshot) {
   } catch {
     return false;
   }
+}
+
+function normalizeCachedProfile(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const id = String(raw.id || (Number(raw.wallpaperId || raw.wallpaper_id) > 0
+    ? `wp-${Number(raw.wallpaperId || raw.wallpaper_id)}`
+    : '')).trim();
+  const src = String(raw.src || raw.visualUrl || raw.visual_url || '').trim();
+  const preview = String(raw.preview || raw.previewUrl || raw.preview_url || src).trim();
+  if (!id || (!src && !preview)) return null;
+  const wallpaperId = Number(raw.wallpaperId || raw.wallpaper_id) || 0;
+  const type = String(raw.type || raw.sceneType || raw.scene_type || 'static').toLowerCase();
+  return {
+    id,
+    wallpaperId,
+    name: String(raw.name || raw.title || `壁纸 ${wallpaperId || ''}`).trim(),
+    src: src || preview,
+    preview: preview || src,
+    type: ['dynamic', 'l2d', 'static'].includes(type) ? type : 'static',
+    sceneType: String(raw.sceneType || raw.scene_type || type).toUpperCase(),
+    visibility: String(raw.visibility || 'PUBLIC').toUpperCase(),
+    auditStatus: String(raw.auditStatus || raw.audit_status || 'APPROVED').toUpperCase(),
+    l2dEntryModelJson: String(raw.l2dEntryModelJson || raw.l2d_entry_model_json || '').trim(),
+    importSource: String(raw.importSource || raw.import_source || 'CACHE'),
+    workshopItemId: String(raw.workshopItemId || raw.workshop_item_id || '').trim(),
+    mine: Boolean(raw.mine)
+  };
 }
 
 // 命中字节缓存则返回可直接给 <img> 用的 object URL，未命中返回 ''。
@@ -97,7 +136,7 @@ export async function loadCachedWallpaperObjectUrl(stableKey) {
     const hit = await cache.match(key);
     if (!hit) return '';
     const blob = await hit.blob();
-    if (!blob || blob.size <= 0) return '';
+    if (!blob || blob.size <= 0 || blob.size > MAX_CACHED_IMAGE_BYTES) return '';
     return URL.createObjectURL(blob);
   } catch {
     return '';
@@ -116,7 +155,7 @@ async function pruneImageCache(cache, keepKey) {
 
 // 把壁纸图片字节写入 Cache Storage（同一资源路径已缓存则直接跳过）。
 // 跨域存储无 CORS 头时 fetch 会失败——静默放弃，走浏览器 HTTP 缓存兜底。
-export async function persistWallpaperImage(rawUrl) {
+export async function persistWallpaperImage(rawUrl, { shouldPersist = () => true } = {}) {
   if (!cacheStorageAvailable()) return false;
   const win = safeWindow();
   const url = String(rawUrl || '').trim();
@@ -136,9 +175,39 @@ export async function persistWallpaperImage(rawUrl) {
     if (!response || !response.ok || response.type === 'opaque') return false;
     const contentType = String(response.headers?.get?.('content-type') || '').toLowerCase();
     if (/text\/html|application\/json|text\/plain/.test(contentType)) return false;
+    const contentLength = Number(response.headers?.get?.('content-length') || 0);
+    if (contentLength > MAX_CACHED_IMAGE_BYTES) return false;
+    const responseToCache = response.clone ? response.clone() : response;
+    const blob = await responseToCache.blob?.();
+    if (blob && (blob.size <= 0 || blob.size > MAX_CACHED_IMAGE_BYTES)) return false;
+    if (!shouldPersist()) return false;
 
     await cache.put(key, response);
+    if (!shouldPersist()) {
+      await cache.delete(key);
+      return false;
+    }
     await pruneImageCache(cache, key);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function clearWallpaperImageCache() {
+  if (!cacheStorageAvailable()) return false;
+  try {
+    return await safeWindow().caches.delete(IMAGE_CACHE_NAME);
+  } catch {
+    return false;
+  }
+}
+
+export function clearBootWallpaperSnapshot() {
+  const win = safeWindow();
+  if (!win) return false;
+  try {
+    win.localStorage.removeItem(SNAPSHOT_STORAGE_KEY);
     return true;
   } catch {
     return false;

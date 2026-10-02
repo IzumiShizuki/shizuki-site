@@ -1,5 +1,6 @@
 package io.github.shizuki.site.media.entity;
 
+import com.baomidou.mybatisplus.annotation.FieldStrategy;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableName;
 import io.github.shizuki.common.core.model.BaseEntity;
@@ -30,6 +31,12 @@ public class MediaWallpaperImportJobEntity extends BaseEntity {
 
     @TableField("progress_percent")
     private Integer progressPercent;
+
+    @TableField("downloaded_bytes")
+    private Long downloadedBytes;
+
+    @TableField(value = "total_bytes", updateStrategy = FieldStrategy.ALWAYS)
+    private Long totalBytes;
 
     @TableField("visibility_code")
     private Integer visibilityCode;
@@ -100,6 +107,22 @@ public class MediaWallpaperImportJobEntity extends BaseEntity {
 
     public void setProgressPercent(Integer progressPercent) {
         this.progressPercent = progressPercent;
+    }
+
+    public Long getDownloadedBytes() {
+        return downloadedBytes;
+    }
+
+    public void setDownloadedBytes(Long downloadedBytes) {
+        this.downloadedBytes = downloadedBytes;
+    }
+
+    public Long getTotalBytes() {
+        return totalBytes;
+    }
+
+    public void setTotalBytes(Long totalBytes) {
+        this.totalBytes = totalBytes;
     }
 
     public Integer getVisibilityCode() {

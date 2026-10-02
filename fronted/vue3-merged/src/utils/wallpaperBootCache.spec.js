@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   IMAGE_CACHE_NAME,
   SNAPSHOT_STORAGE_KEY,
+  clearWallpaperImageCache,
   loadCachedWallpaperObjectUrl,
   persistWallpaperImage,
   readBootWallpaperSnapshot,
@@ -56,6 +57,11 @@ beforeEach(() => {
     open: vi.fn(async (name) => {
       expect(name).toBe(IMAGE_CACHE_NAME);
       return fakeCache;
+    }),
+    delete: vi.fn(async (name) => {
+      expect(name).toBe(IMAGE_CACHE_NAME);
+      fakeCache.store.clear();
+      return true;
     })
   });
   if (!URL.createObjectURL) {
@@ -110,6 +116,13 @@ describe('boot wallpaper snapshot', () => {
     expect(writeBootWallpaperSnapshot({ url: '' })).toBe(false);
     expect(writeBootWallpaperSnapshot({ url: 'data:image/png;base64,AAAA' })).toBe(false);
     expect(window.localStorage.getItem(SNAPSHOT_STORAGE_KEY)).toBeNull();
+  });
+
+  it('keeps storage denial optional instead of failing wallpaper selection', () => {
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new DOMException('quota exceeded', 'QuotaExceededError');
+    });
+    expect(writeBootWallpaperSnapshot({ url: 'https://oss.example.com/wallpaper.jpg', wallpaperId: 12 })).toBe(false);
   });
 
   it('returns null for corrupt or incomplete payloads', () => {
@@ -168,6 +181,28 @@ describe('persistWallpaperImage', () => {
     expect(await persistWallpaperImage('https://no-cors.example.com/wall.jpg')).toBe(false);
   });
 
+  it('does not cache oversized images', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => fakeImageResponse({
+      headers: { get: (name) => String(name).toLowerCase() === 'content-length' ? String(17 * 1024 * 1024) : 'image/jpeg' }
+    })));
+    expect(await persistWallpaperImage('https://oss.example.com/large.jpg')).toBe(false);
+    expect(fakeCache.store.size).toBe(0);
+  });
+
+  it('removes private bytes if the session ends while a write is pending', async () => {
+    let resolveFetch;
+    const fetchPromise = new Promise((resolve) => { resolveFetch = resolve; });
+    vi.stubGlobal('fetch', vi.fn(() => fetchPromise));
+    let activeSession = true;
+    const pending = persistWallpaperImage('https://oss.example.com/private.jpg', {
+      shouldPersist: () => activeSession
+    });
+    activeSession = false;
+    resolveFetch(fakeImageResponse());
+    expect(await pending).toBe(false);
+    expect(fakeCache.store.size).toBe(0);
+  });
+
   it('prunes the oldest entries beyond the cache limit', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => fakeImageResponse()));
     for (let i = 1; i <= 6; i += 1) {
@@ -189,5 +224,18 @@ describe('loadCachedWallpaperObjectUrl', () => {
   it('returns empty string on miss or empty key', async () => {
     expect(await loadCachedWallpaperObjectUrl('https://oss.example.com/none.jpg')).toBe('');
     expect(await loadCachedWallpaperObjectUrl('')).toBe('');
+  });
+
+  it('degrades safely when browser cache storage is unavailable', async () => {
+    vi.stubGlobal('caches', undefined);
+    expect(await loadCachedWallpaperObjectUrl('https://oss.example.com/wallpaper.jpg')).toBe('');
+    expect(await persistWallpaperImage('https://oss.example.com/wallpaper.jpg')).toBe(false);
+  });
+
+  it('clears mixed cached wallpaper bytes at an authentication boundary', async () => {
+    fakeCache.store.set('https://oss.example.com/private.jpg', fakeImageResponse());
+    fakeCache.store.set('https://oss.example.com/public.jpg', fakeImageResponse());
+    expect(await clearWallpaperImageCache()).toBe(true);
+    expect(fakeCache.store.size).toBe(0);
   });
 });

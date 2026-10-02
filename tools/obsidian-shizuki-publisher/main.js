@@ -19,6 +19,8 @@ const REFRESH_TOKEN_SECRET_ID = 'shizuki-site-publisher-refresh-token';
 const BACKGROUND_FOLDER = '90-Assets/images/Backgrounds';
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 const PUBLISHER_VIEW_TYPE = 'shizuki-publisher-sidebar';
+const TODO_VIEW_TYPE = 'shizuki-lightapp-todo-sidebar';
+const TODO_API_PATH = '/api/v1/light-apps/todos';
 
 const DEFAULT_SETTINGS = {
   siteUrl: core.PRODUCTION_SITE_URL,
@@ -214,6 +216,40 @@ class ShizukiApiClient {
     return token;
   }
 
+  async listTodos() {
+    return core.normalizeTodoList(await this.rawRequest(TODO_API_PATH, { auth: true }));
+  }
+
+  async createTodo(title) {
+    const payload = core.buildTodoCreatePayload(title);
+    const created = core.normalizeTodoRecord(await this.rawRequest(TODO_API_PATH, {
+      method: 'POST',
+      auth: true,
+      body: payload
+    }));
+    if (!created.todoId) throw new Error('shizuki.site 未返回已创建的待办');
+    return created;
+  }
+
+  async setTodoDone(todoId, done) {
+    const id = Number(todoId);
+    if (!Number.isSafeInteger(id) || id <= 0) throw new Error('待办编号无效');
+    const currentTodos = await this.listTodos();
+    const current = currentTodos.find((todo) => todo.todoId === id);
+    if (!current) throw new Error('shizuki.site 中找不到该待办，请刷新列表后重试');
+    if (current.done === Boolean(done)) return current;
+    const payload = core.buildTodoUpdatePayload(current, done);
+    const saved = core.normalizeTodoRecord(await this.rawRequest(`${TODO_API_PATH}/${id}`, {
+      method: 'PUT',
+      auth: true,
+      body: payload
+    }));
+    if (saved.todoId !== id || saved.done !== Boolean(done)) {
+      throw new Error('shizuki.site 未确认待办状态更新');
+    }
+    return saved;
+  }
+
   async signIn(email, password) {
     const payload = await this.rawRequest('/api/v1/auth/tokens', {
       method: 'POST',
@@ -322,12 +358,12 @@ class SignInModal extends Modal {
         this.close();
         this.plugin.settingTab?.display();
         this.plugin.lastPublisherError = '';
-        this.plugin.refreshPublisherViews();
+        this.plugin.refreshAllViews();
       } catch (error) {
         this.password = '';
         new Notice(`登录失败：${error.message}`, 8000);
         this.plugin.lastPublisherError = error.message;
-        this.plugin.refreshPublisherViews();
+        this.plugin.refreshAllViews();
       } finally {
         this.busy = false;
         button.setDisabled(false).setButtonText('登录');
@@ -561,7 +597,7 @@ class ShizukiPublisherView extends ItemView {
           this.plugin.lastPublisherError = '';
           new Notice('已退出 shizuki.site');
           this.plugin.settingTab?.display();
-          this.plugin.refreshPublisherViews();
+          this.plugin.refreshAllViews();
         })
       });
     } else {
@@ -630,6 +666,249 @@ class ShizukiPublisherView extends ItemView {
   }
 }
 
+function todoPriorityLabel(priority) {
+  return ({ HIGH: '高优先级', MEDIUM: '中优先级', LOW: '低优先级' })[priority] || priority || '中优先级';
+}
+
+function todoDueLabel(value) {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  return new Intl.DateTimeFormat(undefined, {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  }).format(date);
+}
+
+class ShizukiTodoView extends ItemView {
+  constructor(leaf, plugin) {
+    super(leaf);
+    this.plugin = plugin;
+    this.todos = [];
+    this.loading = false;
+    this.busy = false;
+    this.error = '';
+    this.newTodoTitle = '';
+    this.renderVersion = 0;
+  }
+
+  getViewType() {
+    return TODO_VIEW_TYPE;
+  }
+
+  getDisplayText() {
+    return 'Shizuki Todo';
+  }
+
+  getIcon() {
+    return 'check-square';
+  }
+
+  async onOpen() {
+    this.contentEl.addClass('shizuki-todo-sidebar');
+    await this.refresh();
+  }
+
+  async onClose() {
+    this.renderVersion += 1;
+    this.contentEl.empty();
+  }
+
+  hasSession() {
+    return Boolean(this.plugin.api?.accessToken || this.plugin.api?.refreshToken);
+  }
+
+  async refresh() {
+    const version = ++this.renderVersion;
+    if (!this.hasSession()) {
+      this.todos = [];
+      this.loading = false;
+      this.error = '';
+      this.render();
+      return;
+    }
+    this.loading = true;
+    this.error = '';
+    this.render();
+    try {
+      const todos = await this.plugin.api.listTodos();
+      if (version === this.renderVersion) this.todos = todos;
+    } catch (error) {
+      if (version === this.renderVersion) this.error = error.message;
+    } finally {
+      if (version === this.renderVersion) {
+        this.loading = false;
+        this.render();
+      }
+    }
+  }
+
+  async runMutation(action, { clearTitle = false } = {}) {
+    if (this.busy || !this.hasSession()) return;
+    this.busy = true;
+    this.error = '';
+    this.render();
+    try {
+      await action();
+      if (clearTitle) this.newTodoTitle = '';
+      await this.refresh();
+    } catch (error) {
+      this.error = error.message;
+    } finally {
+      this.busy = false;
+      this.render();
+    }
+  }
+
+  createAction(container, { text, className = '', disabled = false, title = text, onClick }) {
+    const button = container.createEl('button', {
+      cls: `shizuki-publisher-action ${className}`.trim(),
+      text
+    });
+    button.disabled = Boolean(disabled);
+    button.setAttr('aria-label', title);
+    button.setAttr('title', title);
+    button.addEventListener('click', onClick);
+    return button;
+  }
+
+  renderTodoSection(root, title, todos) {
+    const section = root.createDiv({ cls: 'shizuki-todo-section' });
+    const heading = section.createDiv({ cls: 'shizuki-todo-section-heading' });
+    heading.createEl('h3', { text: title });
+    heading.createSpan({ text: String(todos.length) });
+    if (!todos.length) return;
+    const list = section.createDiv({ cls: 'shizuki-todo-list' });
+    for (const todo of todos) {
+      const item = list.createDiv({ cls: `shizuki-todo-item${todo.done ? ' is-done' : ''}` });
+      const checkbox = item.createEl('input', { attr: { type: 'checkbox' } });
+      checkbox.checked = todo.done;
+      checkbox.disabled = this.busy || this.loading;
+      checkbox.setAttr('aria-label', `${todo.done ? '重新打开' : '完成'}：${todo.title}`);
+      checkbox.addEventListener('change', () => this.runMutation(
+        () => this.plugin.api.setTodoDone(todo.todoId, checkbox.checked)
+      ));
+
+      const body = item.createDiv({ cls: 'shizuki-todo-item-body' });
+      body.createDiv({ cls: 'shizuki-todo-title', text: todo.title || '（无标题）' });
+      if (todo.detail) body.createDiv({ cls: 'shizuki-todo-detail', text: todo.detail });
+      const metadata = body.createDiv({ cls: 'shizuki-todo-meta' });
+      metadata.createSpan({ cls: `shizuki-todo-priority is-${String(todo.priority).toLowerCase()}`, text: todoPriorityLabel(todo.priority) });
+      const due = todoDueLabel(todo.dueAt);
+      if (due) metadata.createSpan({ cls: 'shizuki-todo-due', text: `截止 ${due}` });
+    }
+  }
+
+  render() {
+    const root = this.contentEl;
+    root.empty();
+
+    const header = root.createDiv({ cls: 'shizuki-todo-header' });
+    header.createDiv({ cls: 'shizuki-publisher-eyebrow', text: 'SHARED TASKS · SHIZUKI.SITE' });
+    header.createEl('h2', { text: 'Todo' });
+    header.createEl('p', { text: '在 Obsidian、网站与 Meguri-Pet 之间共用同一份待办。' });
+
+    const connected = this.hasSession();
+    const account = this.plugin.api.account;
+    const session = root.createDiv({ cls: 'shizuki-publisher-session shizuki-todo-session' });
+    const copy = session.createDiv({ cls: 'shizuki-publisher-session-copy' });
+    const state = copy.createDiv({ cls: 'shizuki-publisher-session-state' });
+    state.createSpan({ cls: `shizuki-publisher-session-dot${connected ? ' is-connected' : ''}` });
+    state.createSpan({ text: connected ? '网站已连接' : '网站未连接' });
+    copy.createDiv({
+      cls: 'shizuki-publisher-session-account',
+      text: account ? String(account.nickname || account.email || '共享 Todo 账户') : (connected ? '安全会话已就绪' : '登录后读取共享待办')
+    });
+
+    const sessionActions = session.createDiv({ cls: 'shizuki-todo-session-actions' });
+    if (connected) {
+      this.createAction(sessionActions, {
+        text: '退出',
+        className: 'is-quiet',
+        title: '退出 shizuki.site',
+        disabled: this.busy,
+        onClick: () => this.runMutation(async () => {
+          await this.plugin.api.signOut();
+          this.plugin.refreshAllViews();
+        })
+      });
+    } else {
+      this.createAction(sessionActions, {
+        text: '登录',
+        className: 'is-quiet',
+        title: '登录 shizuki.site',
+        disabled: this.busy,
+        onClick: () => new SignInModal(this.app, this.plugin).open()
+      });
+    }
+    this.createAction(sessionActions, {
+      text: this.loading ? '同步中…' : '刷新',
+      className: 'is-quiet',
+      title: '从 shizuki.site 重新载入待办',
+      disabled: !connected || this.loading || this.busy,
+      onClick: () => this.refresh()
+    });
+
+    if (!connected) {
+      const empty = root.createDiv({ cls: 'shizuki-publisher-empty' });
+      empty.createDiv({ cls: 'shizuki-publisher-empty-mark', text: '✓' });
+      empty.createEl('h3', { text: '连接共享 Todo' });
+      empty.createEl('p', { text: '请登录 shizuki.site。登录后，这里会显示网站和 Meguri-Pet 共用的待办列表。' });
+      return;
+    }
+
+    if (this.error) {
+      const error = root.createDiv({ cls: 'shizuki-publisher-error', text: this.error });
+      error.setAttr('role', 'alert');
+      this.createAction(root, {
+        text: '重试',
+        className: 'is-secondary',
+        disabled: this.loading || this.busy,
+        onClick: () => this.refresh()
+      });
+    }
+
+    const form = root.createEl('form', { cls: 'shizuki-todo-form' });
+    form.addEventListener('submit', (event) => {
+      event.preventDefault();
+      const title = this.newTodoTitle.trim();
+      if (!title || title.length > 200) {
+        this.error = '待办标题需要 1 到 200 个字符';
+        this.render();
+        return;
+      }
+      void this.runMutation(() => this.plugin.api.createTodo(title), { clearTitle: true });
+    });
+    const input = form.createEl('input', {
+      attr: { type: 'text', maxlength: '200', placeholder: '添加一个共享待办…', 'aria-label': '新 Todo 标题' }
+    });
+    input.value = this.newTodoTitle;
+    input.disabled = this.busy;
+    input.addEventListener('input', () => { this.newTodoTitle = input.value; });
+    const add = form.createEl('button', {
+      cls: 'shizuki-publisher-action is-primary',
+      text: this.busy ? '处理中…' : '添加',
+      attr: { type: 'submit' }
+    });
+    add.disabled = this.busy || this.loading;
+
+    if (this.loading && !this.todos.length) {
+      root.createDiv({ cls: 'shizuki-todo-loading', text: '正在从 shizuki.site 读取待办…' });
+      return;
+    }
+
+    const openTodos = this.todos.filter((todo) => !todo.done);
+    const completedTodos = this.todos.filter((todo) => todo.done);
+    this.renderTodoSection(root, '待完成', openTodos);
+    this.renderTodoSection(root, '已完成', completedTodos);
+    if (!this.todos.length && !this.loading) {
+      root.createDiv({ cls: 'shizuki-todo-empty', text: '还没有待办。在上方添加后，会同步到所有连接 shizuki.site 的客户端。' });
+    }
+  }
+}
+
 class ShizukiPublisherSettingTab extends PluginSettingTab {
   constructor(app, plugin) {
     super(app, plugin);
@@ -682,7 +961,7 @@ class ShizukiPublisherSettingTab extends PluginSettingTab {
         await this.plugin.api.signOut();
         this.plugin.lastPublisherError = '';
         new Notice('已退出 shizuki.site');
-        this.plugin.refreshPublisherViews();
+        this.plugin.refreshAllViews();
         this.display();
       }));
 
@@ -719,8 +998,10 @@ class ShizukiSitePublisherPlugin extends Plugin {
     this.settingTab = new ShizukiPublisherSettingTab(this.app, this);
     this.addSettingTab(this.settingTab);
     this.registerView(PUBLISHER_VIEW_TYPE, (leaf) => new ShizukiPublisherView(leaf, this));
+    this.registerView(TODO_VIEW_TYPE, (leaf) => new ShizukiTodoView(leaf, this));
     this.registerCommands();
     this.addRibbonIcon('send', '打开 Shizuki 发布侧栏', () => this.activatePublisherView());
+    this.addRibbonIcon('check-square', '打开 shizuki.site Todo', () => this.activateTodoView());
     this.addRibbonIcon('upload', '上传当前笔记到 shizuki.site', () => this.uploadActiveNote(false));
     this.registerEvent(this.app.workspace.on('active-leaf-change', () => this.schedulePublisherRefresh()));
     this.registerEvent(this.app.workspace.on('layout-change', () => this.schedulePublisherRefresh()));
@@ -737,6 +1018,7 @@ class ShizukiSitePublisherPlugin extends Plugin {
     document.body.classList.remove('shizuki-dark-vault', 'shizuki-background-enabled');
     document.body.style.removeProperty('--shizuki-background-image');
     this.app.workspace.detachLeavesOfType(PUBLISHER_VIEW_TYPE);
+    this.app.workspace.detachLeavesOfType(TODO_VIEW_TYPE);
     if (this.api) {
       this.api.accessToken = '';
       this.api.refreshToken = '';
@@ -763,9 +1045,15 @@ class ShizukiSitePublisherPlugin extends Plugin {
     };
     await this.saveData(safeSettings);
     this.refreshPublisherViews();
+    this.refreshTodoViews();
   }
 
   registerCommands() {
+    this.addCommand({
+      id: 'open-todo-sidebar',
+      name: '打开共享 Todo 侧栏',
+      callback: () => this.activateTodoView()
+    });
     this.addCommand({
       id: 'open-publisher-sidebar',
       name: '打开发布侧栏',
@@ -814,9 +1102,21 @@ class ShizukiSitePublisherPlugin extends Plugin {
         this.lastPublisherError = '';
         new Notice('已退出 shizuki.site');
         this.settingTab?.display();
-        this.refreshPublisherViews();
+        this.refreshAllViews();
       }
     });
+  }
+
+  async activateTodoView() {
+    const leaves = this.app.workspace.getLeavesOfType(TODO_VIEW_TYPE);
+    let leaf = leaves[0] || null;
+    if (!leaf) {
+      leaf = this.app.workspace.getRightLeaf?.(false) || this.app.workspace.getLeftLeaf(false);
+      if (!leaf) throw new Error('无法创建 shizuki.site Todo 侧栏');
+      await leaf.setViewState({ type: TODO_VIEW_TYPE, active: true });
+    }
+    await this.app.workspace.revealLeaf(leaf);
+    leaf.view?.refresh?.();
   }
 
   async activatePublisherView() {
@@ -843,6 +1143,17 @@ class ShizukiSitePublisherPlugin extends Plugin {
     for (const leaf of this.app.workspace.getLeavesOfType(PUBLISHER_VIEW_TYPE)) {
       leaf.view?.refresh?.();
     }
+  }
+
+  refreshTodoViews() {
+    for (const leaf of this.app.workspace.getLeavesOfType(TODO_VIEW_TYPE)) {
+      leaf.view?.refresh?.();
+    }
+  }
+
+  refreshAllViews() {
+    this.refreshPublisherViews();
+    this.refreshTodoViews();
   }
 
   getPublisherSessionState() {
