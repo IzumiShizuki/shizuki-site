@@ -291,13 +291,18 @@ function normalizeTrack(track, index) {
 function normalizePlaylistProfile(profile) {
   const preserveOpaqueQueue = profile?.sourceContext && typeof profile.sourceContext === 'object'
     && !String(profile.sourceContext.sitePlaylistCode || '').trim();
+  const rawTrackCount = profile?.trackCount ?? profile?.track_count;
+  const parsedTrackCount = rawTrackCount == null || String(rawTrackCount).trim() === ''
+    ? Number.NaN
+    : Number(rawTrackCount);
   return {
     playlistCode: preserveOpaqueQueue
       ? ''
       : (String(profile?.playlistCode || profile?.playlist_code || DEFAULT_PLAYLIST_CODE).trim() || DEFAULT_PLAYLIST_CODE),
     name: String(profile?.name || '默认歌单').trim() || '默认歌单',
     description: String(profile?.description || '').trim(),
-    cover: String(profile?.cover || '').trim()
+    cover: String(profile?.cover || '').trim(),
+    ...(Number.isFinite(parsedTrackCount) && parsedTrackCount >= 0 ? { trackCount: parsedTrackCount } : {})
   };
 }
 
@@ -333,7 +338,8 @@ function normalizePlaylistBundleProfile(rawProfile, fallbackCode = DEFAULT_PLAYL
     playlistCode: rawProfile.playlistCode ?? rawProfile.playlist_code ?? fallbackCode,
     name: rawProfile.name,
     description: rawProfile.description,
-    cover: rawProfile.cover
+    cover: rawProfile.cover,
+    trackCount: rawProfile.trackCount ?? rawProfile.track_count
   });
 }
 
@@ -1603,26 +1609,38 @@ export function usePlayerEngine(options = {}) {
     const sourceCode = explicitSourceContext
       ? String(requestedSourceContext?.sitePlaylistCode || '').trim()
       : String(source?.sourceCode || source?.playlistCode || playlistProfile.value?.playlistCode || DEFAULT_PLAYLIST_CODE).trim();
+    const currentContext = normalizeQueueSourceContext(queueSourceContext.value);
+    const sameSource = explicitSourceContext
+      ? JSON.stringify(requestedSourceContext) === JSON.stringify(currentContext)
+      : currentContext.kind === 'queue'
+        && String(currentContext.sitePlaylistCode || '') === sourceCode;
+    const currentProfile = sameSource ? playlistProfile.value : {};
+    const suppliedProfile = source?.playlistProfile && typeof source.playlistProfile === 'object'
+      ? source.playlistProfile
+      : {};
+    const hasSuppliedDescription = Object.prototype.hasOwnProperty.call(suppliedProfile, 'description');
+    const hasSuppliedCover = Object.prototype.hasOwnProperty.call(suppliedProfile, 'cover');
+    const suppliedTrackCount = suppliedProfile.trackCount ?? suppliedProfile.track_count;
     if (explicitSourceContext) {
       queueSourceContext.value = requestedSourceContext;
-      playlistProfile.value = normalizePlaylistProfile({
-        playlistCode: requestedSourceContext.sitePlaylistCode || '',
-        name: String(source?.sourceName || '播放队列'),
-        description: String(source?.sourceType || ''),
-        cover: String(source?.cover || ''),
-        sourceContext: requestedSourceContext
-      });
     } else if (sourceCode) {
       queueSourceContext.value = normalizeQueueSourceContext(null, sourceCode);
     }
-    if (sourceCode) {
-      playlistProfile.value = normalizePlaylistProfile({
-        playlistCode: sourceCode,
-        name: String(source?.sourceName || playlistProfile.value?.name || '播放队列'),
-        description: String(source?.sourceType || playlistProfile.value?.description || ''),
-        cover: String(source?.cover || playlistProfile.value?.cover || '')
-      });
-    }
+    playlistProfile.value = normalizePlaylistProfile({
+      ...currentProfile,
+      ...suppliedProfile,
+      playlistCode: explicitSourceContext ? requestedSourceContext.sitePlaylistCode || '' : sourceCode,
+      trackCount: suppliedTrackCount ?? currentProfile.trackCount,
+      name: String(suppliedProfile.name || source?.sourceName || currentProfile.name
+        || requestedSourceContext?.collection?.name || '播放队列'),
+      description: String(hasSuppliedDescription
+        ? suppliedProfile.description ?? ''
+        : source?.sourceType || currentProfile.description || ''),
+      cover: String(hasSuppliedCover
+        ? suppliedProfile.cover ?? ''
+        : source?.cover || currentProfile.cover || ''),
+      sourceContext: explicitSourceContext ? requestedSourceContext : undefined
+    });
 
     const safeIndex = Math.max(0, Math.min(tracks.value.length - 1, Number.isFinite(Number(startIndex)) ? Number(startIndex) : 0));
     const selectionPromise = selectTrackByIndex(safeIndex, autoPlay, { resolveIfMissing: true });

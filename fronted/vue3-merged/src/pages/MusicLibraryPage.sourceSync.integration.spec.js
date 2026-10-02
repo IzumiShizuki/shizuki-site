@@ -893,6 +893,91 @@ describe('MusicLibraryPage stored Folia account entry integration', () => {
     wrapper.unmount();
   });
 
+  it('preserves loaded source playlist metadata when returning to a matching queue', async () => {
+    const playlistCode = 'src_netease_4883188894_u_1';
+    mocked.route = reactive({
+      name: 'music-library-playlist',
+      path: `/music-library/playlist/${playlistCode}`,
+      fullPath: `/music-library/playlist/${playlistCode}`,
+      query: {},
+      params: { playlistCode },
+      meta: {}
+    });
+    mocked.api.getPlaylistBundleByCode.mockResolvedValue({
+      profile: { playlistCode, name: 'IzumiShizuki喜欢的音乐', trackCount: 2238 },
+      tracks: [{ id: 'source-song', trackId: 'source-song', provider: 'netease', title: 'リバーシブル!' }]
+    });
+    const wrapper = await mountPage();
+    const context = wrapper.vm.$.provides[MUSIC_LIBRARY_CONTEXT_KEY];
+
+    try {
+      expect(context.currentPlaylistProfile.value).toMatchObject({ name: 'IzumiShizuki喜欢的音乐', trackCount: 2238 });
+      mocked.player.replaceQueueWithTracks.mockResolvedValue(true);
+      await context.playTrackInCurrentPlaylist(0);
+      expect(mocked.player.replaceQueueWithTracks).toHaveBeenCalledWith(
+        expect.any(Array), 0, true,
+        expect.objectContaining({
+          playlistProfile: expect.objectContaining({ name: 'IzumiShizuki喜欢的音乐', trackCount: 2238 })
+        })
+      );
+      const queue = [{ id: 'source-song', trackId: 'source-song', provider: 'netease', title: 'リバーシブル!', queueEntryId: 'source-song-entry' }];
+      mocked.player.tracks.value = queue;
+      mocked.player.currentTrack.value = queue[0];
+      mocked.player.playlistProfile.value = { playlistCode, name: '默认收藏夹' };
+      mocked.player.queueSourceContext.value = { kind: 'queue', sitePlaylistCode: playlistCode };
+
+      Object.assign(mocked.route, {
+        name: 'music-library-queue', path: '/music-library/queue', fullPath: '/music-library/queue', params: {}
+      });
+      await flushPromises();
+      Object.assign(mocked.route, {
+        name: 'music-library-playlist',
+        path: `/music-library/playlist/${playlistCode}`,
+        fullPath: `/music-library/playlist/${playlistCode}`,
+        params: { playlistCode }
+      });
+      await flushPromises();
+
+      expect(context.currentPlaylistProfile.value).toMatchObject({ playlistCode, name: 'IzumiShizuki喜欢的音乐', trackCount: 2238 });
+      expect(context.currentPlaylistAllTracks.value.map((track) => track.queueEntryId)).toEqual(['source-song-entry']);
+    } finally {
+      wrapper.unmount();
+    }
+  });
+
+  it('uses known playlist metadata when returning to a source whose engine profile is stale', async () => {
+    const playlistCode = 'known-source-list';
+    mocked.route = reactive({
+      name: 'music-library-queue', path: '/music-library/queue', fullPath: '/music-library/queue', query: {}, params: {}, meta: {}
+    });
+    mocked.api.getMyMusicLibrarySidebar.mockResolvedValue({
+      defaultPlaylist: null,
+      likedPlaylist: { playlistCode, name: 'Known liked songs', trackCount: 823 }
+    });
+    const queue = [{ id: 'known-song', trackId: 'known-song', provider: 'netease', queueEntryId: 'known-entry' }];
+    mocked.player.tracks.value = queue;
+    mocked.player.currentTrack.value = queue[0];
+    mocked.player.playlistProfile.value = { playlistCode, name: '默认收藏夹' };
+    mocked.player.queueSourceContext.value = { kind: 'queue', sitePlaylistCode: playlistCode };
+    const wrapper = await mountPage();
+    const context = wrapper.vm.$.provides[MUSIC_LIBRARY_CONTEXT_KEY];
+
+    try {
+      Object.assign(mocked.route, {
+        name: 'music-library-playlist',
+        path: `/music-library/playlist/${playlistCode}`,
+        fullPath: `/music-library/playlist/${playlistCode}`,
+        params: { playlistCode }
+      });
+      await flushPromises();
+
+      expect(context.currentPlaylistProfile.value).toMatchObject({ playlistCode, name: 'Known liked songs', trackCount: 823 });
+      expect(context.currentPlaylistAllTracks.value.map((track) => track.queueEntryId)).toEqual(['known-entry']);
+    } finally {
+      wrapper.unmount();
+    }
+  });
+
   it('expands the current queue through a late duplicate and continues paging forward', async () => {
     const tracks = Array.from({ length: 1000 }, (_, index) => ({
       id: index === 12 || index === 869 ? 'duplicate-42' : `track-${index}`,

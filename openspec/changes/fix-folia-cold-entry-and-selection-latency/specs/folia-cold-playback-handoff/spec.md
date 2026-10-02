@@ -29,3 +29,8 @@ The system SHALL retain the authoritative queue and source playlist when exiting
 #### Scenario: Empty startup without a selected song
 - **WHEN** Folia opens with no selected song or queue
 - **THEN** it shows an intentional empty state and exiting restores the user's valid browse context
+
+#### Scenario: Source playlist metadata across mode switches
+- **WHEN** a loaded source playlist has more total songs than the currently loaded queue and the user selects a song or changes modes
+- **THEN** ordinary mode retains the source playlist's name, cover, description and known total without replacing them with another playlist's defaults or the loaded queue length
+- **AND** switching to a different Folia playlist carries its own profile with the queue, while updated snake-case counts and explicitly cleared presentation fields replace the older metadata

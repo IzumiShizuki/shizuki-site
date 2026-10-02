@@ -12,7 +12,7 @@
 
 ## 3. Verify independently and deliver
 
-- [x] 3.1 Run realistic deferred URL/lyric/bootstrap/account/duplicate-entry regressions and review every changed boundary independently. Deployed native empty-source errors and canceled-handler alerts were reproduced and corrected; root reviewed final source ownership and reset paths.
-- [x] 3.2 Complete appropriate frontend/backend/fork checks and production builds, strict OpenSpec validation and a scenario-mapped verification report. Final frontend 1541 passed, backend 53 passed, actual unchanged fork 19 passed; final production build and strict validation passed.
+- [x] 3.1 Run realistic deferred URL/lyric/bootstrap/account/duplicate-entry regressions and review every changed boundary independently. Deployed empty-source errors, canceled-handler alerts and source profile/count degradation were reproduced and corrected; root reviewed ownership, reset and metadata precedence.
+- [x] 3.2 Complete appropriate frontend/backend/fork checks and production builds, strict OpenSpec validation and a scenario-mapped verification report. Final frontend 1547 passed, backend 53 passed, actual unchanged fork 19 passed; final production build and strict validation passed.
 - [ ] 3.3 Commit and push authorized owner branches; integrate only verified music changes into the clean release branch and deploy exact artifacts to 111.228.35.186 with capacity and rollback checks.
 - [ ] 3.4 Repeat the original cold/rapid entry and return browser loops on deployed artifacts, measure before/after latency and record exact manifests and remaining external limits.

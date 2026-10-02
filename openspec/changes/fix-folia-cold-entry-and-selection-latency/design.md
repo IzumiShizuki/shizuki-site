@@ -24,7 +24,9 @@ Selection now clears previous media/lyrics and publishes exact queue-entry metad
 
 Deployed acceptance additionally showed that assigning an empty src could emit a native media error while the next URL was pending, and a canceled older ordinary selection could display a blocking failure alert. Native resets now remove src and load the element, and recovery ignores an absent source. Ordinary playback handlers retain request generation, exact queue-entry and account ownership; canceled or unmounted work cannot report failure or grow an obsolete browse list. Failures of the current owned selection still report normally.
 
-Production has about 134 MiB available. Delivery will compare the new production manifest with the verified running manifest and build an incremental frontend layer on the current immutable image. Unchanged public assets are retained, obsolete compiled assets are removed, and the complete resulting manifest must match. Preserve the current image tag and READY backup before activation.
+Source profile metadata is distinct from the currently loaded queue length. Queue installation carries the already-known playlist profile without an extra foreground fetch. The engine retains valid total counts from either API naming convention and scopes fallback presentation to the same source; explicit empty fields can clear stale values. The page keeps its valid same-source browse profile when seeding current queue entries and prefers known source metadata when returning from another source.
+
+Production initially had about 134 MiB available and later reached 0. A verified unused Folia validation builder image was removed without touching production, rollback or user data, recovering about 1.2 GB. Delivery compares the new production manifest with the verified running manifest and builds an incremental frontend layer on the current immutable image. Unchanged public assets are retained, obsolete compiled assets are removed, and the complete resulting manifest must match. Preserve the current image tag and READY backup before activation.
 
 ## Risks / Trade-offs
 

@@ -749,7 +749,7 @@ const foliaPlaylistOptions = computed(() => {
   const push = (item) => {
     const code = String(item?.playlistCode || '').trim();
     const name = String(item?.name || '').trim();
-    if (code && name) options.push({ playlistCode: code, name });
+    if (code && name) options.push(normalizePlaylistSummary(item, code));
   };
   (Array.isArray(corePlaylists.value) ? corePlaylists.value : []).forEach(push);
   (Array.isArray(createdPlaylists.value) ? createdPlaylists.value : []).forEach(push);
@@ -3259,7 +3259,22 @@ async function ensureCurrentRoutePlaylistLoaded(options = {}) {
     || String(engineProfile.playlistCode || engineProfile.playlist_code || '').trim();
   const hasMatchingEngineQueue = engineSourceCode === playlistCode && engineQueue.length > 0;
   if (hasMatchingEngineQueue) {
-    playlistBrowseProfile.value = normalizePlaylistSummary(engineProfile, playlistCode);
+    const browseProfile = playlistBrowseProfile.value || {};
+    const browseProfileCode = String(browseProfile.playlistCode || browseProfile.playlist_code || '').trim();
+    const knownProfile = foliaPlaylistOptions.value.find((item) => item.playlistCode === playlistCode);
+    const hasLoadedBrowseProfile = browseProfileCode === playlistCode
+      && Boolean(String(browseProfile.name || '').trim())
+      && (Number(browseProfile.trackCount || browseProfile.track_count || 0) > 0
+        || Boolean(String(browseProfile.cover || browseProfile.coverUrl || browseProfile.cover_url || '').trim())
+        || Boolean(String(browseProfile.description || '').trim()));
+    const sourceProfile = hasLoadedBrowseProfile ? browseProfile : (knownProfile || engineProfile);
+    const sourceTrackCount = Number(sourceProfile.trackCount || sourceProfile.track_count || 0);
+    playlistBrowseProfile.value = normalizePlaylistSummary({
+      ...engineProfile,
+      ...sourceProfile,
+      playlistCode,
+      trackCount: sourceTrackCount || Number(engineProfile.trackCount || engineProfile.track_count || 0)
+    }, playlistCode);
     playlistBrowseTracks.value = engineQueue.slice();
     playlistBrowseError.value = '';
     resetPlaylistBrowseVisibleCount(engineQueue.length);
@@ -3414,7 +3429,8 @@ async function playTrackInCurrentPlaylist(index) {
     true,
     {
       sourceType: 'playlist',
-      sourceCode: currentPlaylistProfile.value?.playlistCode || ''
+      sourceCode: currentPlaylistProfile.value?.playlistCode || '',
+      playlistProfile: currentPlaylistProfile.value
     }
   );
   const expectedQueueEntryId = currentMusicPlaybackQueueEntryId();

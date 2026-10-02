@@ -44,6 +44,14 @@ The native-media boundary exposed another hole: assigning an empty `src` during 
 
 These are application defects found by deployed acceptance, not attributed to unavailable provider audio. Final delivery/acceptance remains pending until their corrections are tested and deployed.
 
+## Deployed source metadata regression
+
+Follow-up delivery `d8c0d9f9` passed 1541 frontend tests and exact runtime verification. A fresh browser confirmed correct cold entry, progressing native audio, changed lyric color, paused 03:00 reentry and Esc returning to the current lattice. Exiting to the same source route retained 1000 songs and the current highlighted entry but changed `IzumiShizuki喜欢的音乐` / 2238 total to `默认歌单` / 1000 total. This was stable after loading, not a transient placeholder.
+
+Ordinary selection supplied only sourceCode/type. Engine profile normalization discarded track counts and queue replacement inherited the previous default heading. The page then seeded its browse profile from that incomplete engine profile, overwriting the already-loaded source metadata and taking its early return. A mounted RED reproduced the wrong heading/count; three engine REDs reproduced dropped counts, inherited metadata and ignored supplied profiles. Queue installation now carries the playlist profile, count normalization accepts both field conventions, and same-source browse seeding retains the valid loaded profile. A further RED protects refreshed snake-case totals and explicit empty description/cover. Cross-source return uses known source metadata and keeps the current queue.
+
 ## Operational baseline
 
 Read-only server inspection confirms deployed site revision `7abce02172af0bd5b459f3b7147f25a928a3ffc3`, Folia gateway healthy, API UP, and only 133836800 bytes available on the root partition. Any new frontend delivery must verify capacity and retain the existing READY restore point/current rollback image. The unrelated wallpaper branch in the primary checkout is excluded by the managed worktree.
+
+During follow-up delivery, the capacity guard found 0 available bytes and stopped before activation. ID-scoped reclaimable-cache requests released no bytes. The unused, single-tag `folia-local/folia-builder:validation` image had no referencing containers and was removed as a regenerable verification artifact; available space recovered to about 1.2 GB. Production and rollback images, source archives, READY snapshots and data volumes were retained. The verified incremental deployment then completed normally.

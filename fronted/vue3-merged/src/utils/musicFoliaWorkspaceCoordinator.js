@@ -97,6 +97,7 @@ export function createMusicFoliaWorkspaceCoordinator({
       ...(sourceCode ? { sourceCode } : {}),
       sourceName: sourceNameFor(context, profile?.name),
       sourceType,
+      playlistProfile: profile,
       sourceContext: context
     });
     if (!isCurrent(requestId)) return { ok: false, stale: true, requestId };

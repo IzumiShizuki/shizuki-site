@@ -307,6 +307,77 @@ describe('usePlayerEngine queue identity', () => {
     expect(engine.tracks.value.map((track) => track.trackId)).toEqual(['explicit']);
   });
 
+  it('preserves API playlist track counts from either naming convention', async () => {
+    vi.mocked(getPlaylistBundleByCode).mockResolvedValue({
+      profile: { playlist_code: 'counted', name: 'Counted list', track_count: 2238 },
+      tracks: [{ provider: 'local', trackId: 'one', title: 'One', audio: 'https://audio.example.com/one.mp3' }]
+    });
+    const engine = usePlayerEngine();
+    await engine.loadPlaylistByCode('counted');
+    expect(engine.playlistProfile.value).toMatchObject({ playlistCode: 'counted', name: 'Counted list', trackCount: 2238 });
+  });
+
+  it('does not carry playlist presentation or count into a new source, and keeps same-source metadata', async () => {
+    const engine = usePlayerEngine();
+    await engine.replaceQueueWithTracks([
+      { provider: 'local', trackId: 'old', title: 'Old', audio: 'https://audio.example.com/old.mp3' }
+    ], 0, false, {
+      sourceCode: 'old-source',
+      playlistProfile: { playlistCode: 'ignored-old', name: 'Old playlist', cover: '/old-cover.jpg', trackCount: 2238 }
+    });
+    await engine.replaceQueueWithTracks([
+      { provider: 'local', trackId: 'browse', title: 'Browse', audio: 'https://audio.example.com/browse.mp3' }
+    ], 0, false, { sourceCode: 'browse-source', sourceType: 'browse' });
+
+    expect(engine.playlistProfile.value).toMatchObject({ playlistCode: 'browse-source', name: '播放队列', cover: '' });
+    expect(engine.playlistProfile.value.trackCount).toBeUndefined();
+
+    await engine.replaceQueueWithTracks([
+      { provider: 'local', trackId: 'browse-next', title: 'Browse next', audio: 'https://audio.example.com/browse-next.mp3' }
+    ], 0, false, { sourceCode: 'browse-source' });
+    expect(engine.playlistProfile.value).toMatchObject({ playlistCode: 'browse-source', name: '播放队列', cover: '' });
+  });
+
+  it('takes playlist profile metadata while keeping sourceCode as queue identity', async () => {
+    const engine = usePlayerEngine();
+    await engine.replaceQueueWithTracks([
+      { provider: 'local', trackId: 'browse-profile', title: 'Browse', audio: 'https://audio.example.com/browse.mp3' }
+    ], 0, false, {
+      sourceCode: 'identity-code',
+      playlistProfile: { playlistCode: 'profile-code', name: 'Real heading', cover: '/real-cover.jpg', track_count: 2238 }
+    });
+
+    expect(engine.playlistProfile.value).toMatchObject({
+      playlistCode: 'identity-code', name: 'Real heading', cover: '/real-cover.jpg', trackCount: 2238
+    });
+  });
+
+  it('uses refreshed snake-case count and explicit empty same-source presentation fields', async () => {
+    const engine = usePlayerEngine();
+    await engine.replaceQueueWithTracks([
+      { provider: 'local', trackId: 'profile-before', title: 'Before', audio: 'https://audio.example.com/before.mp3' }
+    ], 0, false, {
+      sourceCode: 'mutable-source',
+      playlistProfile: { name: 'Mutable', description: 'Previous description', cover: '/previous.jpg', trackCount: 500 }
+    });
+    await engine.replaceQueueWithTracks([
+      { provider: 'local', trackId: 'profile-after', title: 'After', audio: 'https://audio.example.com/after.mp3' }
+    ], 0, false, {
+      sourceCode: 'mutable-source',
+      sourceType: 'playlist',
+      cover: '/legacy-cover.jpg',
+      playlistProfile: { track_count: 1000, description: '', cover: '' }
+    });
+
+    expect(engine.playlistProfile.value).toMatchObject({
+      playlistCode: 'mutable-source',
+      name: 'Mutable',
+      description: '',
+      cover: '',
+      trackCount: 1000
+    });
+  });
+
   it('reuses matching in-flight next-track preparation when that entry is selected', async () => {
     let finishPreparation;
     vi.mocked(resolvePlaybackTrack).mockImplementation(({ trackId }) => {

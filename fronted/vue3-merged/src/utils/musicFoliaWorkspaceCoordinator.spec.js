@@ -48,7 +48,10 @@ describe('music Folia workspace coordinator', () => {
       [{ id: 'P2-A' }, { id: 'P2-B' }],
       0,
       true,
-      expect.objectContaining({ sourceCode: 'P2' })
+      expect.objectContaining({
+        sourceCode: 'P2',
+        playlistProfile: { playlistCode: 'P2', name: 'P2' }
+      })
     );
     expect(deps.navigate).toHaveBeenLastCalledWith(expect.objectContaining({
       view: 'lattice',
