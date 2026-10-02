@@ -161,7 +161,8 @@ export async function getMyAiQuota(authorizedFetch) {
 export async function listAiTownScenes(authorizedFetch) {
   const request = resolveRequest(authorizedFetch);
   const response = await request('/api/v1/ai-town/scenes', {
-    method: 'GET'
+    method: 'GET',
+    timeoutMs: 10000
   });
   return unwrapApiResponse(response);
 }
@@ -173,7 +174,8 @@ export async function getAiTownScene(sceneCode, authorizedFetch) {
     throw new Error('sceneCode is required');
   }
   const response = await request(`/api/v1/ai-town/scenes/${encodeURIComponent(normalizedSceneCode)}`, {
-    method: 'GET'
+    method: 'GET',
+    timeoutMs: 10000
   });
   return unwrapApiResponse(response);
 }
@@ -181,7 +183,8 @@ export async function getAiTownScene(sceneCode, authorizedFetch) {
 export async function getAiTownPublicMap(authorizedFetch) {
   const request = resolveRequest(authorizedFetch);
   const response = await request('/api/v1/ai-town/public-map', {
-    method: 'GET'
+    method: 'GET',
+    timeoutMs: 10000
   });
   return unwrapApiResponse(response);
 }

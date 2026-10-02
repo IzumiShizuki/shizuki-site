@@ -43,7 +43,7 @@
         class="workspace-grid fade-stagger"
         :class="{ conversation: activePrimaryMode === 'conversation' || activePrimaryMode === 'meguri' }"
       >
-        <section class="workspace-main liquid-material">
+        <section class="workspace-main liquid-material" :class="{ 'town-stage': activePrimaryMode === 'town' }">
           <template v-if="activePrimaryMode === 'town'">
             <template v-if="townSubView === 'editor'">
               <div class="stage-head">
@@ -558,6 +558,7 @@ const townScenes = ref([]);
 const townMap = ref({ scenes: [] });
 const selectedTownSceneCode = ref('');
 const selectedTownScene = ref(null);
+let townSceneRequestId = 0;
 const townAssetEditor = reactive(createTownAssetEditorState());
 
 const STANDARD_CONVERSATION_MODES = ['normal', 'tavern'];
@@ -702,7 +703,10 @@ function resolveTownError(error) {
   const problemCode = normalizeOptionalText(error?.problemCode || error?.problem_code).toUpperCase();
   const message = normalizeOptionalText(error?.message);
   if (problemCode === 'NETWORK_ERROR' || message.toLowerCase() === 'network request failed') {
-    return 'AI 服务暂时不可达，请稍后重试或确认后端服务已启动。';
+    return '小镇连接失败，请点击「刷新场景」重试。';
+  }
+  if (problemCode === 'TIMEOUT') {
+    return '小镇加载超时，请点击「刷新场景」重试。';
   }
   if (error instanceof Error && normalizeOptionalText(error.message)) {
     return error.message;
@@ -834,6 +838,7 @@ async function loadTownFinanceHub(force = false) {
 }
 
 async function selectTownFinanceBuilding(force = false) {
+  townSceneRequestId += 1;
   selectedTownSceneCode.value = FINANCE_TOWN_BUILDING.sceneCode;
   selectedTownScene.value = {
     ...FINANCE_TOWN_BUILDING,
@@ -855,11 +860,16 @@ function openFinanceLogin() {
 }
 
 async function handleTownDestinationClick(sceneCode) {
-  if (isFinanceBuildingCode(sceneCode)) {
-    await selectTownFinanceBuilding();
-    return;
+  townErrorText.value = '';
+  try {
+    if (isFinanceBuildingCode(sceneCode)) {
+      await selectTownFinanceBuilding();
+      return;
+    }
+    await loadTownScene(sceneCode);
+  } catch (error) {
+    townErrorText.value = resolveTownError(error);
   }
-  await loadTownScene(sceneCode);
 }
 
 async function refreshTownStage() {
@@ -1050,8 +1060,17 @@ function resetAdminOnlyWorkspaceState() {
 async function loadTownScene(sceneCode) {
   const normalizedSceneCode = normalizeOptionalText(sceneCode);
   if (!normalizedSceneCode) return;
+  const requestId = ++townSceneRequestId;
+  let detail;
+  try {
+    detail = await getAiTownScene(normalizedSceneCode);
+  } catch (error) {
+    if (requestId !== townSceneRequestId) return;
+    throw error;
+  }
+  if (requestId !== townSceneRequestId) return;
   selectedTownSceneCode.value = normalizedSceneCode;
-  selectedTownScene.value = normalizeTownSceneDetail(await getAiTownScene(normalizedSceneCode));
+  selectedTownScene.value = normalizeTownSceneDetail(detail);
   if (canManageTownAssets.value) {
     townAssetEditor.attachedSceneCode = normalizedSceneCode;
     if (townSubView.value === 'editor') {
@@ -1224,9 +1243,16 @@ async function loadTownExplorer(options = {}) {
   townLoading.value = true;
   townErrorText.value = '';
   try {
-    const [sceneListPayload, mapPayload] = await Promise.all([listAiTownScenes(), getAiTownPublicMap()]);
-    townScenes.value = Array.isArray(sceneListPayload) ? sceneListPayload.map(normalizeTownSceneSummary) : [];
-    townMap.value = normalizeTownMap(mapPayload);
+    const [sceneResult, mapResult] = await Promise.allSettled([listAiTownScenes(), getAiTownPublicMap()]);
+    if (sceneResult.status === 'fulfilled') {
+      townScenes.value = Array.isArray(sceneResult.value) ? sceneResult.value.map(normalizeTownSceneSummary) : [];
+    }
+    if (mapResult.status === 'fulfilled') {
+      townMap.value = normalizeTownMap(mapResult.value);
+    }
+    const failedResult = [sceneResult, mapResult].find((result) => result.status === 'rejected');
+    if (failedResult) townErrorText.value = resolveTownError(failedResult.reason);
+    if (sceneResult.status === 'rejected' && mapResult.status === 'rejected') return;
     const preferredSceneCode = normalizeOptionalText(options.preserveSelectedCode || selectedTownSceneCode.value);
     if (isFinanceBuildingCode(preferredSceneCode)) {
       await selectTownFinanceBuilding(Boolean(options.refreshFinance));
@@ -1235,8 +1261,8 @@ async function loadTownExplorer(options = {}) {
       }
       return;
     }
-    const defaultSceneCode = preferredSceneCode || townScenes.value[0]?.sceneCode || 'library';
-    await loadTownScene(defaultSceneCode);
+    const defaultSceneCode = preferredSceneCode || townScenes.value[0]?.sceneCode || townMap.value.scenes[0]?.sceneCode;
+    if (defaultSceneCode) await loadTownScene(defaultSceneCode);
     if (!townAssetEditor.attachedSceneCode) {
       townAssetEditor.attachedSceneCode = defaultSceneCode;
     }
@@ -1370,13 +1396,14 @@ watch(
   border-radius: 30px;
   padding: 18px;
   display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
   gap: 16px;
   min-height: calc(100vh - 180px);
 }
 
 .workspace-topbar {
   display: flex;
-  align-items: stretch;
+  align-items: center;
   justify-content: space-between;
   gap: 16px;
   padding-bottom: 2px;
@@ -1386,7 +1413,8 @@ watch(
   display: grid;
   flex: 1 1 680px;
   width: min(100%, 760px);
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
   gap: 8px;
   padding: 6px;
   border-radius: 20px;
@@ -1478,10 +1506,16 @@ watch(
   min-height: 0;
 }
 
+.workspace-main.town-stage {
+  align-content: start;
+  align-self: start;
+}
+
 .workspace-side {
   padding: 18px;
   display: grid;
   align-content: start;
+  align-self: start;
   gap: 16px;
   min-height: 0;
   overflow: hidden;
@@ -1566,6 +1600,7 @@ watch(
 
 .town-map-shell {
   display: grid;
+  align-content: start;
   gap: 14px;
   min-height: 0;
 }
@@ -2298,6 +2333,11 @@ watch(
 
   .mode-tab {
     min-width: 0;
+  }
+
+  .mode-switch {
+    grid-auto-flow: row;
+    grid-auto-columns: auto;
   }
 
   .topbar-status {

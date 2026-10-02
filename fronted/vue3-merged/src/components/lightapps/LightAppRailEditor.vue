@@ -20,6 +20,7 @@
           type="button"
           draggable="true"
           :title="slotTitle(slot)"
+          :aria-label="slotLabel(slot)"
           @click="emit('open-slot', slot)"
           @dragstart="onSlotDragStart(index, slot, $event)"
           @dragend="onSlotDragEnd(index, $event)"
@@ -27,9 +28,9 @@
           <i :class="slotIcon(slot)" aria-hidden="true"></i>
           <span>{{ slotLabel(slot) }}</span>
         </button>
-        <div v-else class="rail-empty">拖入</div>
+        <div v-else class="rail-empty"><i class="fas fa-plus" aria-hidden="true"></i><span>拖入</span></div>
 
-        <button v-if="slot.enabled" class="slot-remove ripple-trigger" type="button" title="移除" @click="emit('clear-slot', index)">
+        <button v-if="slot.enabled" class="slot-remove ripple-trigger" type="button" title="移除" :aria-label="`移除 ${slotLabel(slot)}`" @click="emit('clear-slot', index)">
           <i class="fas fa-xmark" aria-hidden="true"></i>
         </button>
       </li>
@@ -54,6 +55,8 @@
             type="button"
             draggable="true"
             :title="`拖拽 ${collection.title} 到右栏`"
+            :aria-expanded="isCollectionOpen(collection.collection_id)"
+            :aria-controls="`rail-collection-${collection.collection_id}`"
             @click="toggleCollection(collection.collection_id)"
             @dragstart="onCollectionCardDragStart(collection.collection_id, $event)"
           >
@@ -61,7 +64,7 @@
             <span>{{ collection.title }}</span>
             <small>{{ collection.items.length }}</small>
           </button>
-          <button class="collection-rename-btn ripple-trigger" type="button" title="重命名" @click="startRename(collection)">
+          <button class="collection-rename-btn ripple-trigger" type="button" title="重命名" :aria-label="`重命名 ${collection.title}`" @click="startRename(collection)">
             <i class="fas fa-pen" aria-hidden="true"></i>
           </button>
         </div>
@@ -72,6 +75,7 @@
             type="text"
             maxlength="80"
             placeholder="集合名称"
+            aria-label="集合名称"
             @keydown.enter.prevent="commitRename(collection.collection_id)"
             @keydown.esc.prevent="cancelRename"
             @blur="commitRename(collection.collection_id)"
@@ -79,7 +83,7 @@
         </div>
 
         <Transition name="panel-collapse">
-          <div v-if="isCollectionOpen(collection.collection_id)" class="collection-panel">
+          <div v-if="isCollectionOpen(collection.collection_id)" :id="`rail-collection-${collection.collection_id}`" class="collection-panel">
             <button
               v-for="(item, index) in collection.items"
               :key="`collection_item_${collection.collection_id}_${index}_${item.item_kind}_${item.item_ref}`"
@@ -379,24 +383,17 @@ defineExpose({
   position: sticky;
   top: 10px;
   align-self: start;
-  width: 190px;
+  width: 100%;
+  min-width: 0;
   max-height: calc(100vh - 120px);
   border-radius: 16px;
   padding: 10px;
   display: grid;
-  gap: 10px;
+  align-content: start;
+  gap: 12px;
   overflow: auto;
   color: var(--theme-text-primary);
   scrollbar-color: var(--theme-border-strong) transparent;
-}
-
-@media (min-width: 981px) {
-  .rail-editor {
-    top: 0;
-    align-self: stretch;
-    min-height: 100%;
-    max-height: none;
-  }
 }
 
 .rail-head {
@@ -404,6 +401,8 @@ defineExpose({
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+  padding: 4px 2px 8px;
+  border-bottom: 1px solid var(--theme-border-subtle);
 }
 
 .rail-head h3 {
@@ -415,6 +414,7 @@ defineExpose({
 .rail-head span {
   color: var(--theme-text-secondary);
   font-size: 12px;
+  font-variant-numeric: tabular-nums;
 }
 
 .rail-slot-list {
@@ -422,16 +422,21 @@ defineExpose({
   margin: 0;
   padding: 0;
   display: grid;
+  align-content: start;
+  grid-auto-rows: minmax(44px, auto);
   gap: 8px;
 }
 
 .rail-slot {
-  position: relative;
-  min-height: 42px;
+  min-width: 0;
+  min-height: 44px;
   border-radius: 12px;
   border: 1px dashed var(--theme-border-subtle);
   background: var(--theme-surface-soft);
   display: grid;
+  grid-template-columns: minmax(0, 1fr) 28px;
+  gap: 4px;
+  padding: 4px;
   align-items: center;
 }
 
@@ -443,14 +448,17 @@ defineExpose({
 
 .rail-item {
   width: 100%;
+  min-width: 0;
+  min-height: 36px;
+  border-radius: 8px;
   border: 0;
   background: transparent;
   color: var(--theme-text-primary);
   display: inline-grid;
-  grid-template-columns: 20px minmax(0, 1fr);
+  grid-template-columns: 16px minmax(0, 1fr);
   gap: 8px;
   align-items: center;
-  padding: 8px 10px;
+  padding: 6px 8px;
   text-align: left;
   cursor: pointer;
 }
@@ -463,30 +471,33 @@ defineExpose({
 }
 
 .slot-remove {
-  position: absolute;
-  right: 5px;
-  top: 5px;
-  width: 20px;
-  height: 20px;
-  border-radius: 6px;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
   border: 0;
-  background: var(--theme-floating-close-surface);
-  color: var(--theme-icon-primary);
+  background: transparent;
+  color: var(--theme-text-secondary);
+  display: grid;
+  place-items: center;
   cursor: pointer;
 }
 
 .rail-empty {
-  color: var(--theme-text-tertiary);
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--theme-text-secondary);
   font-size: 12px;
   padding: 0 10px;
 }
 
 .collection-zone {
-  border: 1px solid var(--theme-border);
-  border-radius: 12px;
-  background: var(--theme-panel-surface-elevated);
-  padding: 8px;
+  border-top: 1px solid var(--theme-border-subtle);
+  padding-top: 12px;
   display: grid;
+  align-content: start;
   gap: 8px;
 }
 
@@ -509,34 +520,34 @@ defineExpose({
 }
 
 .collection-folder {
-  border: 1px solid var(--theme-border-subtle);
-  border-radius: 10px;
-  background: var(--theme-surface-soft);
-  padding: 6px;
+  min-width: 0;
   display: grid;
+  align-content: start;
   gap: 6px;
 }
 
 .collection-folder-head {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 26px;
-  gap: 6px;
+  grid-template-columns: minmax(0, 1fr) 28px;
+  gap: 4px;
   align-items: center;
 }
 
 .collection-toggle {
   width: 100%;
+  min-width: 0;
   border: 0;
-  border-radius: 999px;
-  background: var(--theme-panel-surface-elevated);
+  border-radius: 8px;
+  background: transparent;
   color: var(--theme-text-primary);
-  min-height: 30px;
+  min-height: 36px;
   display: grid;
   grid-template-columns: 14px minmax(0, 1fr) auto;
   align-items: center;
   gap: 8px;
   padding: 0 10px;
   text-align: left;
+  font-size: 12px;
   cursor: pointer;
 }
 
@@ -551,11 +562,11 @@ defineExpose({
 }
 
 .collection-rename-btn {
-  width: 26px;
-  height: 26px;
-  border-radius: 999px;
-  border: 1px solid var(--theme-border);
-  background: var(--theme-surface-soft);
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  border: 0;
+  background: transparent;
   color: var(--theme-icon-primary);
   cursor: pointer;
 }
@@ -578,6 +589,7 @@ defineExpose({
 
 .collection-panel {
   display: grid;
+  align-content: start;
   gap: 6px;
 }
 
@@ -605,7 +617,8 @@ defineExpose({
 
 .collection-empty {
   margin: 0;
-  color: var(--theme-text-tertiary);
+  padding: 8px;
+  color: var(--theme-text-secondary);
   font-size: 12px;
   text-align: center;
 }
