@@ -218,9 +218,14 @@ describe('MusicLibraryPage Folia mode handoff', () => {
   });
 
   it('refreshes stable Folia session data without retransmitting every lyric focus tick', () => {
-    const foliaWatch = source.slice(source.indexOf('watch(\n  [\n    () => readFoliaTrackId'), source.indexOf('\nwatch(\n  () => auth.isAuthenticated.value'));
+    const watchStart = source.indexOf('watch(\n  [\n    () => {\n      const track = player.currentTrack');
+    const foliaWatch = source.slice(watchStart, source.indexOf('\nwatch(\n  () => auth.isAuthenticated.value', watchStart));
 
+    expect(watchStart).toBeGreaterThanOrEqual(0);
+    expect(foliaWatch).toContain('readFoliaTrackKey(track)');
     expect(foliaWatch).toContain('player.tracks?.value');
+    expect(foliaWatch).toContain('player.expectedDuration?.value');
+    expect(foliaWatch).toContain('player.queueSourceContext?.value');
     expect(foliaWatch).toContain('player.playlistProfile?.value');
     expect(foliaWatch).toContain('player.lyricTimeline?.value');
     expect(foliaWatch).not.toContain('player.currentLyricEntryIndex?.value');

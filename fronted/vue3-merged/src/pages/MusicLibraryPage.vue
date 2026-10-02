@@ -419,6 +419,7 @@ let foliaDeferredNavigation = null;
 let foliaWorkspaceCoordinator = null;
 let foliaLatestEntryRequestId = 0;
 let foliaModeGeneration = 0;
+let playlistBrowseLoadGeneration = 0;
 const foliaQueueOptions = computed(() => (Array.isArray(player.tracks?.value) ? player.tracks.value : []));
 const foliaCurrentQueueEntryId = computed(() => String(player.currentTrack?.value?.queueEntryId || ''));
 let foliaLastKnownNeteaseCookie = '';
@@ -824,10 +825,9 @@ function readFoliaModePreference() {
   }
 }
 
-async function setFoliaMode(enabled, options = {}) {
+async function setFoliaMode(enabled) {
   const nextEnabled = Boolean(enabled);
   const modeGeneration = ++foliaModeGeneration;
-  const syncPlayback = options.syncPlayback !== false;
   if (!nextEnabled) setFoliaViewportExpanded(false);
   foliaMode.value = nextEnabled;
   if (typeof window !== 'undefined') {
@@ -847,7 +847,10 @@ async function setFoliaMode(enabled, options = {}) {
       if (!loaded) throw new Error('Folia 暂时无法打开，请重试');
       if (modeGeneration !== foliaModeGeneration || !foliaMode.value) return false;
       postToFolia({ type: 'shizuki:activate-playback-bridge' });
-      deliverPendingFoliaSession();
+      // Every activation needs a fresh authoritative snapshot. The bridge may
+      // have mounted while the current song and queue were already stable, so
+      // none of the reactive playback watchers are guaranteed to run here.
+      pushCurrentTrackToFolia();
       syncThemeToFolia();
       syncFoliaWallpaper();
       void (async () => {
@@ -865,7 +868,6 @@ async function setFoliaMode(enabled, options = {}) {
       foliaRetryAvailable.value = true;
       return false;
     }
-    if (syncPlayback) void pushCurrentTrackToFolia();
     return true;
   } else {
     cancelFoliaMount();
@@ -1173,6 +1175,18 @@ function buildFoliaPlaybackSession() {
   const profile = sourceContext.sitePlaylistCode ? rawProfile : null;
   const positionSec = Number(player.currentTime?.value || 0);
   const durationSec = Number(player.duration?.value || 0);
+  const expectedDurationSec = Number(player.expectedDuration?.value || 0);
+  const declaredDurationMs = Number(
+    player.currentTrack?.value?.durationMs
+      || player.currentTrack?.value?.duration_ms
+      || player.currentTrack?.value?.metadata?.durationMs
+      || 0
+  );
+  const sessionDurationMs = Number.isFinite(durationSec) && durationSec > 0
+    ? Math.round(durationSec * 1000)
+    : Number.isFinite(expectedDurationSec) && expectedDurationSec > 0
+      ? Math.round(expectedDurationSec * 1000)
+      : Number.isFinite(declaredDurationMs) && declaredDurationMs > 0 ? Math.round(declaredDurationMs) : 0;
   const lyricIndex = Number(player.currentLyricEntryIndex?.value);
   return {
     version: ++foliaPlaybackSessionVersion,
@@ -1191,7 +1205,7 @@ function buildFoliaPlaybackSession() {
     lyricRenderMode: String(player.lyricRenderMode?.value || 'original'),
     lyricIndex: Number.isInteger(lyricIndex) ? lyricIndex : -1,
     positionMs: Number.isFinite(positionSec) && positionSec > 0 ? Math.round(positionSec * 1000) : 0,
-    durationMs: Number.isFinite(durationSec) && durationSec > 0 ? Math.round(durationSec * 1000) : 0,
+    durationMs: sessionDurationMs,
     playing: Boolean(player.isPlaying?.value)
   };
 }
@@ -1247,15 +1261,6 @@ function deliverPendingFoliaSession() {
     session
   });
   startFoliaClockSync();
-}
-
-/** 从普通模式曲目对象中提取网易云 trackId。 */
-function readFoliaTrackId(track) {
-  if (!track) return 0;
-  const rawId = String(track.trackId || track.id || track.track_id || '');
-  const numeric = Number(rawId);
-  if (Number.isFinite(numeric) && numeric > 0) return numeric;
-  return 0;
 }
 
 function readFoliaTrackKey(track) {
@@ -1400,6 +1405,22 @@ function requestFoliaStatus() {
   postToFolia({ type: 'shizuki:get-status' });
 }
 
+function isCurrentFoliaStatus(data) {
+  const incomingVersion = Number(data?.sessionVersion);
+  if (!Number.isInteger(incomingVersion) || incomingVersion !== foliaPlaybackSessionVersion) return false;
+  const statusTrack = data?.track;
+  const currentTrack = player.currentTrack?.value;
+  const statusId = String(statusTrack?.trackId || statusTrack?.id || statusTrack?.track_id || '').trim();
+  const currentId = String(currentTrack?.trackId || currentTrack?.id || currentTrack?.track_id || '').trim();
+  if (!statusId || !currentId || statusId !== currentId) return false;
+  const statusProvider = String(statusTrack.provider || statusTrack.providerCode || statusTrack.provider_code || '').trim().toLowerCase();
+  const currentProvider = String(currentTrack.provider || currentTrack.providerCode || currentTrack.provider_code || '').trim().toLowerCase();
+  if (statusProvider && currentProvider && statusProvider !== currentProvider) return false;
+  const statusEntryId = String(statusTrack.queueEntryId || '').trim();
+  const currentEntryId = String(currentTrack.queueEntryId || '').trim();
+  return !statusEntryId || !currentEntryId || statusEntryId === currentEntryId;
+}
+
 function handleFoliaBridgeMessage(event) {
   const data = event.data;
   if (!data || typeof data !== 'object' || typeof data.type !== 'string') return;
@@ -1430,6 +1451,7 @@ function handleFoliaBridgeMessage(event) {
     return;
   }
   if (data.type === 'shizuki:status') {
+    if (!isCurrentFoliaStatus(data)) return;
     if (data.track) {
       foliaTrackInfo.value = {
         name: String(data.track.name || ''),
@@ -3207,11 +3229,36 @@ async function handleEnqueueSpotify(item) {
 }
 
 async function ensureCurrentRoutePlaylistLoaded(options = {}) {
-  if (!isPlaylistRoute.value) return;
+  const requestGeneration = ++playlistBrowseLoadGeneration;
+  if (!isPlaylistRoute.value) {
+    playlistBrowseLoading.value = false;
+    return;
+  }
   const playlistCode = currentPlaylistCodeFromRoute.value || DEFAULT_PLAYLIST_CODE;
   ui.setSelectedPlaylistCode(playlistCode);
   const force = options?.force === true;
+  const authenticated = Boolean(auth.isAuthenticated.value);
+  const accountId = String(auth.user.value?.userId || '');
+  const isCurrentRequest = () => requestGeneration === playlistBrowseLoadGeneration
+    && isPlaylistRoute.value
+    && currentPlaylistCodeFromRoute.value === playlistCode
+    && Boolean(auth.isAuthenticated.value) === authenticated
+    && String(auth.user.value?.userId || '') === accountId;
+
+  const sourceContext = normalizeFoliaSourceContext(player.queueSourceContext?.value);
+  const engineProfile = player.playlistProfile?.value || {};
+  const engineQueue = playerQueueTracks.value;
+  const engineSourceCode = sourceContext.sitePlaylistCode
+    || String(engineProfile.playlistCode || engineProfile.playlist_code || '').trim();
+  const hasMatchingEngineQueue = engineSourceCode === playlistCode && engineQueue.length > 0;
+  if (hasMatchingEngineQueue) {
+    playlistBrowseProfile.value = normalizePlaylistSummary(engineProfile, playlistCode);
+    playlistBrowseTracks.value = engineQueue.slice();
+    playlistBrowseError.value = '';
+    resetPlaylistBrowseVisibleCount(engineQueue.length);
+  }
   if (!force && currentPlaylistProfile.value.playlistCode === playlistCode && currentPlaylistAllTracks.value.length) {
+    playlistBrowseLoading.value = false;
     return;
   }
   playlistBrowseLoading.value = true;
@@ -3219,8 +3266,9 @@ async function ensureCurrentRoutePlaylistLoaded(options = {}) {
   try {
     const payload = await musicApi.getPlaylistBundleByCode(
       playlistCode,
-      auth.isAuthenticated.value ? auth.authorizedFetch : undefined
+      authenticated ? auth.authorizedFetch : undefined
     );
+    if (!isCurrentRequest()) return;
     const profile = normalizePlaylistSummary(payload?.profile || payload?.playlist, playlistCode);
     const tracks = Array.isArray(payload?.tracks) ? payload.tracks.map((item, index) => normalizeApiTrack(item, index)) : [];
     playlistBrowseProfile.value = profile;
@@ -3239,15 +3287,18 @@ async function ensureCurrentRoutePlaylistLoaded(options = {}) {
       } : null
     });
   } catch (error) {
-    playlistBrowseProfile.value = normalizePlaylistSummary(
-      { playlistCode, name: '歌单加载失败', description: '', cover: '' },
-      playlistCode
-    );
-    playlistBrowseTracks.value = [];
+    if (!isCurrentRequest()) return;
+    if (!hasMatchingEngineQueue) {
+      playlistBrowseProfile.value = normalizePlaylistSummary(
+        { playlistCode, name: '歌单加载失败', description: '', cover: '' },
+        playlistCode
+      );
+      playlistBrowseTracks.value = [];
+      resetPlaylistBrowseVisibleCount(0);
+    }
     playlistBrowseError.value = parseErrorMessage(error, '歌单加载失败，请稍后重试');
-    resetPlaylistBrowseVisibleCount(0);
   } finally {
-    playlistBrowseLoading.value = false;
+    if (isCurrentRequest()) playlistBrowseLoading.value = false;
   }
 }
 
@@ -3742,7 +3793,12 @@ watch(
 
 watch(
   [
-    () => readFoliaTrackId(player.currentTrack.value),
+    () => {
+      const track = player.currentTrack?.value;
+      return [track?.queueEntryId, readFoliaTrackKey(track)].join('|');
+    },
+    () => Number(player.expectedDuration?.value || 0),
+    () => JSON.stringify(player.queueSourceContext?.value || null),
     () => (Array.isArray(player.tracks?.value) ? player.tracks.value.map((track) => [
       track?.queueEntryId,
       track?.trackId || track?.id,
@@ -3812,7 +3868,7 @@ async function sendFoliaNavigation(request) {
   if (!request || request.requestId !== foliaLatestEntryRequestId) return false;
   foliaDeferredNavigation = request;
   foliaRetryAvailable.value = true;
-  const loaded = await setFoliaMode(true, { syncPlayback: false });
+  const loaded = await setFoliaMode(true);
   if (!loaded) return { ok: false, error: foliaEntryError.value || 'Folia 暂时无法打开，请重试' };
   if (request.requestId !== foliaLatestEntryRequestId) return false;
   const sent = postToFolia({ type: 'shizuki:navigate', ...request });
@@ -3825,7 +3881,7 @@ async function sendFoliaNavigation(request) {
 
 async function retryFoliaEntry() {
   const request = foliaDeferredNavigation;
-  const loaded = await setFoliaMode(true, { syncPlayback: false });
+  const loaded = await setFoliaMode(true);
   if (!loaded) return false;
   if (request && request.requestId === foliaLatestEntryRequestId) {
     const sent = postToFolia({ type: 'shizuki:navigate', ...request });
@@ -3913,9 +3969,29 @@ async function handleOpenFoliaLattice(event) {
 }
 
 async function returnToMusicLibrary() {
+  const hasCurrentQueue = playerQueueTracks.value.length > 0;
   const source = normalizeFoliaSourceContext(player.queueSourceContext?.value || foliaSourceContext.value || createFoliaSourceContext());
   await setFoliaMode(false);
   currentTrackRevealVersion.value += 1;
+
+  if (!hasCurrentQueue) {
+    let playerDetailSource = '';
+    if (typeof route.query?.from === 'string') {
+      try {
+        playerDetailSource = decodeURIComponent(route.query.from);
+      } catch {
+        playerDetailSource = route.query.from;
+      }
+    }
+    const currentBrowsePath = !isQueueRoute.value && !isPlayerDetailRoute.value
+      ? route.fullPath
+      : ui.lastContentPath.value || playerDetailSource;
+    const browsePath = String(currentBrowsePath || '').trim();
+    const target = browsePath.startsWith('/music-library') ? browsePath : '/music-library/music';
+    if (target !== route.fullPath) router.push(target);
+    return;
+  }
+
   const code = source.sitePlaylistCode;
   if (code && foliaPlaylistOptions.value.some((item) => item.playlistCode === code)) {
     router.push({ name: 'music-library-playlist', params: { playlistCode: code } });
@@ -4006,6 +4082,7 @@ async function reloadAfterFatalError() {
 }
 
 onBeforeUnmount(() => {
+  playlistBrowseLoadGeneration += 1;
   // Invalidate any script/mount promise that may settle after this page leaves.
   foliaModeGeneration += 1;
   cancelFoliaMount();

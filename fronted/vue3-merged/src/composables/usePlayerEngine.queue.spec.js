@@ -1,11 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ref } from 'vue';
+import { createApp, ref } from 'vue';
 import { usePlayerEngine } from './usePlayerEngine';
-import { getPlaylistBundleByCode, resolvePlaybackTrack } from '../services/musicApi';
+import { fetchAmllLyric, getPlaylistBundleByCode, resolvePlaybackTrack } from '../services/musicApi';
 
 vi.mock('../services/musicApi', () => ({
   getPlaylistBundleByCode: vi.fn(),
-  resolvePlaybackTrack: vi.fn()
+  resolvePlaybackTrack: vi.fn(),
+  fetchAmllLyric: vi.fn()
 }));
 
 class FakeAudio {
@@ -72,6 +73,231 @@ describe('usePlayerEngine queue identity', () => {
     vi.restoreAllMocks();
     globalThis.Audio = originalAudio;
     globalThis.fetch = originalFetch;
+  });
+
+  it('publishes selected track metadata while its cold audio URL is resolving', async () => {
+    let finishResolve;
+    vi.mocked(resolvePlaybackTrack).mockImplementation(() => new Promise((resolve) => { finishResolve = resolve; }));
+    const engine = usePlayerEngine();
+    await engine.replaceQueueWithTracks([
+      { provider: 'local', trackId: 'current', title: 'Current', audio: 'https://audio.example.com/current.mp3' },
+      { provider: 'netease', trackId: 'cold', title: 'Cold entry', artist: 'Singer' }
+    ], 0, false);
+
+    const selection = engine.selectTrackByIndex(1, true);
+    await vi.waitFor(() => expect(finishResolve).toBeTypeOf('function'));
+    expect(engine.currentTrack.value?.trackId).toBe('cold');
+    expect(engine.currentTrack.value?.title).toBe('Cold entry');
+    finishResolve({ audio: 'https://audio.example.com/cold.mp3' });
+    await selection;
+  });
+
+  it('starts resolved audio without waiting for a slow lyric URL', async () => {
+    let finishLyrics;
+    globalThis.fetch = vi.fn(() => new Promise((resolve) => { finishLyrics = resolve; }));
+    vi.mocked(resolvePlaybackTrack).mockResolvedValue({ audio: 'https://audio.example.com/cold.mp3' });
+    const engine = usePlayerEngine();
+    await engine.replaceQueueWithTracks([
+      { provider: 'local', trackId: 'current', title: 'Current', audio: 'https://audio.example.com/current.mp3' },
+      { provider: 'netease', trackId: 'cold', title: 'Cold', lyric: 'https://lyrics.example.com/cold.lrc' }
+    ], 0, false);
+
+    const selection = engine.selectTrackByIndex(1, true);
+    await vi.waitFor(() => expect(finishLyrics).toBeTypeOf('function'));
+    await selection;
+    expect(engine.audioElement.paused).toBe(false);
+    finishLyrics({ ok: true, text: async () => '[00:01.00]lyric' });
+  });
+
+  it('honors pause intent while a selected cold track URL is still resolving', async () => {
+    let finishResolve;
+    vi.mocked(resolvePlaybackTrack).mockImplementation(() => new Promise((resolve) => { finishResolve = resolve; }));
+    const engine = usePlayerEngine();
+    await engine.replaceQueueWithTracks([
+      { provider: 'local', trackId: 'A', title: 'A', audio: 'https://audio.example.com/A.mp3' },
+      { provider: 'netease', trackId: 'B', title: 'B' }
+    ], 0, false);
+
+    const selection = engine.selectTrackByIndex(1, true);
+    await vi.waitFor(() => expect(finishResolve).toBeTypeOf('function'));
+    await expect(engine.togglePlay()).resolves.toBe(false);
+    expect(resolvePlaybackTrack.mock.calls.filter(([request]) => request.trackId === 'B')).toHaveLength(1);
+    finishResolve({ audio: 'https://audio.example.com/B.mp3' });
+    await expect(selection).resolves.toBe(false);
+    expect(engine.currentTrack.value?.trackId).toBe('B');
+    expect(engine.audioElement.paused).toBe(true);
+    expect(engine.audioElement.src).toBe('');
+  });
+
+  it('invalidates the old lyric request as soon as a cold next selection begins', async () => {
+    let finishLyricsA;
+    let finishAudioB;
+    globalThis.fetch = vi.fn(() => new Promise((resolve) => { finishLyricsA = resolve; }));
+    vi.mocked(resolvePlaybackTrack).mockImplementation(() => new Promise((resolve) => { finishAudioB = resolve; }));
+    const engine = usePlayerEngine();
+    await engine.replaceQueueWithTracks([
+      { provider: 'local', trackId: 'A', title: 'A', audio: 'https://audio.example.com/A.mp3', lyric: 'https://lyrics.example.com/A.lrc' },
+      { provider: 'netease', trackId: 'B', title: 'B' }
+    ], 0, false);
+    await vi.waitFor(() => expect(finishLyricsA).toBeTypeOf('function'));
+
+    const selectionB = engine.selectTrackByIndex(1, true);
+    await vi.waitFor(() => expect(finishAudioB).toBeTypeOf('function'));
+    expect(engine.currentTrack.value?.trackId).toBe('B');
+    expect(engine.audioElement.paused).toBe(true);
+    finishLyricsA({ ok: true, text: async () => '[00:01.00]stale A lyric' });
+    await Promise.resolve();
+    expect(engine.lyricTimeline.value).toEqual([]);
+    finishAudioB({ audio: 'https://audio.example.com/B.mp3' });
+    await selectionB;
+  });
+
+  it('does not play a cold resolver result after the engine is disposed', async () => {
+    let finishResolve;
+    vi.mocked(resolvePlaybackTrack).mockImplementation(() => new Promise((resolve) => { finishResolve = resolve; }));
+    let engine;
+    const app = createApp({ setup() { engine = usePlayerEngine(); return () => null; } });
+    app.mount(document.createElement('div'));
+    await engine.replaceQueueWithTracks([
+      { provider: 'local', trackId: 'current', title: 'Current', audio: 'https://audio.example.com/current.mp3' },
+      { provider: 'netease', trackId: 'cold', title: 'Cold' }
+    ], 0, false);
+    const selection = engine.selectTrackByIndex(1, true);
+    await vi.waitFor(() => expect(finishResolve).toBeTypeOf('function'));
+    app.unmount();
+    finishResolve({ audio: 'https://audio.example.com/cold.mp3' });
+    await expect(selection).resolves.toBe(false);
+    expect(engine.audioElement.paused).toBe(true);
+    expect(engine.audioElement.src).toBe('');
+  });
+
+  it('does not apply a playlist bundle after the engine is disposed', async () => {
+    let finishBundle;
+    vi.mocked(getPlaylistBundleByCode).mockImplementation(() => new Promise((resolve) => { finishBundle = resolve; }));
+    let engine;
+    const app = createApp({ setup() { engine = usePlayerEngine(); return () => null; } });
+    app.mount(document.createElement('div'));
+    const loading = engine.loadPlaylistByCode('late-bundle');
+    await vi.waitFor(() => expect(finishBundle).toBeTypeOf('function'));
+    app.unmount();
+    finishBundle({ profile: { name: 'Late' }, tracks: [
+      { provider: 'local', trackId: 'late', title: 'Late', audio: 'https://audio.example.com/late.mp3' }
+    ] });
+    await expect(loading).resolves.toBe(false);
+    expect(engine.tracks.value).toEqual([]);
+  });
+
+  it('discards a playlist bundle when its playback authorization account changes', async () => {
+    let finishBundle;
+    vi.mocked(getPlaylistBundleByCode).mockImplementation(() => new Promise((resolve) => { finishBundle = resolve; }));
+    const account = ref('account-a');
+    const fetchA = vi.fn();
+    const fetchB = vi.fn();
+    const engine = usePlayerEngine({
+      getAuthorizedFetch: () => account.value === 'account-a' ? fetchA : fetchB,
+      getPlaybackAuthorizationKey: () => account.value
+    });
+    const loading = engine.loadPlaylistByCode('account-bound-bundle');
+    await vi.waitFor(() => expect(finishBundle).toBeTypeOf('function'));
+    account.value = 'account-b';
+    finishBundle({ profile: { name: 'Wrong account' }, tracks: [
+      { provider: 'local', trackId: 'wrong-account', title: 'Wrong account', audio: 'https://audio.example.com/wrong.mp3' }
+    ] });
+    await expect(loading).resolves.toBe(false);
+    expect(engine.tracks.value).toEqual([]);
+  });
+
+  it('does not apply a lyric body started under a previous authorization account', async () => {
+    let finishLyricBody;
+    globalThis.fetch = vi.fn(() => Promise.resolve({
+      ok: true,
+      text: () => new Promise((resolve) => { finishLyricBody = resolve; })
+    }));
+    const account = ref('account-a');
+    const fetchA = vi.fn();
+    const fetchB = vi.fn();
+    const engine = usePlayerEngine({
+      getAuthorizedFetch: () => account.value === 'account-a' ? fetchA : fetchB,
+      getPlaybackAuthorizationKey: () => account.value
+    });
+    await engine.replaceQueueWithTracks([
+      { provider: 'local', trackId: 'account-lyric', title: 'Account lyric', audio: 'https://audio.example.com/account.mp3', lyric: 'https://lyrics.example.com/account.lrc' }
+    ], 0, false);
+    await vi.waitFor(() => expect(finishLyricBody).toBeTypeOf('function'));
+    account.value = 'account-b';
+    finishLyricBody('[00:01.00]old account line');
+    await Promise.resolve();
+
+    expect(engine.lyricTimeline.value).toEqual([]);
+  });
+
+  it('ignores media error and ended events after engine disposal', async () => {
+    const engineRef = { current: null };
+    const app = createApp({ setup() { engineRef.current = usePlayerEngine(); return () => null; } });
+    app.mount(document.createElement('div'));
+    await engineRef.current.replaceQueueWithTracks([
+      { provider: 'netease', trackId: 'disposed-event', title: 'Disposed', audio: 'https://audio.example.com/old.mp3' },
+      { provider: 'netease', trackId: 'next-after-dispose', title: 'Next' }
+    ], 0, false);
+    vi.mocked(resolvePlaybackTrack).mockClear();
+    app.unmount();
+
+    engineRef.current.audioElement._emit('error');
+    engineRef.current.audioElement._emit('ended');
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(resolvePlaybackTrack).not.toHaveBeenCalled();
+    expect(engineRef.current.currentTrack.value?.trackId).toBe('disposed-event');
+  });
+
+  it('uses usable inline lyrics before fetching a lyric URL', async () => {
+    globalThis.fetch = vi.fn();
+    const engine = usePlayerEngine();
+    await engine.replaceQueueWithTracks([
+      { provider: 'local', trackId: 'inline', title: 'Inline', audio: 'https://audio.example.com/inline.mp3', lyric: 'https://lyrics.example.com/slow.lrc', lyricText: '[00:01.00]inline wins' }
+    ], 0, false);
+    globalThis.fetch.mockClear();
+    await engine.selectTrackByIndex(0, false);
+
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+    expect(engine.lyricContext.value.current).toBe('inline wins');
+  });
+
+  it('does not let a late default playlist bundle replace an explicit queue', async () => {
+    let finishDefault;
+    vi.mocked(getPlaylistBundleByCode).mockImplementation(() => new Promise((resolve) => { finishDefault = resolve; }));
+    const engine = usePlayerEngine();
+    const loading = engine.loadPlaylistByCode('default');
+    await vi.waitFor(() => expect(finishDefault).toBeTypeOf('function'));
+    await engine.replaceQueueWithTracks([
+      { provider: 'local', trackId: 'explicit', title: 'Explicit', audio: 'https://audio.example.com/explicit.mp3' }
+    ], 0, false);
+    finishDefault({ profile: { name: 'Default' }, tracks: [
+      { provider: 'local', id: 'stale', trackId: 'stale', title: 'Stale', audio: 'https://audio.example.com/stale.mp3' }
+    ] });
+    await loading;
+
+    expect(engine.tracks.value.map((track) => track.trackId)).toEqual(['explicit']);
+  });
+
+  it('reuses matching in-flight next-track preparation when that entry is selected', async () => {
+    let finishPreparation;
+    vi.mocked(resolvePlaybackTrack).mockImplementation(({ trackId }) => {
+      if (trackId === 'next') return new Promise((resolve) => { finishPreparation = resolve; });
+      return Promise.resolve({});
+    });
+    const engine = usePlayerEngine();
+    await engine.replaceQueueWithTracks([
+      { provider: 'local', trackId: 'current', title: 'Current', audio: 'https://audio.example.com/current.mp3' },
+      { provider: 'netease', trackId: 'next', title: 'Next', lyricText: '[00:01.00]next' }
+    ], 0, true);
+    await vi.waitFor(() => expect(finishPreparation).toBeTypeOf('function'));
+
+    const selection = engine.selectTrackByIndex(1, true);
+    expect(resolvePlaybackTrack.mock.calls.filter(([request]) => request.trackId === 'next')).toHaveLength(1);
+    finishPreparation({ audio: 'https://audio.example.com/next.mp3' });
+    await selection;
+    expect(engine.audioElement.src).toBe('https://audio.example.com/next.mp3');
   });
 
   it('prepares only the next sequential queue entry without changing the active track or audio', async () => {
@@ -155,11 +381,11 @@ describe('usePlayerEngine queue identity', () => {
   it('does not reset random order when a newer song selection wins during queue replacement', async () => {
     vi.spyOn(Math, 'random').mockReturnValue(0);
     let finishReplacementTrack;
-    vi.mocked(resolvePlaybackTrack).mockImplementation(({ trackId }) => {
-      if (trackId === 'new-A') {
+    vi.mocked(resolvePlaybackTrack).mockImplementation(({ trackId, resolveLyric }) => {
+      if (trackId === 'new-A' && !resolveLyric) {
         return new Promise((resolve) => { finishReplacementTrack = resolve; });
       }
-      return Promise.resolve({});
+      return Promise.resolve({ lyricText: `[00:01.00]${trackId} lyric` });
     });
     const engine = usePlayerEngine();
     await engine.replaceQueueWithTracks([
@@ -175,7 +401,7 @@ describe('usePlayerEngine queue identity', () => {
       { provider: 'local', trackId: 'new-C', title: 'New C', audio: 'https://audio.example.com/new-C.mp3', lyricText: '[00:01.00]C' }
     ], 0, true);
     await vi.waitFor(() => expect(finishReplacementTrack).toBeTypeOf('function'));
-    await engine.selectTrackByIndex(1, true);
+    await engine.selectTrackByIndex(1, false);
     const winningRandomOrder = engine.queueDisplayTracks.value.map((track) => track.trackId);
     vi.mocked(Math.random).mockReturnValue(0.99);
     finishReplacementTrack({ audio: 'https://audio.example.com/new-A.mp3', lyricText: '[00:01.00]A' });
@@ -241,7 +467,7 @@ describe('usePlayerEngine queue identity', () => {
     await engine.selectTrackByIndex(1, true, { bypassCache: true });
     expect(resolvePlaybackTrack.mock.calls.filter(([payload]) => payload.trackId === 'next')).toHaveLength(callsAfterPrepare + 1);
     expect(resolvePlaybackTrack.mock.calls.filter(([payload]) => payload.trackId === 'next').at(-1)[0]).toMatchObject({
-      resolveLyric: true,
+      resolveLyric: false,
       forceRefresh: true
     });
   });
@@ -354,7 +580,7 @@ describe('usePlayerEngine queue identity', () => {
 
     expect(resolvePlaybackTrack.mock.calls
       .filter(([payload]) => payload.resolveLyric === true)
-      .map(([payload]) => payload.trackId)).toEqual(['A', 'A']);
+      .map(([payload]) => payload.trackId)).toEqual(['A']);
     expect(engine.currentTrack.value?.trackId).toBe('A');
     expect(engine.lyricContext.value.current).toBe('A lyric');
   });
@@ -445,7 +671,6 @@ describe('usePlayerEngine queue identity', () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
 
     expect(resolvePlaybackTrack.mock.calls.some(([payload]) => payload.trackId === 'next')).toBe(false);
-    expect(resolvePlaybackTrack.mock.calls.some(([payload]) => payload.resolveLyric === false)).toBe(false);
     expect(engine.currentTrack.value?.trackId).toBe('current');
   });
 
@@ -501,16 +726,17 @@ describe('usePlayerEngine queue identity', () => {
 
     const selectionA = engine.selectTrackByIndex(0, true);
     await vi.waitFor(() => expect(resolvePlaybackTrack).toHaveBeenCalledWith(
-      expect.objectContaining({ trackId: 'A', resolveLyric: true }), accountA
+      expect.objectContaining({ trackId: 'A', resolveLyric: false }), accountA
     ));
     account.value = 'b';
     finishAccountA({ audio: 'https://audio.example.com/account-a-A.mp3', lyricText: '[00:01.00]A lyric' });
     await selectionA;
 
-    expect(engine.currentTrack.value?.trackId).toBe('B');
-    expect(engine.audioElement.src).toBe('https://audio.example.com/B.mp3');
+    expect(engine.currentTrack.value?.trackId).toBe('A');
+    expect(engine.audioElement.src).toBe('');
+    expect(engine.isPlaying.value).toBe(false);
     expect(engine.tracks.value.find((track) => track.trackId === 'A')?.audio).toBe('');
-    expect(engine.lyricContext.value.current).toBe('B lyric');
+    expect(engine.lyricContext.value.current).toBe('');
   });
 
   it('ignores a prepared result for a queue entry removed while resolving', async () => {
@@ -568,6 +794,76 @@ describe('usePlayerEngine queue identity', () => {
     expect(engine.lyricContext.value.current).toBe('B lyric');
   });
 
+  it('guards late lyrics by queue entry when duplicate provider and track IDs are queued', async () => {
+    let finishFirstEntry;
+    globalThis.fetch = vi.fn((url) => String(url).endsWith('/duplicate-first.lrc')
+      ? new Promise((resolve) => { finishFirstEntry = resolve; })
+      : Promise.resolve({ ok: true, text: async () => '[00:01.00]second duplicate lyric' }));
+    const engine = usePlayerEngine();
+    await engine.replaceQueueWithTracks([
+      { provider: 'local', trackId: 'same', title: 'First copy', audio: 'https://audio.example.com/same-1.mp3' },
+      { provider: 'local', trackId: 'same', title: 'Second copy', audio: 'https://audio.example.com/same-2.mp3' }
+    ], 0, false);
+    engine.tracks.value = engine.tracks.value.map((track, index) => ({
+      ...track,
+      lyric: index === 0 ? 'https://lyrics.example.com/duplicate-first.lrc' : 'https://lyrics.example.com/duplicate-second.lrc'
+    }));
+
+    const firstSelection = engine.selectTrackByIndex(0, true);
+    await vi.waitFor(() => expect(finishFirstEntry).toBeTypeOf('function'));
+    await engine.selectTrackByIndex(1, true);
+    finishFirstEntry({ ok: true, text: async () => '[00:01.00]stale first duplicate lyric' });
+    await firstSelection;
+
+    expect(engine.currentTrack.value?.queueEntryId).toBe(engine.tracks.value[1].queueEntryId);
+    expect(engine.lyricContext.value.current).toBe('second duplicate lyric');
+  });
+
+  it('deduplicates concurrent optional AMLL enhancement requests for the same track', async () => {
+    let finishAmll;
+    vi.mocked(fetchAmllLyric).mockImplementation(() => new Promise((resolve) => { finishAmll = resolve; }));
+    const engine = usePlayerEngine();
+    await engine.replaceQueueWithTracks([
+      { provider: 'local', trackId: 'amll-inflight-dedup', title: 'Words', audio: 'https://audio.example.com/words.mp3', lyricText: '[00:01.00]line' }
+    ], 0, false);
+    await vi.waitFor(() => expect(finishAmll).toBeTypeOf('function'));
+    await engine.selectTrackByIndex(0, false);
+
+    expect(fetchAmllLyric).toHaveBeenCalledTimes(1);
+    finishAmll({ ttml: '<tt></tt>' });
+  });
+
+  it('bounds AMLL positive entries and retries a miss after its short TTL', async () => {
+    let now = 10_000;
+    vi.spyOn(Date, 'now').mockImplementation(() => now);
+    vi.mocked(fetchAmllLyric).mockResolvedValue({ ttml: '<tt></tt>' });
+    const prefix = `bounded-${now}-`;
+    const tracks = Array.from({ length: 129 }, (_, index) => ({
+      provider: 'local', trackId: `${prefix}${index}`, title: `Track ${index}`,
+      audio: `https://audio.example.com/${index}.mp3`, lyricText: '[00:01.00]line'
+    }));
+    const engine = usePlayerEngine();
+    await engine.replaceQueueWithTracks(tracks, 0, false);
+    for (let index = 1; index < tracks.length; index += 1) {
+      await engine.selectTrackByIndex(index, false);
+      await vi.waitFor(() => expect(fetchAmllLyric).toHaveBeenCalledTimes(index + 1));
+    }
+    await engine.selectTrackByIndex(0, false);
+    await vi.waitFor(() => expect(fetchAmllLyric).toHaveBeenCalledTimes(130));
+
+    const missTrackId = `${prefix}miss`;
+    vi.mocked(fetchAmllLyric).mockResolvedValueOnce(null).mockResolvedValueOnce({ ttml: '<tt>recovered</tt>' });
+    await engine.replaceQueueWithTracks([{
+      provider: 'local', trackId: missTrackId, title: 'Miss', audio: 'https://audio.example.com/miss.mp3', lyricText: '[00:01.00]line'
+    }], 0, false);
+    await vi.waitFor(() => expect(fetchAmllLyric).toHaveBeenCalledTimes(131));
+    await engine.selectTrackByIndex(0, false);
+    expect(fetchAmllLyric).toHaveBeenCalledTimes(131);
+    now += 30_001;
+    await engine.selectTrackByIndex(0, false);
+    await vi.waitFor(() => expect(fetchAmllLyric).toHaveBeenCalledTimes(132));
+  });
+
   it('does not run stale playback recovery after a newer track is selected', async () => {
     vi.mocked(resolvePlaybackTrack).mockResolvedValue({
       audio: 'https://audio.example.com/A-resolved.mp3',
@@ -592,7 +888,7 @@ describe('usePlayerEngine queue identity', () => {
 
     expect(engine.currentTrack.value?.trackId).toBe('B');
     expect(engine.audioElement.src).toBe('https://audio.example.com/B.mp3');
-    expect(resolvePlaybackTrack.mock.calls.filter(([payload]) => payload.trackId === 'A' && payload.resolveLyric === true)).toHaveLength(1);
+    expect(resolvePlaybackTrack.mock.calls.filter(([payload]) => payload.trackId === 'A' && payload.resolveLyric === false)).toHaveLength(2);
   });
 
   it('assigns a unique queueEntryId to every normalized track', async () => {

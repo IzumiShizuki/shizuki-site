@@ -117,6 +117,36 @@ describe('music Folia workspace coordinator', () => {
     expect(deps.navigate).toHaveBeenLastCalledWith(expect.objectContaining({ view: 'player' }));
   });
 
+  it('selects the requested duplicate queue entry by its stable queue index', async () => {
+    const current = { id: '42', provider: 'navidrome', queueEntryId: 'entry-a' };
+    const requested = { id: '42', provider: 'navidrome', queueEntryId: 'entry-b' };
+    const { coordinator, deps } = makeCoordinator({
+      selectQueueTrack: vi.fn(async () => true),
+      isTrackCurrent: (track) => track.queueEntryId === current.queueEntryId
+    });
+
+    await coordinator.selectSong({ track: requested, queueIndex: 1, surface: 'immersive' });
+
+    expect(deps.selectQueueTrack).toHaveBeenCalledWith(1);
+    expect(deps.playTrack).not.toHaveBeenCalled();
+    expect(deps.navigate).toHaveBeenCalledWith(expect.objectContaining({ view: 'player' }));
+  });
+
+  it('does not navigate when an awaited song preparation completes after deactivation', async () => {
+    const pendingPreparation = deferred();
+    const { coordinator, deps, state } = makeCoordinator({
+      playTrack: vi.fn(() => pendingPreparation.promise)
+    });
+
+    const selection = coordinator.selectSong({ track: { id: 'pending-song' } });
+    coordinator.deactivate();
+    pendingPreparation.resolve(true);
+    await expect(selection).resolves.toMatchObject({ ok: false, stale: true });
+
+    expect(deps.navigate).not.toHaveBeenCalled();
+    expect(state.at(-1)).toMatchObject({ pending: false });
+  });
+
   it('ignores playlist work that resolves after the Folia workspace is deactivated', async () => {
     const pending = deferred();
     const { coordinator, deps } = makeCoordinator({ loadPlaylist: vi.fn(() => pending.promise) });

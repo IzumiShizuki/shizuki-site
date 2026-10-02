@@ -1,5 +1,5 @@
 import { flushPromises, mount, shallowMount } from '@vue/test-utils';
-import { computed, ref } from 'vue';
+import { computed, reactive, ref } from 'vue';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocked = vi.hoisted(() => ({
@@ -35,6 +35,16 @@ vi.mock('../services/musicApi', () => {
 
 import MusicLibraryPage from './MusicLibraryPage.vue';
 import { MUSIC_LIBRARY_CONTEXT_KEY } from '../composables/musicLibraryContext';
+
+function deferred() {
+  let resolve;
+  let reject;
+  const promise = new Promise((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, resolve, reject };
+}
 
 function makePlayer() {
   const refs = new Map();
@@ -119,6 +129,18 @@ describe('MusicLibraryPage stored Folia account entry integration', () => {
     });
     for (let turn = 0; turn < 4; turn += 1) await flushPromises();
     return wrapper;
+  }
+
+  async function completeColdFoliaMount(entryUrl) {
+    window.dispatchEvent(new CustomEvent('shizuki:open-folia-mode'));
+    for (let turn = 0; turn < 4; turn += 1) await flushPromises();
+    document.querySelector('script[src="/music/runtime-config.js"]')?.dispatchEvent(new Event('load'));
+    for (let turn = 0; turn < 4; turn += 1) await flushPromises();
+    const mainScript = document.querySelector(`script[src="${entryUrl}"]`);
+    expect(mainScript).toBeTruthy();
+    document.getElementById('folia-embed-root').appendChild(document.createElement('div'));
+    mainScript.dispatchEvent(new Event('load'));
+    for (let turn = 0; turn < 8; turn += 1) await flushPromises();
   }
 
   it('does not swallow Escape from the embedded Folia surface before its active view can handle it', async () => {
@@ -232,6 +254,118 @@ describe('MusicLibraryPage stored Folia account entry integration', () => {
     }
   });
 
+  it('sends the unchanged paused current entry and complete queue before cold-entry navigation', async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      text: async () => '<script type="module" crossorigin src="/music/assets/Lattice-stable-session.js"></script>'
+    });
+    const current = {
+      id: 'local:opaque-track',
+      trackId: 'local:opaque-track',
+      provider: 'navidrome',
+      title: 'Stable paused track',
+      durationMs: 201000,
+      queueEntryId: 'queue-entry-current'
+    };
+    const queue = [
+      { id: 'local:first', trackId: 'local:first', provider: 'navidrome', title: 'First', queueEntryId: 'queue-entry-first' },
+      current,
+      { id: 'local:last', trackId: 'local:last', provider: 'navidrome', title: 'Last', queueEntryId: 'queue-entry-last' }
+    ];
+    mocked.player.currentTrack.value = current;
+    mocked.player.tracks.value = queue;
+    mocked.player.queueDisplayTracks.value = queue;
+    mocked.player.queueSourceContext.value = {
+      kind: 'collection',
+      collection: { source: 'navidrome', type: 'playlist', id: 'opaque:library-set', name: 'Stable source' }
+    };
+    mocked.player.currentTime.value = 23.5;
+    mocked.player.duration.value = 0;
+    mocked.player.expectedDuration.value = 201;
+    mocked.player.isPlaying.value = false;
+    const wrapper = await mountPage({ teleport: true });
+    const postMessage = vi.spyOn(window, 'postMessage');
+    try {
+      window.dispatchEvent(new CustomEvent('shizuki:open-folia-mode'));
+      for (let turn = 0; turn < 4; turn += 1) await flushPromises();
+      const runtimeScript = document.querySelector('script[src="/music/runtime-config.js"]');
+      runtimeScript?.dispatchEvent(new Event('load'));
+      for (let turn = 0; turn < 4; turn += 1) await flushPromises();
+      const mainScript = document.querySelector('script[src="/music/assets/Lattice-stable-session.js"]');
+      expect(mainScript).toBeTruthy();
+      document.getElementById('folia-embed-root').appendChild(document.createElement('div'));
+      mainScript.dispatchEvent(new Event('load'));
+      for (let turn = 0; turn < 8; turn += 1) await flushPromises();
+
+      const outbound = postMessage.mock.calls
+        .map(([payload]) => payload)
+        .filter((payload) => payload && typeof payload === 'object');
+      const sessionMessageIndex = outbound.findIndex((payload) => payload.type === 'shizuki:follow-playback');
+      const navigationMessageIndex = outbound.findIndex((payload) => payload.type === 'shizuki:navigate' && payload.active);
+      expect(sessionMessageIndex).toBeGreaterThanOrEqual(0);
+      expect(sessionMessageIndex).toBeLessThan(navigationMessageIndex);
+      const firstSession = outbound[sessionMessageIndex].session;
+      expect(firstSession).toMatchObject({
+        track: { id: 'local:opaque-track', queueEntryId: 'queue-entry-current' },
+        queue: [
+          { queueEntryId: 'queue-entry-first' },
+          { queueEntryId: 'queue-entry-current' },
+          { queueEntryId: 'queue-entry-last' }
+        ],
+        sourceContext: {
+          kind: 'collection',
+          collection: { source: 'navidrome', id: 'opaque:library-set' }
+        },
+        positionMs: 23500,
+        durationMs: 201000,
+        playing: false
+      });
+      expect(wrapper.get('.folia-track-name').text()).toBe('Stable paused track');
+      window.dispatchEvent(new MessageEvent('message', {
+        data: {
+          type: 'shizuki:status',
+          track: { id: 'local:opaque-track', trackId: 'local:opaque-track', provider: 'navidrome', name: 'Late old status', artists: [] },
+          sessionVersion: firstSession.version - 1
+        }
+      }));
+      await flushPromises();
+      expect(wrapper.get('.folia-track-name').text()).toBe('Stable paused track');
+
+      const initialSessionCount = outbound.filter((payload) => payload.type === 'shizuki:follow-playback').length;
+      mocked.player.currentTrack.value = queue[0];
+      await flushPromises();
+      const changedEntrySessions = postMessage.mock.calls
+        .map(([payload]) => payload)
+        .filter((payload) => payload?.type === 'shizuki:follow-playback');
+      expect(changedEntrySessions).toHaveLength(initialSessionCount + 1);
+      expect(changedEntrySessions.at(-1).session.track.queueEntryId).toBe('queue-entry-first');
+      mocked.player.currentTrack.value = current;
+      await flushPromises();
+
+      await wrapper.get('.folia-library-btn').trigger('click');
+      await flushPromises();
+      expect(mocked.router.push).toHaveBeenCalledWith({ name: 'music-library-queue' });
+      window.dispatchEvent(new CustomEvent('shizuki:open-folia-mode'));
+      await flushPromises();
+      const reentryMessages = postMessage.mock.calls.map(([payload]) => payload);
+      const reentrySessionIndex = reentryMessages.findLastIndex((payload) => payload?.type === 'shizuki:follow-playback');
+      const reentryNavigationIndex = reentryMessages.findLastIndex((payload) => payload?.type === 'shizuki:navigate' && payload.active);
+      const exitNavigationIndex = reentryMessages.findLastIndex((payload) => payload?.type === 'shizuki:navigate' && !payload.active);
+      expect(reentrySessionIndex).toBeGreaterThan(exitNavigationIndex);
+      expect(reentrySessionIndex).toBeLessThan(reentryNavigationIndex);
+      expect(reentryMessages[reentrySessionIndex].session).toMatchObject({
+        track: { queueEntryId: 'queue-entry-current' },
+        queue: [{ queueEntryId: 'queue-entry-first' }, { queueEntryId: 'queue-entry-current' }, { queueEntryId: 'queue-entry-last' }],
+        playing: false
+      });
+    } finally {
+      postMessage.mockRestore();
+      wrapper.unmount();
+      globalThis.fetch = originalFetch;
+    }
+  });
+
   it('does not activate Folia when a cold entry finishes after the page unmounts', async () => {
     const originalFetch = globalThis.fetch;
     globalThis.fetch = vi.fn().mockResolvedValue({
@@ -256,6 +390,161 @@ describe('MusicLibraryPage stored Folia account entry integration', () => {
     } finally {
       postMessage.mockRestore();
       if (wrapper.exists()) wrapper.unmount();
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('keeps the current queue when entry is cancelled during bootstrap', async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      text: async () => '<script type="module" crossorigin src="/music/assets/Lattice-cancelled-entry.js"></script>'
+    });
+    const queue = [
+      { id: 'navidrome:a', trackId: 'navidrome:a', provider: 'navidrome', title: 'Current', queueEntryId: 'entry-a' },
+      { id: 'navidrome:b', trackId: 'navidrome:b', provider: 'navidrome', title: 'Next', queueEntryId: 'entry-b' }
+    ];
+    mocked.player.currentTrack.value = queue[0];
+    mocked.player.tracks.value = queue;
+    mocked.player.queueDisplayTracks.value = queue;
+    mocked.player.queueSourceContext.value = {
+      kind: 'collection',
+      collection: { source: 'navidrome', type: 'playlist', id: 'cancel-safe', name: 'Cancel safe' }
+    };
+    const wrapper = await mountPage({ teleport: true });
+    const postMessage = vi.spyOn(window, 'postMessage');
+    try {
+      window.dispatchEvent(new CustomEvent('shizuki:open-folia-mode'));
+      for (let turn = 0; turn < 4; turn += 1) await flushPromises();
+      document.querySelector('script[src="/music/runtime-config.js"]')?.dispatchEvent(new Event('load'));
+      for (let turn = 0; turn < 4; turn += 1) await flushPromises();
+      const mainScript = document.querySelector('script[src="/music/assets/Lattice-cancelled-entry.js"]');
+      expect(mainScript).toBeTruthy();
+
+      await wrapper.get('.folia-library-btn').trigger('click');
+      await flushPromises();
+      mainScript.dispatchEvent(new Event('load'));
+      for (let turn = 0; turn < 8; turn += 1) await flushPromises();
+
+      expect(mocked.player.tracks.value).toEqual(queue);
+      expect(mocked.player.currentTrack.value.queueEntryId).toBe(queue[0].queueEntryId);
+      expect(mocked.player.replaceQueueWithTracks).not.toHaveBeenCalled();
+      expect(mocked.router.push).toHaveBeenCalledWith({ name: 'music-library-queue' });
+      expect(postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'shizuki:activate-playback-bridge' }), window.location.origin);
+      expect(postMessage.mock.calls.map(([payload]) => payload).filter((payload) => payload?.type === 'shizuki:navigate' && payload.active)).toHaveLength(0);
+    } finally {
+      postMessage.mockRestore();
+      wrapper.unmount();
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('returns an empty Folia startup to its original browse route', async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      text: async () => '<script type="module" crossorigin src="/music/assets/Lattice-empty-startup.js"></script>'
+    });
+    mocked.route = {
+      name: 'music-library-music',
+      path: '/music-library/music',
+      fullPath: '/music-library/music?section=recent',
+      query: { section: 'recent' },
+      params: {},
+      meta: {}
+    };
+    mocked.player.currentTrack.value = null;
+    mocked.player.tracks.value = [];
+    mocked.player.queueDisplayTracks.value = [];
+    mocked.player.queueSourceContext.value = null;
+    mocked.player.playlistProfile.value = null;
+    const wrapper = await mountPage({ teleport: true });
+    try {
+      window.dispatchEvent(new CustomEvent('shizuki:open-folia-mode'));
+      for (let turn = 0; turn < 4; turn += 1) await flushPromises();
+      document.querySelector('script[src="/music/runtime-config.js"]')?.dispatchEvent(new Event('load'));
+      for (let turn = 0; turn < 4; turn += 1) await flushPromises();
+      const mainScript = document.querySelector('script[src="/music/assets/Lattice-empty-startup.js"]');
+      expect(mainScript).toBeTruthy();
+      document.getElementById('folia-embed-root').appendChild(document.createElement('div'));
+      mainScript.dispatchEvent(new Event('load'));
+      for (let turn = 0; turn < 8; turn += 1) await flushPromises();
+
+      await wrapper.get('.folia-library-btn').trigger('click');
+      await flushPromises();
+
+      expect(mocked.router.push).not.toHaveBeenCalled();
+      expect(mocked.router.push).not.toHaveBeenCalledWith({ name: 'music-library-queue' });
+      expect(mocked.route.fullPath).toBe('/music-library/music?section=recent');
+    } finally {
+      wrapper.unmount();
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('returns an empty player-detail entry to its saved from route', async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      text: async () => '<script type="module" crossorigin src="/music/assets/Lattice-empty-player.js"></script>'
+    });
+    const sourcePath = '/music-library/playlist/road?tab=tracks';
+    mocked.route = {
+      name: 'music-library-player',
+      path: '/music-library/player',
+      fullPath: `/music-library/player?from=${encodeURIComponent(sourcePath)}`,
+      query: { from: encodeURIComponent(sourcePath) },
+      params: {},
+      meta: {}
+    };
+    mocked.ui.lastContentPath = ref('');
+    mocked.player.currentTrack.value = null;
+    mocked.player.tracks.value = [];
+    mocked.player.queueDisplayTracks.value = [];
+    mocked.player.queueSourceContext.value = null;
+    const wrapper = await mountPage({ teleport: true });
+    try {
+      await completeColdFoliaMount('/music/assets/Lattice-empty-player.js');
+      await wrapper.get('.folia-library-btn').trigger('click');
+      await flushPromises();
+
+      expect(mocked.router.push).toHaveBeenCalledWith(sourcePath);
+      expect(mocked.router.push).not.toHaveBeenCalledWith({ name: 'music-library-queue' });
+    } finally {
+      wrapper.unmount();
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('uses the music home route when an empty queue has no saved browse path', async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      text: async () => '<script type="module" crossorigin src="/music/assets/Lattice-empty-queue.js"></script>'
+    });
+    mocked.route = {
+      name: 'music-library-queue',
+      path: '/music-library/queue',
+      fullPath: '/music-library/queue',
+      query: {},
+      params: {},
+      meta: {}
+    };
+    mocked.ui.lastContentPath = ref('');
+    mocked.player.currentTrack.value = null;
+    mocked.player.tracks.value = [];
+    mocked.player.queueDisplayTracks.value = [];
+    mocked.player.queueSourceContext.value = null;
+    const wrapper = await mountPage({ teleport: true });
+    try {
+      await completeColdFoliaMount('/music/assets/Lattice-empty-queue.js');
+      await wrapper.get('.folia-library-btn').trigger('click');
+      await flushPromises();
+
+      expect(mocked.router.push).toHaveBeenCalledWith('/music-library/music');
+      expect(mocked.router.push).not.toHaveBeenCalledWith({ name: 'music-library-queue' });
+    } finally {
+      wrapper.unmount();
       globalThis.fetch = originalFetch;
     }
   });
@@ -350,6 +639,7 @@ describe('MusicLibraryPage stored Folia account entry integration', () => {
 
   it('returns a native Folia collection to the current queue route without fetching a site playlist', async () => {
     const wrapper = await mountPage({ teleport: true });
+    mocked.player.tracks.value = [{ id: 'native-queued-song', trackId: 'native-queued-song', provider: 'navidrome', queueEntryId: 'native-entry' }];
     mocked.player.queueSourceContext.value = {
       kind: 'collection',
       collection: { source: 'navidrome', type: 'playlist', id: 'opaque:P2', name: 'Native P2' }
@@ -361,6 +651,103 @@ describe('MusicLibraryPage stored Folia account entry integration', () => {
     expect(mocked.router.push).toHaveBeenCalledWith({ name: 'music-library-queue' });
     expect(mocked.api.getPlaylistBundleByCode).not.toHaveBeenCalled();
     wrapper.unmount();
+  });
+
+  it('ignores stale playlist loads across route changes and account changes', async () => {
+    const routeState = reactive({ name: 'music-library-music', path: '/music-library/music', fullPath: '/music-library/music', query: {}, params: {}, meta: {} });
+    mocked.route = routeState;
+    const oldSuccess = deferred();
+    const currentSuccess = deferred();
+    const oldFailure = deferred();
+    const newerSuccess = deferred();
+    const accountOne = deferred();
+    const accountTwo = deferred();
+    mocked.api.getPlaylistBundleByCode.mockImplementation((code) => {
+      if (code === 'old-route') return oldSuccess.promise;
+      if (code === 'current-route') return currentSuccess.promise;
+      if (code === 'old-failure') return oldFailure.promise;
+      if (code === 'newer-route') return newerSuccess.promise;
+      if (code === 'account-route') {
+        return mocked.user.value.userId === 'account-two' ? accountTwo.promise : accountOne.promise;
+      }
+      return Promise.resolve({ profile: { playlistCode: code, name: code }, tracks: [] });
+    });
+    const wrapper = await mountPage();
+    const context = wrapper.vm.$.provides[MUSIC_LIBRARY_CONTEXT_KEY];
+    const openPlaylistRoute = async (code) => {
+      routeState.name = 'music-library-playlist';
+      routeState.path = `/music-library/playlist/${code}`;
+      routeState.fullPath = routeState.path;
+      routeState.params = { playlistCode: code };
+      await flushPromises();
+    };
+    const bundle = (code, id) => ({ profile: { playlistCode: code, name: code }, tracks: [{ id, trackId: id, title: id }] });
+
+    try {
+      await openPlaylistRoute('old-route');
+      await openPlaylistRoute('current-route');
+      currentSuccess.resolve(bundle('current-route', 'current-track'));
+      await flushPromises();
+      oldSuccess.resolve(bundle('old-route', 'stale-track'));
+      await flushPromises();
+      expect(context.currentPlaylistProfile.value.playlistCode).toBe('current-route');
+      expect(context.currentPlaylistAllTracks.value.map((track) => track.id)).toEqual(['current-track']);
+
+      await openPlaylistRoute('old-failure');
+      await openPlaylistRoute('newer-route');
+      newerSuccess.resolve(bundle('newer-route', 'newer-track'));
+      await flushPromises();
+      oldFailure.reject(new Error('stale route failed'));
+      await flushPromises();
+      expect(context.currentPlaylistProfile.value.playlistCode).toBe('newer-route');
+      expect(context.currentPlaylistAllTracks.value.map((track) => track.id)).toEqual(['newer-track']);
+
+      await openPlaylistRoute('account-route');
+      mocked.user.value = { userId: 'account-two' };
+      await flushPromises();
+      accountOne.resolve(bundle('account-route', 'old-account-track'));
+      await flushPromises();
+      accountTwo.resolve(bundle('account-route', 'new-account-track'));
+      await flushPromises();
+      expect(context.currentPlaylistProfile.value.playlistCode).toBe('account-route');
+      expect(context.currentPlaylistAllTracks.value.map((track) => track.id)).toEqual(['new-account-track']);
+    } finally {
+      wrapper.unmount();
+    }
+  });
+
+  it('shows the authoritative matching queue during refresh and preserves it when refresh fails', async () => {
+    const routeState = reactive({ name: 'music-library-playlist', path: '/music-library/playlist/source-list', fullPath: '/music-library/playlist/source-list', query: {}, params: { playlistCode: 'source-list' }, meta: {} });
+    mocked.route = routeState;
+    const refresh = deferred();
+    const queue = [
+      { id: 'source-a', trackId: 'source-a', provider: 'navidrome', title: 'A', queueEntryId: 'source-entry-a' },
+      { id: 'source-b', trackId: 'source-b', provider: 'navidrome', title: 'B', queueEntryId: 'source-entry-b' }
+    ];
+    mocked.player.tracks.value = queue;
+    mocked.player.currentTrack.value = queue[0];
+    mocked.player.playlistProfile.value = { playlistCode: 'source-list', name: 'Source list', trackCount: 2238 };
+    mocked.player.queueSourceContext.value = { kind: 'queue', sitePlaylistCode: 'source-list' };
+    mocked.api.getPlaylistBundleByCode.mockReturnValue(refresh.promise);
+    const wrapper = await mountPage();
+    const context = wrapper.vm.$.provides[MUSIC_LIBRARY_CONTEXT_KEY];
+
+    try {
+      expect(context.currentPlaylistAllTracks.value.map((track) => track.queueEntryId)).toEqual(['source-entry-a', 'source-entry-b']);
+      expect(context.currentPlaylistProfile.value).toMatchObject({ playlistCode: 'source-list', name: 'Source list', trackCount: 2238 });
+
+      const pendingRefresh = context.reloadCurrentPlaylist();
+      await flushPromises();
+      expect(context.currentPlaylistAllTracks.value.map((track) => track.queueEntryId)).toEqual(['source-entry-a', 'source-entry-b']);
+      refresh.reject(new Error('refresh failed'));
+      await pendingRefresh;
+
+      expect(context.currentPlaylistAllTracks.value.map((track) => track.queueEntryId)).toEqual(['source-entry-a', 'source-entry-b']);
+      expect(context.currentPlaylistProfile.value).toMatchObject({ playlistCode: 'source-list', name: 'Source list', trackCount: 2238 });
+      expect(context.currentPlaylistError.value).toContain('refresh failed');
+    } finally {
+      wrapper.unmount();
+    }
   });
 
   it('provides the shared queue as a local detail source without loading a backend playlist', async () => {
