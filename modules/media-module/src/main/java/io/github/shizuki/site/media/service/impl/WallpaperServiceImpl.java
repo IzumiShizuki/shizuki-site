@@ -104,6 +104,7 @@ public class WallpaperServiceImpl implements WallpaperService {
     private final WorkshopMetadataProvider workshopMetadataProvider;
     private final WallpaperOutboundClient outboundClient;
     private final WorkshopDownloadChannelResolver downloadChannelResolver;
+    private final SteamCmdProcessRunner steamCmdProcessRunner = new SteamCmdProcessRunner();
 
     public WallpaperServiceImpl(ObjectStorageClient objectStorageClient,
                                 MediaStorageProperties mediaStorageProperties,
@@ -459,9 +460,9 @@ public class WallpaperServiceImpl implements WallpaperService {
                 downloadChannelResolver.resolve(false);
             if (detected == null && steamCmdChannel.available()) {
                 markJobProgress(jobId, WallpaperImportProgressStageEnum.DOWNLOADING);
-                Path downloadedDir = downloadWorkshopBySteamCmd(jobId, workshopItemId);
+                DetectedPackage steamDownloaded = downloadWorkshopBySteamCmd(jobId, workshopItemId);
                 markJobProgress(jobId, WallpaperImportProgressStageEnum.INSPECTING);
-                detected = detectFromDirectory(downloadedDir);
+                detected = steamDownloaded;
             }
             if (detected == null) {
                 finishJob(
@@ -936,19 +937,15 @@ public class WallpaperServiceImpl implements WallpaperService {
         return matcher.group(1);
     }
 
-    private Path downloadWorkshopBySteamCmd(Long jobId, String workshopItemId) {
-        Process process = null;
-        Path downloaded = null;
-        long lastObservedBytes = 0L;
+    private DetectedPackage downloadWorkshopBySteamCmd(Long jobId, String workshopItemId) {
+        Path downloaded;
+        DetectedPackage[] validatedDownloadContent = new DetectedPackage[1];
         try {
             Path root = Paths.get(readString(workshopProperties.getDownloadRoot(), "/tmp/steam-workshop"));
             Files.createDirectories(root);
             downloaded = workshopItemDirectory(root, workshopItemId);
-            lastObservedBytes = directoryByteSize(downloaded);
-            if (lastObservedBytes < 0L) {
-                lastObservedBytes = 0L;
-            }
-            updateDownloadBytes(jobId, lastObservedBytes, null);
+            long[] lastObservedBytes = {Math.max(0L, directoryByteSize(downloaded))};
+            updateDownloadBytes(jobId, lastObservedBytes[0], null);
             List<String> command = new ArrayList<>();
             command.add(readString(workshopProperties.getSteamcmdPath(), "steamcmd"));
             command.add("+force_install_dir");
@@ -966,54 +963,38 @@ public class WallpaperServiceImpl implements WallpaperService {
             command.add(workshopItemId);
             command.add("validate");
             command.add("+quit");
-            process = new ProcessBuilder(command)
-                .redirectErrorStream(true)
-                .redirectOutput(ProcessBuilder.Redirect.DISCARD)
-                .start();
-            long timeoutSeconds = Math.max(30L, workshopProperties.getCommandTimeoutSeconds());
-            long startNanos = System.nanoTime();
-            boolean completed = false;
-            while (!completed) {
-                completed = process.waitFor(1L, TimeUnit.SECONDS);
+            SteamCmdProcessRunner.Execution execution = steamCmdProcessRunner.run(
+                command,
+                workshopProperties.getCommandTimeoutSeconds(),
+                ignoredAttempt -> {
                 long sampledBytes = directoryByteSize(downloaded);
-                if (sampledBytes >= 0L && sampledBytes != lastObservedBytes) {
-                    lastObservedBytes = sampledBytes;
-                    updateDownloadBytes(jobId, lastObservedBytes, null);
+                if (sampledBytes >= 0L && sampledBytes != lastObservedBytes[0]) {
+                    lastObservedBytes[0] = sampledBytes;
+                    updateDownloadBytes(jobId, lastObservedBytes[0], null);
                 }
-                if (!completed && TimeUnit.NANOSECONDS.toSeconds(System.nanoTime() - startNanos) >= timeoutSeconds) {
-                    process.destroyForcibly();
-                    throw new BusinessException(ErrorCode.BAD_REQUEST, "SteamCMD download failed");
-                }
-            }
+                },
+                () -> {
+                    try {
+                        validatedDownloadContent[0] = detectFromDirectory(downloaded);
+                        return true;
+                    } catch (BusinessException invalidContent) {
+                        return false;
+                    }
+                });
             long finalBytes = directoryByteSize(downloaded);
             if (finalBytes >= 0L) {
-                lastObservedBytes = finalBytes;
+                lastObservedBytes[0] = finalBytes;
             }
-            updateDownloadBytes(jobId, lastObservedBytes, null);
-            if (process.exitValue() != 0) {
-                throw new BusinessException(ErrorCode.BAD_REQUEST, "SteamCMD download failed");
+            updateDownloadBytes(jobId, lastObservedBytes[0], null);
+            if (!execution.succeeded()) {
+                throw new BusinessException(ErrorCode.BAD_REQUEST, execution.failure().safeMessage());
             }
-            if (!Files.exists(downloaded) || !Files.isDirectory(downloaded)) {
-                throw new BusinessException(ErrorCode.BAD_REQUEST, "SteamCMD downloaded files are missing");
+            if (validatedDownloadContent[0] != null) {
+                return validatedDownloadContent[0];
             }
-            return downloaded;
+            return detectFromDirectory(downloaded);
         } catch (IOException exception) {
-            if (process != null && process.isAlive()) {
-                process.destroyForcibly();
-            }
-            throw new BusinessException(ErrorCode.BAD_REQUEST, "Run SteamCMD failed");
-        } catch (InterruptedException exception) {
-            if (process != null && process.isAlive()) {
-                process.destroyForcibly();
-            }
-            if (downloaded != null) {
-                long finalBytes = directoryByteSize(downloaded);
-                if (finalBytes >= 0L) {
-                    updateDownloadBytes(jobId, finalBytes, null);
-                }
-            }
-            Thread.currentThread().interrupt();
-            throw new BusinessException(ErrorCode.BAD_REQUEST, "Run SteamCMD interrupted");
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "SteamCMD 下载目录不可用，请检查服务器配置");
         }
     }
 

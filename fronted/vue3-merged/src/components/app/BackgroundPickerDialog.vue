@@ -95,6 +95,7 @@
                 class="field-control wide-field"
                 type="url"
                 placeholder="粘贴 Workshop 条目链接"
+                @input="importState.selectedWorkshopItemId = ''"
               />
               <input v-model.trim="importState.workshopTitle" class="field-control" type="text" placeholder="标题（可选）" />
               <select v-model="importState.workshopVisibility" class="field-control" aria-label="Workshop 壁纸可见性">
@@ -509,16 +510,16 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleEscape));
   place-items: center;
   padding: 18px;
   background: rgba(20, 16, 22, 0.26);
-  backdrop-filter: blur(14px) saturate(1.08);
+  backdrop-filter: blur(8px) saturate(1.04);
 }
 
 .bg-picker {
   --liquid-bg: var(--theme-panel-surface, rgba(36, 28, 38, 0.84));
   --liquid-border: var(--theme-border-strong, rgba(255, 224, 208, 0.28));
   --liquid-shadow: 0 30px 90px rgba(20, 12, 18, 0.28);
-  width: min(96vw, 1320px);
-  height: min(90vh, 840px);
-  min-height: min(680px, 90vh);
+  width: min(98vw, 1880px);
+  height: min(96vh, 1120px);
+  min-height: min(580px, 90vh);
   overflow: hidden;
   border-radius: 18px;
   color: var(--theme-text-primary, rgba(255, 242, 233, 0.96));

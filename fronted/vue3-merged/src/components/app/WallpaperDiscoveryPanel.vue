@@ -18,7 +18,7 @@
           v-model="workshopSort"
           class="filter-control"
           aria-label="Workshop 排序"
-          @change="runSearch(1)"
+          @change="scheduleSearch(1)"
         >
           <option value="trend">本周热门</option>
           <option value="mostrecent">最新发布</option>
@@ -30,7 +30,7 @@
             v-model="wallhavenSorting"
             class="filter-control"
             aria-label="Wallhaven 排序"
-            @change="runSearch(1)"
+            @change="scheduleSearch(1)"
           >
             <option value="toplist">精选</option>
             <option value="date_added">最新</option>
@@ -43,7 +43,7 @@
             v-model="wallhavenAtleast"
             class="filter-control resolution-control"
             aria-label="最低分辨率"
-            @change="runSearch(1)"
+            @change="scheduleSearch(1)"
           >
             <option value="">分辨率</option>
             <option value="1920x1080">≥1080P</option>
@@ -61,16 +61,24 @@
           :disabled="loading"
           aria-label="刷新搜索结果"
           title="刷新"
-          @click="runSearch(page)"
+          @click="runSearch(page, { forceRefresh: true })"
         >
           <span :class="{ spinning: loading }">↻</span>
         </button>
       </div>
 
       <div v-if="source === 'wallhaven'" class="filter-row">
-        <label class="filter-chip"><input v-model="wallhavenGeneral" type="checkbox" @change="runSearch(1)" /> 综合</label>
-        <label class="filter-chip"><input v-model="wallhavenAnime" type="checkbox" @change="runSearch(1)" /> 动漫</label>
-        <label class="filter-chip"><input v-model="wallhavenPeople" type="checkbox" @change="runSearch(1)" /> 人物</label>
+        <button
+          type="button"
+          class="filter-disclosure-toggle"
+          :aria-expanded="filtersExpanded"
+          aria-controls="wallpaper-filter-controls"
+          @click="filtersExpanded = !filtersExpanded"
+        >筛选选项 <span aria-hidden="true">{{ filtersExpanded ? '−' : '+' }}</span></button>
+        <div id="wallpaper-filter-controls" class="filter-controls-list" :class="{ 'is-collapsed': !filtersExpanded }">
+        <label class="filter-chip"><input v-model="wallhavenGeneral" type="checkbox" @change="scheduleSearch(1)" /> 综合</label>
+        <label class="filter-chip"><input v-model="wallhavenAnime" type="checkbox" @change="scheduleSearch(1)" /> 动漫</label>
+        <label class="filter-chip"><input v-model="wallhavenPeople" type="checkbox" @change="scheduleSearch(1)" /> 人物</label>
         <fieldset class="rating-filter-group">
           <legend>年龄分级</legend>
           <label class="filter-chip">
@@ -92,14 +100,14 @@
             轻微敏感
           </label>
         </fieldset>
-        <select v-model="wallhavenRatios" class="filter-control compact-filter" aria-label="Wallhaven 比例" @change="runSearch(1)">
+        <select v-model="wallhavenRatios" class="filter-control compact-filter" aria-label="Wallhaven 比例" @change="scheduleSearch(1)">
           <option value="">全部比例</option>
           <option value="16x9,16x10">横屏</option>
           <option value="21x9,32x9">超宽屏</option>
           <option value="9x16,10x16">竖屏</option>
           <option value="1x1">方形</option>
         </select>
-        <select v-model="wallhavenOrder" class="filter-control compact-filter" aria-label="Wallhaven 顺序" @change="runSearch(1)">
+        <select v-model="wallhavenOrder" class="filter-control compact-filter" aria-label="Wallhaven 顺序" @change="scheduleSearch(1)">
           <option value="desc">降序</option>
           <option value="asc">升序</option>
         </select>
@@ -112,15 +120,24 @@
           清除筛选
         </button>
         <span class="result-count">{{ searched ? `${items.length} 项` : '' }}</span>
+        </div>
       </div>
       <div v-else class="quick-row">
-        <select v-model="workshopType" class="filter-control compact-filter" aria-label="Workshop 类型" @change="runSearch(1)">
+        <button
+          type="button"
+          class="filter-disclosure-toggle"
+          :aria-expanded="filtersExpanded"
+          aria-controls="wallpaper-filter-controls"
+          @click="filtersExpanded = !filtersExpanded"
+        >筛选选项 <span aria-hidden="true">{{ filtersExpanded ? '−' : '+' }}</span></button>
+        <div id="wallpaper-filter-controls" class="filter-controls-list" :class="{ 'is-collapsed': !filtersExpanded }">
+        <select v-model="workshopType" class="filter-control compact-filter" aria-label="Workshop 类型" @change="scheduleSearch(1)">
           <option value="">全部类型</option>
           <option value="Scene">场景</option>
           <option value="Video">视频</option>
           <option value="Web">网页</option>
         </select>
-        <select v-model="workshopGenre" class="filter-control compact-filter" aria-label="Workshop 风格" @change="runSearch(1)">
+        <select v-model="workshopGenre" class="filter-control compact-filter" aria-label="Workshop 风格" @change="scheduleSearch(1)">
           <option value="">全部风格</option>
           <option value="Anime">动漫</option>
           <option value="Landscape">风景</option>
@@ -131,7 +148,7 @@
           <option value="Sci-Fi">科幻</option>
           <option value="Pixel art">像素</option>
         </select>
-        <select v-model="workshopResolution" class="filter-control compact-filter" aria-label="Workshop 分辨率" @change="runSearch(1)">
+        <select v-model="workshopResolution" class="filter-control compact-filter" aria-label="Workshop 分辨率" @change="scheduleSearch(1)">
           <option value="">全部分辨率</option>
           <option value="1280 x 720">720P</option>
           <option value="1920 x 1080">1080P</option>
@@ -145,6 +162,7 @@
         <button type="button" class="quick-chip" @click="applyQuickSearch('landscape')">风景</button>
         <button v-if="query || workshopType || workshopGenre || workshopResolution" type="button" class="reset-button" @click="resetFilters">清除筛选</button>
         <span class="result-count">{{ searched ? `${items.length} 项` : '' }}</span>
+        </div>
       </div>
 
       <div v-if="loading && !items.length" class="skeleton-grid" aria-label="正在加载壁纸列表">
@@ -307,8 +325,8 @@
             <option value="PRIVATE">私有</option>
             <option value="PUBLIC">公开</option>
           </select>
-          <button type="button" class="import-button ripple-trigger" :disabled="busy || !isAuthenticated" @click="importSelected">
-            {{ busy ? '导入中…' : !isAuthenticated ? '登录后导入' : source === 'workshop' ? '导入壁纸' : '添加壁纸' }}
+          <button type="button" class="import-button ripple-trigger" :class="{ 'retry-action': canRetrySelectedImport }" :disabled="busy || !isAuthenticated" @click="importSelected">
+            {{ busy ? '导入中…' : !isAuthenticated ? '登录后导入' : canRetrySelectedImport ? '重试下载' : source === 'workshop' ? '导入壁纸' : '添加壁纸' }}
           </button>
         </div>
       </template>
@@ -322,7 +340,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import {
   getWallpaperDiscoveryPreviewUrl,
   getWorkshopItemDetail,
@@ -342,6 +360,7 @@ const emit = defineEmits(['import-workshop', 'import-wallhaven', 'select-worksho
 
 const source = ref(normalizeSource(props.source));
 const query = ref('');
+const filtersExpanded = ref(false);
 const workshopSort = ref('trend');
 const workshopType = ref('');
 const workshopGenre = ref('');
@@ -366,6 +385,13 @@ const errorHint = ref('');
 const selected = ref(null);
 const importTitle = ref('');
 const importVisibility = ref('PRIVATE');
+const canRetrySelectedImport = computed(() => {
+  const status = String(props.importState?.lastImportJobStatus || '').toUpperCase();
+  return source.value === 'workshop'
+    && selected.value?.itemId
+    && String(props.importState?.lastImportWorkshopItemId || '') === String(selected.value.itemId)
+    && ['FAILED', 'FALLBACK_REQUIRED'].includes(status);
+});
 const previewStates = reactive({});
 const workshopDetail = reactive({
   loading: false,
@@ -377,6 +403,13 @@ const workshopDetail = reactive({
 });
 
 let searchSeq = 0;
+let searchDebounceTimer = 0;
+
+function syncFilterDisclosureToViewport() {
+  const compact = window.matchMedia?.('(max-width: 720px), (orientation: portrait)').matches;
+  if (compact === false) filtersExpanded.value = true;
+  if (compact === true) filtersExpanded.value = false;
+}
 
 const canGoNext = computed(() => {
   if (source.value === 'wallhaven') {
@@ -423,6 +456,23 @@ const importProgress = computed(() => {
   const rawDownloadedBytes = props.importState?.lastImportJobDownloadedBytes;
   const downloadedBytes = rawDownloadedBytes == null || rawDownloadedBytes === '' ? Number.NaN : Number(rawDownloadedBytes);
   const totalBytes = Number(props.importState?.lastImportJobTotalBytes);
+  if (['FAILED', 'FALLBACK_REQUIRED'].includes(status)) {
+    const failureDetail = String(
+      props.importState?.lastImportJobErrorMessage
+      || props.importState?.lastImportJobFallbackHint
+      || ''
+    ).trim();
+    return {
+      visible: true,
+      jobId,
+      label: status === 'FALLBACK_REQUIRED' ? '自动下载未完成' : '导入失败',
+      detail: failureDetail,
+      percent: 0,
+      determinate: false,
+      busy: false,
+      tone: 'failed'
+    };
+  }
   if (stage === 'DOWNLOADING' && sourceType === 'WORKSHOP') {
     const hasDownloadedBytes = Number.isFinite(downloadedBytes) && downloadedBytes >= 0;
     const hasTotal = Number.isFinite(totalBytes) && totalBytes > 0;
@@ -453,7 +503,7 @@ const importProgress = computed(() => {
     PERSISTING: { label: '正在保存壁纸', busy: true, tone: 'active' },
     COMPLETED: { label: '壁纸已添加', busy: false, tone: 'success' },
     FAILED: { label: '导入失败', busy: false, tone: 'failed' },
-    FALLBACK_REQUIRED: { label: '需要本地包导入', busy: false, tone: 'failed' }
+    FALLBACK_REQUIRED: { label: '自动下载未完成', busy: false, tone: 'failed' }
   };
   const serverStage = stageStates[stage];
   if (serverStage && Number.isFinite(rawPercent)) {
@@ -469,8 +519,8 @@ const importProgress = computed(() => {
     PENDING: { label: '等待开始下载', percent: 18, determinate: false, busy: true, tone: 'active' },
     RUNNING: { label: '正在下载和解析', percent: 58, determinate: false, busy: true, tone: 'active' },
     SUCCEEDED: { label: '壁纸已添加', percent: 100, determinate: true, busy: false, tone: 'success' },
-    FAILED: { label: '导入失败', percent: 100, determinate: true, busy: false, tone: 'failed' },
-    FALLBACK_REQUIRED: { label: '需要本地包导入', percent: 100, determinate: true, busy: false, tone: 'failed' }
+    FAILED: { label: '导入失败', percent: 0, determinate: false, busy: false, tone: 'failed' },
+    FALLBACK_REQUIRED: { label: '自动下载未完成', percent: 0, determinate: false, busy: false, tone: 'failed' }
   };
   return { visible: true, jobId, ...(states[status] || states.PENDING) };
 });
@@ -517,7 +567,7 @@ function handleWallhavenRatingChange() {
   if (!wallhavenSafe.value && !wallhavenSketchy.value) {
     wallhavenSafe.value = true;
   }
-  runSearch(1);
+  scheduleSearch(1);
 }
 
 function formatCreatedDate(value) {
@@ -601,8 +651,8 @@ function previewCandidates(item) {
   if (!item) return [];
   const sourceId = source.value === 'workshop' ? item.itemId : item.wallhavenId;
   return [...new Set([
-    getWallpaperDiscoveryPreviewUrl(source.value, sourceId),
     item.thumb,
+    getWallpaperDiscoveryPreviewUrl(source.value, sourceId),
     item.fullUrl
   ].filter(Boolean))];
 }
@@ -660,7 +710,11 @@ function wallhavenCategories() {
   return bits === '000' ? '111' : bits;
 }
 
-async function runSearch(targetPage = 1) {
+async function runSearch(targetPage = 1, { forceRefresh = false } = {}) {
+  if (searchDebounceTimer) {
+    window.clearTimeout(searchDebounceTimer);
+    searchDebounceTimer = 0;
+  }
   const seq = ++searchSeq;
   loading.value = true;
   errorHint.value = '';
@@ -673,7 +727,8 @@ async function runSearch(targetPage = 1) {
           sort: workshopSort.value,
           tags: [workshopType.value, workshopGenre.value, workshopResolution.value].filter(Boolean)
         },
-        props.authorizedFetch
+        props.authorizedFetch,
+        { forceRefresh }
       );
       if (seq !== searchSeq) return;
       const rawItems = Array.isArray(readField(payload, 'items', 'items', []))
@@ -696,7 +751,8 @@ async function runSearch(targetPage = 1) {
           atleast: wallhavenAtleast.value,
           ratios: wallhavenRatios.value
         },
-        props.authorizedFetch
+        props.authorizedFetch,
+        { forceRefresh }
       );
       if (seq !== searchSeq) return;
       const rawItems = Array.isArray(readField(payload, 'items', 'items', []))
@@ -717,6 +773,14 @@ async function runSearch(targetPage = 1) {
   } finally {
     if (seq === searchSeq) loading.value = false;
   }
+}
+
+function scheduleSearch(targetPage = 1) {
+  if (searchDebounceTimer) window.clearTimeout(searchDebounceTimer);
+  searchDebounceTimer = window.setTimeout(() => {
+    searchDebounceTimer = 0;
+    void runSearch(targetPage);
+  }, 260);
 }
 
 function switchSource(nextSource) {
@@ -832,7 +896,18 @@ watch(() => props.source, (nextSource) => {
   switchSource(nextSource);
 });
 
-onMounted(() => runSearch(1));
+onMounted(() => {
+  syncFilterDisclosureToViewport();
+  window.addEventListener('resize', syncFilterDisclosureToViewport, { passive: true });
+  runSearch(1);
+});
+onBeforeUnmount(() => {
+  if (searchDebounceTimer) window.clearTimeout(searchDebounceTimer);
+  window.removeEventListener('resize', syncFilterDisclosureToViewport);
+  searchSeq += 1;
+});
+
+watch(query, () => scheduleSearch(1));
 
 defineExpose({ runSearch, switchSource });
 </script>
@@ -842,29 +917,38 @@ defineExpose({ runSearch, switchSource });
   height: 100%;
   min-height: 0;
   color: var(--theme-text-primary, rgba(255, 242, 233, 0.96));
+  --discovery-solid-surface: rgba(36, 28, 38, 0.96);
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 330px;
-  gap: 12px;
+  grid-template-columns: minmax(150px, 172px) minmax(0, 1fr) minmax(238px, 292px);
+  grid-template-rows: 44px minmax(0, 1fr) 39px;
+  grid-template-areas: 'filters toolbar inspector' 'filters gallery inspector' 'filters pager inspector';
+  gap: 8px;
 }
 
-.discovery-library,
-.discovery-inspector {
-  min-height: 0;
-  border: 1px solid var(--theme-border, rgba(255, 224, 208, 0.24));
-  border-radius: 13px;
-  background: var(--theme-surface-soft, rgba(255, 240, 235, 0.12));
-  overflow: hidden;
+:global(:root[data-theme-mode='day']) .wallpaper-discovery {
+  --discovery-solid-surface: rgba(255, 252, 248, 0.97);
 }
 
 .discovery-library {
-  display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  display: contents;
+}
+
+.discovery-inspector {
+  min-height: 0;
+  border: 1px solid var(--theme-border, rgba(255, 224, 208, 0.24));
+  border-radius: 9px;
+  background: var(--discovery-solid-surface);
+  overflow: hidden;
 }
 
 .discovery-toolbar {
+  grid-area: toolbar;
+  min-width: 0;
   min-height: 49px;
-  padding: 7px 9px;
-  border-bottom: 1px solid var(--theme-border);
+  padding: 5px 7px;
+  border: 1px solid var(--theme-border);
+  border-radius: 8px;
+  background: var(--discovery-solid-surface);
   display: flex;
   align-items: center;
   gap: 7px;
@@ -1002,14 +1086,36 @@ defineExpose({ runSearch, switchSource });
 
 .filter-row,
 .quick-row {
-  min-height: 39px;
-  padding: 6px 10px;
-  border-bottom: 1px solid var(--theme-border);
+  grid-area: filters;
+  min-width: 0;
+  min-height: 0;
+  padding: 8px;
+  border: 1px solid var(--theme-border);
+  border-radius: 9px;
+  background: var(--discovery-solid-surface);
   display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 6px;
+  flex-direction: column;
+  align-items: stretch;
+  flex-wrap: nowrap;
+  gap: 7px;
+  overflow: auto;
+  scrollbar-width: thin;
 }
+
+.filter-controls-list { display: contents; }
+.filter-disclosure-toggle { display: none; }
+
+.quick-row .result-count,
+.filter-row .result-count { margin: 5px 0 0; }
+
+.quick-row .filter-control,
+.filter-row .filter-control { width: 100%; min-width: 0; }
+
+.quick-row .quick-chip,
+.filter-row .filter-chip,
+.filter-row .reset-button { justify-content: flex-start; }
+
+.quick-row .rating-filter-group { flex-wrap: wrap; }
 
 .rating-filter-group {
   min-width: 0;
@@ -1068,25 +1174,28 @@ defineExpose({ runSearch, switchSource });
 
 .discovery-grid,
 .skeleton-grid {
+  grid-area: gallery;
   min-height: 0;
-  padding: 10px;
+  padding: 7px;
   overflow: auto;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(185px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
   align-content: start;
-  gap: 10px;
+  gap: 6px;
   scrollbar-gutter: stable;
+  background: var(--discovery-solid-surface);
 }
 
 .discovery-item {
+  position: relative;
   min-width: 0;
-  padding: 5px;
+  padding: 3px;
   border: 1px solid transparent !important;
-  border-radius: 10px;
+  border-radius: 6px;
   background: transparent !important;
   color: var(--theme-text-primary) !important;
   display: grid;
-  gap: 7px;
+  gap: 4px;
   text-align: left;
   box-shadow: none !important;
 }
@@ -1104,11 +1213,11 @@ defineExpose({ runSearch, switchSource });
 
 .discovery-thumb-wrap {
   position: relative;
-  aspect-ratio: 16 / 9;
+  aspect-ratio: 1;
   overflow: hidden;
   border: 1px solid var(--theme-border);
   border-radius: 7px;
-  background: var(--theme-panel-surface-elevated);
+  background: var(--discovery-solid-surface);
   display: grid;
   place-items: center;
 }
@@ -1118,11 +1227,11 @@ defineExpose({ runSearch, switchSource });
   height: 100%;
   object-fit: cover;
   display: block;
-  transition: transform 180ms ease;
+  transition: none;
 }
 
 .discovery-item:hover .discovery-thumb {
-  transform: scale(1.018);
+  transform: none;
 }
 
 .thumb-loading {
@@ -1163,9 +1272,8 @@ defineExpose({ runSearch, switchSource });
 .selected-check,
 .inspector-source {
   border: 1px solid var(--theme-border);
-  background: var(--theme-panel-surface-elevated);
+  background: var(--theme-surface-elevated);
   color: var(--theme-text-secondary);
-  backdrop-filter: blur(12px);
 }
 
 .source-badge {
@@ -1195,29 +1303,34 @@ defineExpose({ runSearch, switchSource });
 }
 
 .item-copy {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  left: 4px;
   min-width: 0;
-  padding: 0 2px 2px;
-  display: grid;
-  gap: 3px;
+  padding: 5px 6px;
+  border-radius: 4px;
+  background: rgba(18, 14, 18, 0.82);
+  color: #fff;
+  display: block;
+  pointer-events: none;
 }
 
 .item-copy strong {
+  display: block;
   overflow: hidden;
-  font-size: 12px;
+  font-size: 10px;
   font-weight: 650;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .item-copy small {
-  overflow: hidden;
-  color: var(--theme-text-tertiary);
-  font-size: 10px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  display: none;
 }
 
 .discovery-pager {
+  grid-area: pager;
   min-height: 39px;
   padding: 5px 10px;
   border-top: 1px solid var(--theme-border);
@@ -1249,6 +1362,7 @@ defineExpose({ runSearch, switchSource });
 }
 
 .discovery-state {
+  grid-area: gallery;
   min-height: 220px;
   padding: 24px;
   color: var(--theme-text-tertiary);
@@ -1319,9 +1433,11 @@ defineExpose({ runSearch, switchSource });
 }
 
 .discovery-inspector {
+  grid-area: inspector;
+  grid-row: 1 / 4;
   padding: 10px;
   overflow: auto;
-  background: var(--theme-panel-surface-elevated, var(--theme-surface-elevated));
+  background: var(--discovery-solid-surface);
   display: flex;
   flex-direction: column;
   gap: 11px;
@@ -1334,7 +1450,7 @@ defineExpose({ runSearch, switchSource });
   overflow: hidden;
   border: 1px solid var(--theme-border);
   border-radius: 9px;
-  background: var(--theme-surface-soft);
+  background: var(--discovery-solid-surface);
   display: grid;
   place-items: center;
 }
@@ -1526,6 +1642,12 @@ defineExpose({ runSearch, switchSource });
   font-size: 12px;
 }
 
+.import-button.retry-action {
+  border-color: var(--theme-danger) !important;
+  background: var(--theme-surface-soft) !important;
+  color: var(--theme-text-primary) !important;
+}
+
 .spinning {
   display: inline-block;
   animation: spin 800ms linear infinite;
@@ -1546,12 +1668,12 @@ defineExpose({ runSearch, switchSource });
 
 @media (max-width: 980px) {
   .wallpaper-discovery {
-    grid-template-columns: minmax(0, 1fr) 292px;
+    grid-template-columns: minmax(132px, 150px) minmax(0, 1fr) minmax(210px, 250px);
   }
 
   .discovery-grid,
   .skeleton-grid {
-    grid-template-columns: repeat(auto-fill, minmax(155px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
   }
 
   .resolution-control {
@@ -1563,27 +1685,82 @@ defineExpose({ runSearch, switchSource });
   .wallpaper-discovery {
     height: auto;
     min-height: 100%;
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto minmax(36vh, 1fr) auto auto;
+    grid-template-areas: 'toolbar' 'filters' 'gallery' 'pager' 'inspector';
   }
 
-  .discovery-library {
-    min-height: 440px;
+  .quick-row,
+  .filter-row {
+    min-height: 46px;
+    max-height: 150px;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    overflow: auto;
+  }
+
+  .filter-disclosure-toggle {
+    flex: 0 0 100%;
+    width: 100%;
+    min-height: 30px;
+    padding: 0 8px;
+    border: 1px solid var(--theme-border);
+    border-radius: 6px;
+    background: var(--theme-surface-soft);
+    color: var(--theme-text-primary);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    text-align: left;
+    font-size: 11px;
+  }
+
+  .filter-controls-list { display: contents; }
+  .filter-controls-list.is-collapsed { display: none; }
+  .filter-controls-list:not(.is-collapsed) {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
   }
 
   .discovery-inspector {
     min-height: 350px;
+    grid-row: auto;
   }
 
   .discovery-toolbar {
-    flex-wrap: wrap;
+    min-height: 76px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-rows: 33px 33px;
+    align-items: center;
+    gap: 5px;
   }
 
   .discovery-search-field {
-    flex-basis: calc(100% - 40px);
+    grid-column: 1 / -1;
+    min-width: 0;
+    width: 100%;
+    flex: none;
   }
 
   .filter-control {
-    flex: 1;
+    grid-column: 1;
+    width: 100%;
+    min-width: 0;
+    flex: none;
+  }
+
+  .search-button { grid-column: 2; }
+  .refresh-button { grid-column: 3; }
+
+  .discovery-grid,
+  .skeleton-grid {
+    min-height: 36vh;
+    max-height: none;
   }
 
   .discovery-grid,

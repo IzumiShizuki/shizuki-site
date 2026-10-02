@@ -1,7 +1,9 @@
 import { httpRequest, normalizeApiData } from './httpClient';
+import { createWallpaperSearchCache } from '../utils/wallpaperSearchCache';
 
 const RAW_API_BASE = String(import.meta.env.VITE_GATEWAY_BASE_URL || '/').trim() || '/';
 const API_BASE = RAW_API_BASE === '/' ? '' : RAW_API_BASE.replace(/\/+$/, '');
+const wallpaperSearchCache = createWallpaperSearchCache({ ttlMs: 60_000, maxEntries: 24 });
 
 function unwrapApiResponse(response) {
   return normalizeApiData(response);
@@ -81,20 +83,20 @@ export async function importWallpaperWorkshop(payload, authorizedFetch) {
   return unwrapApiResponse(response);
 }
 
-export async function searchWorkshopWallpapers(params, authorizedFetch) {
+export async function searchWorkshopWallpapers(params, authorizedFetch, { forceRefresh = false } = {}) {
   const request = resolveReadRequest(authorizedFetch);
-  const response = await request('/api/v1/home-wallpapers/discovery/workshop/search', {
-    method: 'GET',
-    query: {
-      query: String(params?.query || '').trim(),
-      page: Number(params?.page) > 0 ? Number(params.page) : 1,
-      sort: String(params?.sort || 'trend'),
-      tags: Array.isArray(params?.tags)
-        ? params.tags.map((item) => String(item || '').trim()).filter(Boolean).join(',')
-        : String(params?.tags || '').trim()
-    }
-  });
-  return unwrapApiResponse(response);
+  const query = {
+    query: String(params?.query || '').trim(),
+    page: Number(params?.page) > 0 ? Number(params.page) : 1,
+    sort: String(params?.sort || 'trend'),
+    tags: Array.isArray(params?.tags)
+      ? params.tags.map((item) => String(item || '').trim()).filter(Boolean).join(',')
+      : String(params?.tags || '').trim()
+  };
+  return wallpaperSearchCache.get(`workshop:${JSON.stringify(query)}`, async () => {
+    const response = await request('/api/v1/home-wallpapers/discovery/workshop/search', { method: 'GET', query });
+    return unwrapApiResponse(response);
+  }, { forceRefresh });
 }
 
 export async function getWorkshopItemDetail(itemId, authorizedFetch) {
@@ -109,22 +111,22 @@ export async function getWorkshopItemDetail(itemId, authorizedFetch) {
   return unwrapApiResponse(response);
 }
 
-export async function searchWallhavenWallpapers(params, authorizedFetch) {
+export async function searchWallhavenWallpapers(params, authorizedFetch, { forceRefresh = false } = {}) {
   const request = resolveReadRequest(authorizedFetch);
-  const response = await request('/api/v1/home-wallpapers/discovery/wallhaven/search', {
-    method: 'GET',
-    query: {
-      query: String(params?.query || '').trim(),
-      page: Number(params?.page) > 0 ? Number(params.page) : 1,
-      categories: String(params?.categories || ''),
-      purity: String(params?.purity || ''),
-      sorting: String(params?.sorting || ''),
-      order: String(params?.order || ''),
-      atleast: String(params?.atleast || ''),
-      ratios: String(params?.ratios || '')
-    }
-  });
-  return unwrapApiResponse(response);
+  const query = {
+    query: String(params?.query || '').trim(),
+    page: Number(params?.page) > 0 ? Number(params.page) : 1,
+    categories: String(params?.categories || ''),
+    purity: String(params?.purity || ''),
+    sorting: String(params?.sorting || ''),
+    order: String(params?.order || ''),
+    atleast: String(params?.atleast || ''),
+    ratios: String(params?.ratios || '')
+  };
+  return wallpaperSearchCache.get(`wallhaven:${JSON.stringify(query)}`, async () => {
+    const response = await request('/api/v1/home-wallpapers/discovery/wallhaven/search', { method: 'GET', query });
+    return unwrapApiResponse(response);
+  }, { forceRefresh });
 }
 
 export async function importWallhavenWallpaper(payload, authorizedFetch) {

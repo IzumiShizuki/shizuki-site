@@ -39,7 +39,7 @@ public class WorkshopDownloadChannelResolver {
                 || !StringUtils.hasText(properties.getSteamPassword())) {
             return unavailable("服务器未配置 SteamCMD 账号");
         }
-        return new ChannelState("STEAMCMD", true, "可通过 SteamCMD 导入");
+        return new ChannelState("STEAMCMD", true, "SteamCMD 已配置，下载结果取决于账号验证和条目权限");
     }
 
     boolean canRunSteamCmd() {
