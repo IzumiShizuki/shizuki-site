@@ -5,8 +5,8 @@
 ## 当前对应源码
 
 - 用户 fork：[IzumiShizuki/folia-major](https://github.com/IzumiShizuki/folia-major)，分支 `codex/unify-folia-workspace`。
-- 本次字幕色实现：`c755facfe0d2fb53303aefc977d41f72375e2e07`；源码 tip（含空白清理）：`1fca2ef15922c55b8655873bbd4d6a4415db828b`。当前线上基线为 `7069103b4ce862f0e1f8befde5c48dbe778777f4`，部署验收进度见本次报告。
-- 完整差异：[`shizuki-folia-v0.7.11.patch`](shizuki-folia-v0.7.11.patch)，**307,630 bytes; SHA-256 `203475f6fc2bc43c8781a08c659da3d6d2afbb0c5b4f997bde0e5eae768eb57f`; `76` changed files**。可应用到干净 `6fe68d89`，已实际应用并逐项核对全部目标 Git blob。
+- 本次字幕色实现：`c755facfe0d2fb53303aefc977d41f72375e2e07`；线上运行提交（含空白清理）：`1fca2ef15922c55b8655873bbd4d6a4415db828b`。源码 tip：`d8f8725388d94f02ce99da95ecd632f2d1f96a26`，新增部分仅为最终验收文档，应用源码与线上运行提交一致。
+- 完整差异：[`shizuki-folia-v0.7.11.patch`](shizuki-folia-v0.7.11.patch)，**310,935 bytes; SHA-256 `d79e9167675ca415a9cc80e5ec1f941b1f68eda42770ca5395d36c7a83fa3000`; `76` changed files**。可应用到干净 `6fe68d89`，已实际应用并逐项核对全部目标 Git blob。
 - 本目录 **57 个 TS/TSX 源码及测试快照**与完整 fork 逐字节一致；桥快照 `shizukiExternalBridge.ts` 对应 fork 的 `src/shizukiExternalBridge.ts`。
 - 完整 fork 的本地目录 `D:\program\_codex_deploy\folia-major-v0.7.8-upstream` 保留旧目录名，实际基线为 v0.7.11。旧 `embedded-history-isolation.patch` 仅作历史参考。
 
@@ -21,7 +21,7 @@
 
 ## 验证与历史
 
-本次 Folia 受影响验证 **100 files / 1056 passed / 1 skipped**；背景隔离后再验证 **9 files / 130 tests**，TypeScript 与严格 OpenSpec 通过。主站 **251 files / 1512 tests** 与构建通过；精确提交的部署构建与线上验收单独记录。此前完整套件 4,385 通过、2 跳过；唯一 Windows modSignature 符号链接 EPERM 在干净上游也复现，未削弱该测试。
+本次 Folia 受影响验证 **100 files / 1056 passed / 1 skipped**；背景隔离后再验证 **9 files / 130 tests**，TypeScript 与严格 OpenSpec 通过。独立干净发布分支 **251 files / 1513 tests，exit 0**；最终居中定位调整另通过 **2 files / 4 tests** 并重建精确生产提交。实际字幕色、重置、单播放栏、原生暂停/拖动/Esc、第 450 首返回定位与原生 purple 83 首歌单替换验收通过。此前完整套件 4,385 通过、2 跳过；唯一 Windows modSignature 符号链接 EPERM 在干净上游也复现，未削弱该测试。
 
 | 实现 | 修复 |
 | --- | --- |
@@ -35,12 +35,12 @@
 
 详见 [排查记录](../../openspec/changes/unify-folia-workspace-navigation/diagnosis.md) 与 [最终验收报告](../../openspec/changes/unify-folia-workspace-navigation/verification-report.md)。
 
-本次跟进：[排查记录](../../openspec/changes/fix-folia-color-controls-and-queue-return/diagnosis.md)、[验证与交付报告](../../openspec/changes/fix-folia-color-controls-and-queue-return/verification-report.md)。下方为本次部署前的线上基线；新镜像与实际模块身份将在本次报告中记录。
+本次跟进：[排查记录](../../openspec/changes/fix-folia-color-controls-and-queue-return/diagnosis.md)、[验证与交付报告](../../openspec/changes/fix-folia-color-controls-and-queue-return/verification-report.md)。下方为最终部署身份；文档与公共源码同步提交较运行提交新，但不改变应用源码。
 
 ## 个人服务器部署
 
-服务器 `111.228.35.186`；源码 `/opt/folia/folia-major-main`，部署分支 `codex/deploy-shizuki-folia-20261001`，运行实现 `7069103b4ce862f0e1f8befde5c48dbe778777f4`。从精确 Git archive 构建，避免宿主未跟踪依赖覆盖 lockfile 安装。
+服务器 `111.228.35.186`；源码 `/opt/folia/folia-major-main`，部署分支 `codex/deploy-shizuki-folia-20261001`，运行实现 `1fca2ef15922c55b8655873bbd4d6a4415db828b`。从干净提交与现有生产 Vite 参数本地构建，逐文件 SHA-256 清单校验运行镜像中的全部 193 个文件，OCI revision 与提交一致。
 
-运行镜像 **`sha256:1d74dd2d4bee41abd9832a6698f7a4144efc814ca46057740e792b71b1c2b529`**，OCI revision 与实现一致。历史标签 `folia-local/gateway:0.7.7-music` 保留；版本以 commit/digest 为准。网关 `/music/` 实际模块 `main-rROf5Ust.js`；站点模块 `index-Bvvt1XEq.js`。健康检查和真实连续选曲、点击/键盘、暂停/拖动、颜色与两种歌单返回验收通过。回滚镜像、源码 stash、站点恢复点保留，详见 [部署记录](../../openspec/changes/unify-folia-workspace-navigation/delivery-preparation.md)。
+运行镜像 **`sha256:91b1df73ec35c4372e48750e89859bd9d69f547b385c359a4089ad3098170620`**。历史标签 `folia-local/gateway:0.7.7-music` 保留；版本以 commit/digest 为准。网关 `/music/` 实际模块 `main-pG2vG0Xv.js`；主站运行提交 `7abce02172af0bd5b459f3b7147f25a928a3ffc3`，模块 `index-Cd9jeifr.js`，229 个运行文件逐项匹配。健康检查与实际签入页面验收通过。Folia 回滚 `backup-before-color-20261002-7069103b`、主站初始/中间回滚、源码 stash 与完整 READY 恢复点保留，详见本次验证与交付报告。后端、私有配置与数据卷未改动；临时构建上下文已清理。
 
 1Panel openresty `location /music/` 代理到 `127.0.0.1:18081`。Folia 独立运行于 `folia-local/gateway`，源码与许可证声明随修改保留；本目录提供完整 patch 和主要源码快照，上游源码可从 GitHub 获取。

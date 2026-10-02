@@ -31,7 +31,7 @@ The system SHALL return ordinary mode to the authoritative playing playlist or c
 
 #### Scenario: Large playlist song selection
 - **WHEN** Folia selects a song after the first 300 entries and the user returns to ordinary mode
-- **THEN** ordinary mode shows the corresponding authoritative list with that entry mounted, highlighted and brought into view
+- **THEN** ordinary mode shows the corresponding authoritative list with that entry mounted, highlighted and brought into view without being obscured by the fixed playback dock
 
 #### Scenario: Native queue replacement
 - **WHEN** a native Folia playlist replaces the queue and the user returns to ordinary mode
