@@ -42,7 +42,7 @@ First delivery `44ca6365` passed the complete 1537-test suite and its 229-file p
 
 The native-media boundary exposed another hole: assigning an empty `src` during selection reset can emit an error while the new song's URL is still pending, causing an unnecessary forced recovery request. A deferred real-engine regression explicitly emitting this native empty-source error failed with one forced recovery instead of zero. Reset now removes the source attribute and loads the empty element; media errors/end events require an active source. Ordinary handler requests must retain ownership of the exact current entry before showing an error or making post-selection UI changes. A mounted two-selection regression first failed on the stale blocking alert; genuine current-request errors remain visible.
 
-These are application defects found by deployed acceptance, not attributed to unavailable provider audio. Final delivery/acceptance remains pending until their corrections are tested and deployed.
+These are application defects found by deployed acceptance, not attributed to unavailable provider audio. Their corrections passed the final delivery and acceptance recorded in verification.md.
 
 ## Deployed source metadata regression
 
@@ -52,6 +52,6 @@ Ordinary selection supplied only sourceCode/type. Engine profile normalization d
 
 ## Operational baseline
 
-Read-only server inspection confirms deployed site revision `7abce02172af0bd5b459f3b7147f25a928a3ffc3`, Folia gateway healthy, API UP, and only 133836800 bytes available on the root partition. Any new frontend delivery must verify capacity and retain the existing READY restore point/current rollback image. The unrelated wallpaper branch in the primary checkout is excluded by the managed worktree.
+Initial read-only server inspection found deployed site revision `7abce02172af0bd5b459f3b7147f25a928a3ffc3`, Folia gateway healthy, API UP, and only 133836800 bytes available on the root partition. Each frontend delivery verifies capacity and retains the existing READY restore point/current rollback image. The unrelated wallpaper branch in the primary checkout is excluded by the managed worktree.
 
 During follow-up delivery, the capacity guard found 0 available bytes and stopped before activation. ID-scoped reclaimable-cache requests released no bytes. The unused, single-tag `folia-local/folia-builder:validation` image had no referencing containers and was removed as a regenerable verification artifact; available space recovered to about 1.2 GB. Production and rollback images, source archives, READY snapshots and data volumes were retained. The verified incremental deployment then completed normally.
