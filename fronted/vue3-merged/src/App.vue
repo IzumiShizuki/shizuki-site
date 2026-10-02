@@ -194,13 +194,11 @@
       </transition>
 
       <div v-if="showBarsVisualizer" class="global-bars" :class="barsVisualizerClass" aria-hidden="true">
-        <span v-for="(level, index) in barLevels" :key="`bar-${index}`" class="bar" :style="barStyle(level, index)"></span>
+        <MusicVisualizerLayer variant="bars" :style-key="barsVisualizerClass" :active="shouldRunVisualizer && !visualizerPaused" />
       </div>
 
       <div v-if="showRingVisualizer" class="global-ring" :class="ringVisualizerClass" aria-hidden="true">
-        <div class="ring-core">
-          <span v-for="(level, index) in ringLevels" :key="`ring-${index}`" class="ring-seg" :style="ringSegStyle(level, index)"></span>
-        </div>
+        <MusicVisualizerLayer variant="ring" :style-key="ringVisualizerClass" :active="shouldRunVisualizer && !visualizerPaused" />
       </div>
 
       <AtmospherePanel
@@ -345,6 +343,7 @@ import LevitationBall from './components/LevitationBall.vue';
 import LightAppWindowHost from './components/lightapps/LightAppWindowHost.vue';
 import TimePrismReminderHost from './components/lightapps/timeprism/TimePrismReminderHost.vue';
 import MusicPlayer from './components/MusicPlayer.vue';
+import MusicVisualizerLayer from './components/MusicVisualizerLayer.vue';
 import LiquidFilterDefinitions from './components/material/LiquidFilterDefinitions.vue';
 import { useAmbientMixer } from './composables/useAmbientMixer';
 import { useAuthSession } from './composables/useAuthSession';
@@ -457,8 +456,6 @@ const lyricOffset = ref({ x: 0, y: 0 });
 const isMobileViewport = ref(false);
 const pageVisible = ref(typeof document === 'undefined' ? true : !document.hidden);
 const windowFocused = ref(typeof document === 'undefined' ? true : document.hasFocus());
-const barLevels = ref(Array.from({ length: 44 }, () => 0));
-const ringLevels = ref(Array.from({ length: 72 }, () => 0));
 const sidebarAiColumnVisible = ref(false);
 const l2dRenderFailed = ref(false);
 const wallpaperBgmRef = ref(null);
@@ -527,9 +524,6 @@ let audioCtx = null;
 let sourceNode = null;
 let eqChain = null;
 let analyser = null;
-let freqData = null;
-let rafId = 0;
-let lastVisualizerFrameAt = 0;
 let sidebarAiCloseTimer = 0;
 let wallpaperPreferenceSaveTimer = 0;
 let wallpaperSignedUrlRefreshTimer = 0;
@@ -540,8 +534,6 @@ let wallpaperPrivateSessionSequence = 0;
 let disposeDesktopControlBridge = () => {};
 let disposeDesktopPointerBridge = () => {};
 const AI_SIDEBAR_EXIT_MS = 260;
-const VISUALIZER_TARGET_FPS = 30;
-const VISUALIZER_FRAME_MS = 1000 / VISUALIZER_TARGET_FPS;
 const WALLPAPER_SIGNED_URL_REFRESH_BUFFER_MS = 60 * 1000;
 const WALLPAPER_SIGNED_URL_REFRESH_MIN_DELAY_MS = 15 * 1000;
 const WORKSHOP_DISCOVERY_URL =
@@ -721,8 +713,8 @@ const canUseSidebarAi = computed(() => !isAiHubRoute.value && !isMobileViewport.
 const showSidebarAiPanel = computed(() => aiChatActive.value && canUseSidebarAi.value);
 const sidebarAiColumnMounted = computed(() => canUseSidebarAi.value && (showSidebarAiPanel.value || sidebarAiColumnVisible.value));
 const showSheetAiPanel = computed(() => aiChatActive.value && isMobileViewport.value && !isAiHubRoute.value && !isFocusActive.value);
-const showBarsVisualizer = computed(() => (isHomeRoute.value || isFocusActive.value) && player.visualizerMode.value === 'bars');
-const showRingVisualizer = computed(() => (isHomeRoute.value || isFocusActive.value) && player.visualizerMode.value === 'ring');
+const showBarsVisualizer = computed(() => !runtimeGuards.disableVisualizerLoop && (isHomeRoute.value || isFocusActive.value) && player.visualizerMode.value === 'bars');
+const showRingVisualizer = computed(() => !runtimeGuards.disableVisualizerLoop && (isHomeRoute.value || isFocusActive.value) && player.visualizerMode.value === 'ring');
 const shouldRunVisualizer = computed(
   () => !reducedMotion.value
     && (isHomeRoute.value || isFocusActive.value)
@@ -2642,7 +2634,6 @@ function ensureAudioAnalyser() {
   );
   eqChain.output.connect(analyser);
   analyser.connect(audioCtx.destination);
-  freqData = new Uint8Array(analyser.frequencyBinCount);
   applyEqLevels(musicUi.eqLevels.value);
   if (audioCtx?.state === 'suspended') {
     audioCtx.resume().catch(() => {});
@@ -2681,82 +2672,6 @@ function handleEqChangeEvent(event) {
     audioCtx.resume().catch(() => {});
   }
   applyEqLevels(levels);
-}
-
-function stopVisualizerLoop() {
-  if (rafId) {
-    window.cancelAnimationFrame(rafId);
-    rafId = 0;
-  }
-  lastVisualizerFrameAt = 0;
-}
-
-function pumpVisualizer(timestamp = 0) {
-  if (!shouldRunVisualizer.value || !analyser || !freqData) {
-    stopVisualizerLoop();
-    return;
-  }
-
-  if (timestamp - lastVisualizerFrameAt < VISUALIZER_FRAME_MS) {
-    rafId = window.requestAnimationFrame(pumpVisualizer);
-    return;
-  }
-  lastVisualizerFrameAt = timestamp;
-
-  analyser.getByteFrequencyData(freqData);
-
-  barLevels.value = barLevels.value.map((_, index) => {
-    const freqIndex = Math.floor((index / barLevels.value.length) * freqData.length);
-    return Math.pow((freqData[freqIndex] || 0) / 255, 1.35);
-  });
-
-  ringLevels.value = ringLevels.value.map((_, index) => {
-    const freqIndex = Math.floor((index / ringLevels.value.length) * freqData.length);
-    return Math.pow((freqData[freqIndex] || 0) / 255, 1.55);
-  });
-
-  rafId = window.requestAnimationFrame(pumpVisualizer);
-}
-
-function startVisualizerLoop() {
-  if (rafId) return;
-  if (audioCtx?.state === 'suspended') {
-    audioCtx.resume().catch(() => {});
-  }
-  if (!analyser || !freqData) return;
-  lastVisualizerFrameAt = 0;
-  rafId = window.requestAnimationFrame(pumpVisualizer);
-}
-
-function barStyle(level, index) {
-  const style = barsVisualizerClass.value;
-  const baseHeight = style === 'bars-firefly' ? 8 : 10;
-  const gain = style === 'bars-crystal' ? 40 : style === 'bars-firefly' ? 36 : 44;
-  const spreadHue = style === 'bars-crystal' ? 56 : 42;
-  const hue = 248 + (index / Math.max(1, barLevels.value.length)) * spreadHue;
-
-  return {
-    height: `${baseHeight + level * gain}px`,
-    '--bar-hue': `${hue}`,
-    '--bar-opacity': `${0.45 + level * 0.55}`,
-    '--bar-scale': `${0.84 + level * 0.36}`
-  };
-}
-
-function ringSegStyle(level, index) {
-  const style = ringVisualizerClass.value;
-  const total = ringLevels.value.length;
-  const angle = (360 / total) * index;
-  const radius = style === 'ring-orbit' ? 176 : style === 'ring-pulse' ? 162 : 170;
-  const base = style === 'ring-orbit' ? 8 : style === 'ring-pulse' ? 14 : 10;
-  const gain = style === 'ring-orbit' ? 28 : style === 'ring-pulse' ? 38 : 32;
-  const len = base + level * gain;
-  return {
-    transform: `rotate(${angle}deg) translateY(-${radius}px)`,
-    height: `${len}px`,
-    opacity: 0.2 + level * 0.5,
-    '--ring-hue': `${250 + (index / Math.max(1, total)) * 48}`
-  };
 }
 
 function setVisualizerMode(mode) {
@@ -3066,9 +2981,7 @@ function onGlobalPointerDown(event) {
   const target = event.target;
   if (!(target instanceof Element)) return;
 
-  if (prepareVisualizerAudioGraph() && shouldRunVisualizer.value && !visualizerPaused.value) {
-    startVisualizerLoop();
-  }
+  prepareVisualizerAudioGraph();
   if (ambientMixer.needsUserGesture.value || ambientMixer.suspended.value) {
     ambientMixer.resumeFromGesture().catch(() => {});
   }
@@ -3332,23 +3245,6 @@ watch(
   }
 );
 
-watch(
-  [shouldRunVisualizer, visualizerPaused],
-  ([enabled, paused]) => {
-    if (typeof window === 'undefined') return;
-    if (enabled && !paused) {
-      startVisualizerLoop();
-      return;
-    }
-    stopVisualizerLoop();
-    if (!enabled || runtimeGuards.disableVisualizerLoop) {
-      barLevels.value = barLevels.value.map(() => 0);
-      ringLevels.value = ringLevels.value.map(() => 0);
-    }
-  },
-  { immediate: true }
-);
-
 onMounted(async () => {
   if (desktopSurface.role === 'main') {
     disposeDesktopControlBridge = installDesktopControlBridge({ router, player });
@@ -3426,7 +3322,6 @@ onBeforeUnmount(() => {
   window.removeEventListener('pointermove', onGlobalPointerMove, true);
   window.removeEventListener('pointerup', onGlobalPointerUp, true);
   window.removeEventListener('pointercancel', onGlobalPointerUp, true);
-  stopVisualizerLoop();
   if (audioCtx) {
     if (eqChain) {
       eqChain.dispose();
@@ -3436,7 +3331,6 @@ onBeforeUnmount(() => {
     audioCtx = null;
     sourceNode = null;
     analyser = null;
-    freqData = null;
   }
   ambientMixer.destroy().catch(() => {});
 });
@@ -3778,13 +3672,10 @@ onBeforeUnmount(() => {
 .global-bars {
   position: fixed;
   left: 50%;
-  bottom: 20px;
+  bottom: 12px;
   width: min(94vw, 1040px);
-  height: 74px;
-  display: flex;
-  align-items: end;
-  justify-content: center;
-  gap: 5px;
+  height: 140px;
+  transform: translateX(-50%);
   z-index: 1020;
   pointer-events: none;
   filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.38));
@@ -3794,154 +3685,21 @@ onBeforeUnmount(() => {
   content: '';
   position: absolute;
   inset: 6px 2%;
-  border-radius: 999px;
-  background: radial-gradient(ellipse at center, rgba(8, 12, 18, 0.32), rgba(8, 12, 18, 0.08) 60%, rgba(8, 12, 18, 0));
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 20px;
+  background: radial-gradient(ellipse at center, rgba(8, 12, 18, 0.28), rgba(8, 12, 18, 0.06) 60%, rgba(8, 12, 18, 0));
   z-index: -1;
-}
-
-.bar {
-  width: 6px;
-  border-radius: 4px;
-  position: relative;
-  overflow: hidden;
-  transform-origin: center bottom;
-  opacity: var(--bar-opacity, 0.85);
-  transform: scaleY(var(--bar-scale, 1));
-  transition: height 86ms linear, transform 110ms ease, opacity 110ms ease;
-  border: 1px solid rgba(255, 255, 255, 0.42);
-}
-
-.bar::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.56), rgba(255, 255, 255, 0));
-  mix-blend-mode: screen;
-  opacity: 0.8;
-}
-
-.global-bars.bars-neon .bar {
-  background: linear-gradient(180deg, rgba(var(--accent-soft-rgb), 0.94), rgba(var(--accent-strong-rgb), 0.84));
-  box-shadow:
-    0 0 0 1px rgba(var(--accent-soft-rgb), 0.2),
-    0 0 14px rgba(var(--accent-rgb), 0.42),
-    0 0 24px rgba(var(--accent-rgb), 0.24);
-}
-
-.global-bars.bars-crystal .bar {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(var(--accent-soft-rgb), 0.92));
-  box-shadow:
-    0 0 0 1px rgba(255, 255, 255, 0.34),
-    0 0 14px rgba(var(--accent-rgb), 0.3),
-    0 0 26px rgba(255, 255, 255, 0.18);
-}
-
-.global-bars.bars-firefly .bar {
-  background: linear-gradient(180deg, hsla(var(--bar-hue), 96%, 82%, 0.95), hsla(var(--bar-hue), 90%, 62%, 0.78));
-  box-shadow:
-    0 0 0 1px hsla(var(--bar-hue), 96%, 86%, 0.42),
-    0 0 16px hsla(var(--bar-hue), 96%, 70%, 0.38),
-    0 0 24px hsla(var(--bar-hue), 96%, 70%, 0.22);
-  animation: bar-sway 1.8s ease-in-out infinite;
 }
 
 .global-ring {
   position: fixed;
   left: 50%;
   top: 50%;
+  width: min(76vw, 480px);
+  height: min(76vw, 480px);
+  transform: translate(-50%, -50%);
   z-index: 1018;
   pointer-events: none;
   filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.42));
-}
-
-.ring-core {
-  width: 348px;
-  height: 348px;
-  position: relative;
-  display: grid;
-  place-items: center;
-}
-
-.ring-core::before {
-  content: '';
-  position: absolute;
-  inset: 80px;
-  border-radius: 50%;
-  border: 2px solid rgba(var(--accent-soft-rgb), 0.32);
-  box-shadow:
-    inset 0 0 24px rgba(var(--accent-rgb), 0.22),
-    0 0 28px rgba(var(--accent-rgb), 0.2);
-}
-
-.ring-core::after {
-  content: '';
-  position: absolute;
-  inset: 92px;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(8, 12, 18, 0.24), rgba(8, 12, 18, 0.06) 65%, rgba(8, 12, 18, 0));
-  z-index: -1;
-}
-
-.global-ring.ring-orbit .ring-core::before {
-  border-style: dashed;
-  border-color: rgba(var(--accent-soft-rgb), 0.34);
-  box-shadow:
-    inset 0 0 18px rgba(var(--accent-rgb), 0.2),
-    0 0 20px rgba(var(--accent-rgb), 0.16);
-}
-
-.global-ring.ring-pulse .ring-core::before {
-  border-width: 2px;
-  border-color: rgba(var(--accent-soft-rgb), 0.28);
-  animation: ring-breathe 2.3s ease-in-out infinite;
-}
-
-.ring-seg {
-  position: absolute;
-  width: 5px;
-  border-radius: 4px;
-  background: linear-gradient(180deg, hsla(var(--ring-hue), 94%, 84%, 0.88), hsla(var(--ring-hue), 92%, 66%, 0.74));
-  transform-origin: center 170px;
-  transition: height 90ms linear, opacity 120ms ease;
-  border: 1px solid rgba(255, 255, 255, 0.4);
-  box-shadow:
-    0 0 0 1px rgba(var(--accent-soft-rgb), 0.18),
-    0 0 10px rgba(var(--accent-rgb), 0.36);
-}
-
-.global-ring.ring-orbit .ring-seg {
-  width: 4px;
-  border-radius: 999px;
-  box-shadow:
-    0 0 0 1px rgba(var(--accent-soft-rgb), 0.18),
-    0 0 10px rgba(var(--accent-rgb), 0.28);
-}
-
-.global-ring.ring-pulse .ring-seg {
-  width: 6px;
-  border-radius: 999px;
-  box-shadow:
-    0 0 0 1px rgba(var(--accent-soft-rgb), 0.24),
-    0 0 12px rgba(var(--accent-rgb), 0.38),
-    0 0 20px rgba(var(--accent-rgb), 0.22);
-  animation: ring-seg-pulse 1.9s ease-in-out infinite;
-}
-
-@keyframes bar-sway {
-  0%, 100% { transform: translateY(0) scaleY(var(--bar-scale, 1)); }
-  50% { transform: translateY(-2px) scaleY(calc(var(--bar-scale, 1) * 1.06)); }
-}
-
-@keyframes ring-breathe {
-  0%, 100% { transform: scale(0.96); opacity: 0.72; }
-  50% { transform: scale(1.04); opacity: 1; }
-}
-
-@keyframes ring-seg-pulse {
-  0%, 100% { filter: brightness(0.94); }
-  50% { filter: brightness(1.14); }
 }
 
 .click-ripple-layer {
@@ -4033,14 +3791,9 @@ onBeforeUnmount(() => {
   }
 
   .global-bars {
-    bottom: 108px;
-    height: 64px;
+    bottom: 8px;
+    height: 110px;
     width: min(92vw, 760px);
-    gap: 4px;
-  }
-
-  .bar {
-    width: 5px;
   }
 }
 
@@ -4085,10 +3838,9 @@ onBeforeUnmount(() => {
   }
 
   .global-bars {
-    bottom: 114px;
-    height: 56px;
+    bottom: 8px;
+    height: 104px;
     width: min(94vw, 620px);
-    gap: 3px;
   }
 }
 </style>

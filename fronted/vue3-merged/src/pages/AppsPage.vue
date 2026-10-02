@@ -1314,9 +1314,6 @@ onBeforeUnmount(() => {
     min-height: 100%;
   }
 
-  :global(body.apps-rail-mode .global-lyric-bar) {
-    bottom: max(20px, calc(env(safe-area-inset-bottom, 0px) + 12px));
-  }
 }
 
 @media (max-width: 980px) {
