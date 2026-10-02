@@ -431,6 +431,20 @@ export function usePlayerEngine(options = {}) {
   audioElement.preload = 'metadata';
   audioElement.volume = volume.value;
 
+  function clearAudioSource() {
+    if (typeof audioElement.removeAttribute === 'function') {
+      audioElement.removeAttribute('src');
+      audioElement.load();
+      return;
+    }
+    audioElement.src = '';
+  }
+
+  function hasActiveAudioSource() {
+    if (typeof audioElement.getAttribute === 'function' && !audioElement.getAttribute('src')) return false;
+    return Boolean(String(audioElement.currentSrc || audioElement.src || '').trim());
+  }
+
   if (!styleBelongsToMode(visualizerStyle.value, visualizerMode.value) && visualizerMode.value !== 'none') {
     visualizerStyle.value = getDefaultStyleByMode(visualizerMode.value);
   }
@@ -1047,7 +1061,7 @@ export function usePlayerEngine(options = {}) {
   }
 
   async function recoverPlaybackWithFreshSource(queueEntryId, failedAudio, selectionGuard = () => true) {
-    if (disposed) return false;
+    if (disposed || !hasActiveAudioSource()) return false;
     const index = tracks.value.findIndex((item) => item.queueEntryId === queueEntryId);
     if (index < 0 || index >= tracks.value.length) return false;
     const current = tracks.value[index];
@@ -1116,7 +1130,7 @@ export function usePlayerEngine(options = {}) {
     currentLyricEntryIndex.value = -1;
     currentLyricLine.value = '';
     audioElement.pause();
-    audioElement.src = '';
+    clearAudioSource();
     isPlaying.value = false;
     const shouldRefreshPlayback = Boolean(
       autoPlay
@@ -1167,7 +1181,7 @@ export function usePlayerEngine(options = {}) {
       currentTrackId.value = track.id;
       currentQueueEntryId.value = queueEntryId;
       audioElement.pause();
-      audioElement.src = '';
+      clearAudioSource();
       currentTime.value = 0;
       duration.value = 0;
       isPlaying.value = false;
@@ -1217,7 +1231,7 @@ export function usePlayerEngine(options = {}) {
       selectionGeneration += 1;
       pendingAutoplaySelection = null;
       audioElement.pause();
-      audioElement.src = '';
+      clearAudioSource();
       isPlaying.value = false;
       return false;
     }
@@ -1545,7 +1559,7 @@ export function usePlayerEngine(options = {}) {
 
     if (!tracks.value.length) {
       audioElement.pause();
-      audioElement.src = '';
+      clearAudioSource();
       currentTrackId.value = '';
       currentQueueEntryId.value = '';
       currentTime.value = 0;
@@ -1855,7 +1869,7 @@ export function usePlayerEngine(options = {}) {
     if (removed && (removed.queueEntryId === currentQueueEntryId.value
       || (!currentQueueEntryId.value && removed.id === currentTrackId.value))) {
       audioElement.pause();
-      audioElement.src = '';
+      clearAudioSource();
       currentTrackId.value = '';
       currentQueueEntryId.value = '';
       currentTime.value = 0;
@@ -1878,7 +1892,7 @@ export function usePlayerEngine(options = {}) {
     lyricResolveAttempted.value = new Set();
     playbackResolveAttempted.value = new Set();
     audioElement.pause();
-    audioElement.src = '';
+    clearAudioSource();
     currentTrackId.value = '';
     currentQueueEntryId.value = '';
     currentTime.value = 0;
@@ -1912,7 +1926,7 @@ export function usePlayerEngine(options = {}) {
   });
 
   audioElement.addEventListener('error', async () => {
-    if (disposed) return;
+    if (disposed || !hasActiveAudioSource()) return;
     const idx = currentIndex.value;
     if (idx < 0 || idx >= tracks.value.length) {
       isPlaying.value = false;
@@ -1931,7 +1945,7 @@ export function usePlayerEngine(options = {}) {
   });
 
   audioElement.addEventListener('ended', async () => {
-    if (disposed) return;
+    if (disposed || !hasActiveAudioSource()) return;
     await playNext(false, { stopAtTail: true });
   });
 
@@ -1981,7 +1995,7 @@ export function usePlayerEngine(options = {}) {
       preparationInFlight = null;
       preparedPlayback.clear();
       audioElement.pause();
-      audioElement.src = '';
+      clearAudioSource();
       isPlaying.value = false;
     });
   }

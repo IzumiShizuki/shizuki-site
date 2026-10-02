@@ -26,6 +26,10 @@ The system SHALL avoid redundant foreground requests for the same queue entry an
 - **WHEN** the user selects B before A's URL or lyrics resolve
 - **THEN** B's selected metadata is immediate and A's later results cannot replace B's audio, lyrics, queue identity or Folia view
 
+#### Scenario: Canceled selection and native media reset
+- **WHEN** a newer selection cancels an earlier handler or an empty media source emits an error while its replacement URL is pending
+- **THEN** stale handlers do not block the interface with playback-failure alerts and empty-source events do not start redundant source recovery
+
 #### Scenario: Cache miss and cold network measurement
 - **WHEN** the cold selection acceptance is run with measured request phases
 - **THEN** the recorded selection-to-audio/session latency excludes optional lyric completion and distinguishes application overhead from external network latency

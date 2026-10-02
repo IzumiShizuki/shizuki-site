@@ -36,6 +36,14 @@
 
 Source-string checks and ready fake bridge tests cannot establish the stable-song activation invariant. Warmed UI selection can trigger a later session event and hide the defect. The regression checks must hold dependencies unresolved and assert the requested intermediate state, not merely await eventual success or count passing tests.
 
+## Additional deployed acceptance finding
+
+First delivery `44ca6365` passed the complete 1537-test suite and its 229-file production manifest. In a new browser page, rapidly repeated ordinary-row selection nevertheless raised two blocking `该歌曲当前无法播放，请稍后重试` alerts. The canceled older handler interpreted the engine's `false` result as an active failure. All three inspected URL-resolution responses were `OK` with usable audio; the foreground completed in about 2.35–4.01s, but the alert prevented later page/media processing until dismissed. Response-event timestamps observed around a blocking dialog are not a reliable network-duration measurement; request-to-loadingFinished is used instead.
+
+The native-media boundary exposed another hole: assigning an empty `src` during selection reset can emit an error while the new song's URL is still pending, causing an unnecessary forced recovery request. A deferred real-engine regression explicitly emitting this native empty-source error failed with one forced recovery instead of zero. Reset now removes the source attribute and loads the empty element; media errors/end events require an active source. Ordinary handler requests must retain ownership of the exact current entry before showing an error or making post-selection UI changes. A mounted two-selection regression first failed on the stale blocking alert; genuine current-request errors remain visible.
+
+These are application defects found by deployed acceptance, not attributed to unavailable provider audio. Final delivery/acceptance remains pending until their corrections are tested and deployed.
+
 ## Operational baseline
 
 Read-only server inspection confirms deployed site revision `7abce02172af0bd5b459f3b7147f25a928a3ffc3`, Folia gateway healthy, API UP, and only 133836800 bytes available on the root partition. Any new frontend delivery must verify capacity and retain the existing READY restore point/current rollback image. The unrelated wallpaper branch in the primary checkout is excluded by the managed worktree.

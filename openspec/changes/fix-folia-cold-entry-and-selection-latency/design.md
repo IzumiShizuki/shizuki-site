@@ -22,6 +22,8 @@ The RED cases and source audit in diagnosis.md confirm three independent causes:
 
 Selection now clears previous media/lyrics and publishes exact queue-entry metadata before resolving audio. Available audio and the selection result proceed while lyric requests remain pending. URL preparation reuses an eligible in-flight promise keyed by entry, playlist, quality and authorization; optional AMLL work shares in-flight requests, retains at most 128 LRU entries and caches misses for 30 seconds. Load/selection/disposal guards protect newer state. An empty queue exits to a valid browse path and keeps its query; a nonempty queue continues to use its source playlist or current queue.
 
+Deployed acceptance additionally showed that assigning an empty src could emit a native media error while the next URL was pending, and a canceled older ordinary selection could display a blocking failure alert. Native resets now remove src and load the element, and recovery ignores an absent source. Ordinary playback handlers retain request generation, exact queue-entry and account ownership; canceled or unmounted work cannot report failure or grow an obsolete browse list. Failures of the current owned selection still report normally.
+
 Production has about 134 MiB available. Delivery will compare the new production manifest with the verified running manifest and build an incremental frontend layer on the current immutable image. Unchanged public assets are retained, obsolete compiled assets are removed, and the complete resulting manifest must match. Preserve the current image tag and READY backup before activation.
 
 ## Risks / Trade-offs

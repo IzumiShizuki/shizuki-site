@@ -420,6 +420,8 @@ let foliaWorkspaceCoordinator = null;
 let foliaLatestEntryRequestId = 0;
 let foliaModeGeneration = 0;
 let playlistBrowseLoadGeneration = 0;
+let musicPlaybackRequestGeneration = 0;
+let musicPlaybackRequestAccountIdentity = '';
 const foliaQueueOptions = computed(() => (Array.isArray(player.tracks?.value) ? player.tracks.value : []));
 const foliaCurrentQueueEntryId = computed(() => String(player.currentTrack?.value?.queueEntryId || ''));
 let foliaLastKnownNeteaseCookie = '';
@@ -796,6 +798,7 @@ async function handleFoliaPlaylistSelect(event) {
   const code = String(event?.target?.value || '').trim();
   foliaSelectedPlaylist.value = code;
   if (!code) return;
+  beginMusicPlaybackRequest();
   const profile = foliaPlaylistOptions.value.find((item) => item.playlistCode === code) || { playlistCode: code };
   const result = await ensureFoliaWorkspaceCoordinator().selectPlaylist({ playlistCode: code, playlist: profile });
   if (result.ok) foliaSourceContext.value = result.sourceContext;
@@ -807,6 +810,7 @@ async function handleFoliaTrackSelect(event) {
   if (!queueEntryId) return;
   const index = foliaQueueOptions.value.findIndex((track) => String(track?.queueEntryId || '') === queueEntryId);
   if (index < 0) return;
+  beginMusicPlaybackRequest();
   const result = await ensureFoliaWorkspaceCoordinator().selectSong({
     track: foliaQueueOptions.value[index],
     queueIndex: index,
@@ -1312,6 +1316,7 @@ async function mirrorFoliaPlaybackIntent(data) {
     const tracks = Array.isArray(selection.tracks)
       ? selection.tracks.map(normalizeFoliaPlaybackIntentTrack).filter(Boolean)
       : [];
+    if (tracks.length) beginMusicPlaybackRequest();
     const result = await ensureFoliaWorkspaceCoordinator().selectNativeCollection({
       collection: sourceContext.collection,
       tracks,
@@ -1324,6 +1329,7 @@ async function mirrorFoliaPlaybackIntent(data) {
 
   const track = normalizeFoliaPlaybackIntentTrack(data?.track);
   if (!track) return false;
+  beginMusicPlaybackRequest();
   const requestedPositionMs = Math.max(0, Number(data?.positionMs || 0));
   const shouldPlay = data?.playing !== false;
   const currentTrackKey = readFoliaTrackKey(player.currentTrack.value);
@@ -1381,6 +1387,7 @@ function normalizeFoliaSourceContext(context) {
 async function applyFoliaPlaybackCommand(data) {
   if (!foliaMode.value) return;
   const action = String(data?.action || '').trim();
+  if (action === 'next' || action === 'previous') beginMusicPlaybackRequest();
   const playing = Boolean(player.isPlaying?.value);
   if ((action === 'play' && !playing) || (action === 'pause' && playing)) {
     await player.togglePlay?.();
@@ -3302,22 +3309,45 @@ async function ensureCurrentRoutePlaylistLoaded(options = {}) {
   }
 }
 
+function beginMusicPlaybackRequest() {
+  musicPlaybackRequestGeneration += 1;
+  musicPlaybackRequestAccountIdentity = `${Boolean(auth.isAuthenticated.value)}:${String(auth.user.value?.userId || '')}`;
+  return musicPlaybackRequestGeneration;
+}
+
+function currentMusicPlaybackQueueEntryId() {
+  return String(player.currentTrack?.value?.queueEntryId || '').trim();
+}
+
+function ownsMusicPlaybackRequest(requestGeneration, expectedQueueEntryId = '') {
+  if (requestGeneration !== musicPlaybackRequestGeneration) return false;
+  const currentAccountIdentity = `${Boolean(auth.isAuthenticated.value)}:${String(auth.user.value?.userId || '')}`;
+  if (currentAccountIdentity !== musicPlaybackRequestAccountIdentity) return false;
+  const expected = String(expectedQueueEntryId || '').trim();
+  return !expected || currentMusicPlaybackQueueEntryId() === expected;
+}
+
 async function playFeaturedTrack(item, index) {
   const trackId = String(item?.trackId || item?.track_id || item?.id || '').trim();
   const sourceIndex = playerQueueTracks.value.findIndex((track) => track.id === trackId);
+  const requestGeneration = beginMusicPlaybackRequest();
   if (sourceIndex >= 0) {
-    const played = await player.selectTrackByIndex(sourceIndex, true);
-    if (!played) {
+    const expectedQueueEntryId = String(playerQueueTracks.value[sourceIndex]?.queueEntryId || '').trim();
+    const selection = player.selectTrackByIndex(sourceIndex, true);
+    const played = await selection;
+    if (!played && ownsMusicPlaybackRequest(requestGeneration, expectedQueueEntryId)) {
       window.alert('该歌曲当前无法播放，请稍后重试');
     }
     return;
   }
 
-  const played = await player.playExternalTrack?.(
+  const selection = player.playExternalTrack?.(
     normalizeApiTrack(item, Number(index) || 0),
     { replaceQueue: true }
   );
-  if (!played) {
+  const expectedQueueEntryId = currentMusicPlaybackQueueEntryId();
+  const played = await selection;
+  if (!played && ownsMusicPlaybackRequest(requestGeneration, expectedQueueEntryId)) {
     window.alert('该歌曲当前无法播放，请稍后重试');
   }
 }
@@ -3330,6 +3360,7 @@ async function enqueueFeaturedTrackNext(item, index) {
 }
 
 async function playSearchTrack(item, index) {
+  const requestGeneration = beginMusicPlaybackRequest();
   const trackId = String(item?.trackId || item?.track_id || item?.id || '').trim();
   const provider = String(item?.provider || '').trim().toLowerCase();
   const existingIndex = playerQueueTracks.value.findIndex((track) => {
@@ -3338,17 +3369,21 @@ async function playSearchTrack(item, index) {
     return rowId === trackId && (!provider || provider === rowProvider);
   });
   if (existingIndex >= 0) {
-    const played = await player.selectTrackByIndex(existingIndex, true);
-    if (!played) {
+    const expectedQueueEntryId = String(playerQueueTracks.value[existingIndex]?.queueEntryId || '').trim();
+    const selection = player.selectTrackByIndex(existingIndex, true);
+    const played = await selection;
+    if (!played && ownsMusicPlaybackRequest(requestGeneration, expectedQueueEntryId)) {
       window.alert('该歌曲当前无法播放，请稍后重试');
     }
     return;
   }
-  const played = await player.playExternalTrack?.(
+  const selection = player.playExternalTrack?.(
     normalizeSearchTrack(item, Number(index) || 0),
     { replaceQueue: true }
   );
-  if (!played) {
+  const expectedQueueEntryId = currentMusicPlaybackQueueEntryId();
+  const played = await selection;
+  if (!played && ownsMusicPlaybackRequest(requestGeneration, expectedQueueEntryId)) {
     window.alert('该歌曲当前无法播放，请稍后重试');
   }
 }
@@ -3363,12 +3398,17 @@ async function enqueueSearchTrackNext(item, index) {
 async function playTrackInCurrentPlaylist(index) {
   const safeIndex = Number(index);
   if (!Number.isInteger(safeIndex) || safeIndex < 0 || safeIndex >= currentPlaylistAllTracks.value.length) return;
+  const requestGeneration = beginMusicPlaybackRequest();
   if (isQueueRoute.value) {
-    const selected = await player.selectTrackByIndex?.(safeIndex, true);
-    if (!selected) window.alert('该歌曲当前无法播放，请稍后重试');
+    const expectedQueueEntryId = String(currentPlaylistAllTracks.value[safeIndex]?.queueEntryId || '').trim();
+    const selection = player.selectTrackByIndex?.(safeIndex, true);
+    const selected = await selection;
+    if (!selected && ownsMusicPlaybackRequest(requestGeneration, expectedQueueEntryId)) {
+      window.alert('该歌曲当前无法播放，请稍后重试');
+    }
     return;
   }
-  const success = await player.replaceQueueWithTracks?.(
+  const replacement = player.replaceQueueWithTracks?.(
     currentPlaylistAllTracks.value,
     safeIndex,
     true,
@@ -3377,6 +3417,9 @@ async function playTrackInCurrentPlaylist(index) {
       sourceCode: currentPlaylistProfile.value?.playlistCode || ''
     }
   );
+  const expectedQueueEntryId = currentMusicPlaybackQueueEntryId();
+  const success = await replacement;
+  if (!ownsMusicPlaybackRequest(requestGeneration, expectedQueueEntryId)) return;
   if (!success) {
     window.alert('该歌曲当前无法播放，请稍后重试');
     return;
@@ -3389,6 +3432,7 @@ async function handleSelectTrackFromDock(entryIdOrIndex) {
     ? entryIdOrIndex
     : playerQueueTracks.value.findIndex((track) => String(track?.queueEntryId || '') === String(entryIdOrIndex || '').trim());
   if (!Number.isInteger(safeIndex) || safeIndex < 0) return;
+  beginMusicPlaybackRequest();
   await player.selectTrackByIndex(safeIndex, true);
 }
 
@@ -3899,6 +3943,7 @@ async function retryFoliaEntry() {
 async function handleFoliaPlayRequest(event) {
   const track = event?.detail?.track;
   if (!track) return;
+  beginMusicPlaybackRequest();
   const result = await ensureFoliaWorkspaceCoordinator().selectSong({
     track,
     surface: 'immersive',
@@ -3929,6 +3974,7 @@ async function handleOpenFoliaLattice(event) {
   const requestedTracks = Array.isArray(event?.detail?.tracks) ? event.detail.tracks.filter(Boolean) : [];
   const playlist = event?.detail?.playlist && typeof event.detail.playlist === 'object' ? event.detail.playlist : null;
   if (requestedTracks.length) {
+    beginMusicPlaybackRequest();
     const code = String(playlist?.playlistCode || playlist?.playlist_code || '').trim();
     const result = await ensureFoliaWorkspaceCoordinator().selectPlaylist({
       playlistCode: code,
@@ -3943,6 +3989,7 @@ async function handleOpenFoliaLattice(event) {
     return;
   }
   if (track) {
+    beginMusicPlaybackRequest();
     const result = await ensureFoliaWorkspaceCoordinator().selectSong({
       track,
       surface: view === 'player' ? 'immersive' : 'wall',
@@ -3956,6 +4003,7 @@ async function handleOpenFoliaLattice(event) {
     ? playerQueueTracks.value.findIndex((item) => trackIds.includes(String(item?.trackId || item?.id || '')))
     : -1;
   if (index >= 0) {
+    beginMusicPlaybackRequest();
     const result = await ensureFoliaWorkspaceCoordinator().selectSong({
       track: playerQueueTracks.value[index],
       queueIndex: index,
@@ -4083,6 +4131,7 @@ async function reloadAfterFatalError() {
 
 onBeforeUnmount(() => {
   playlistBrowseLoadGeneration += 1;
+  musicPlaybackRequestGeneration += 1;
   // Invalidate any script/mount promise that may settle after this page leaves.
   foliaModeGeneration += 1;
   cancelFoliaMount();

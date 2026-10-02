@@ -549,6 +549,120 @@ describe('MusicLibraryPage stored Folia account entry integration', () => {
     }
   });
 
+  it('does not alert when an older same-track playlist selection loses queue-entry ownership', async () => {
+    const staleSelection = deferred();
+    mocked.route = {
+      name: 'music-library-playlist',
+      path: '/music-library/playlist/duplicate-clicks',
+      fullPath: '/music-library/playlist/duplicate-clicks',
+      query: {},
+      params: { playlistCode: 'duplicate-clicks' },
+      meta: {}
+    };
+    mocked.api.getPlaylistBundleByCode.mockResolvedValue({
+      profile: { playlistCode: 'duplicate-clicks', name: 'Duplicate clicks' },
+      tracks: [{ id: 'shared-song', trackId: 'shared-song', provider: 'netease', title: 'Same song' }]
+    });
+    const wrapper = await mountPage();
+    const context = wrapper.vm.$.provides[MUSIC_LIBRARY_CONTEXT_KEY];
+    const replaceQueue = mocked.player.replaceQueueWithTracks;
+    let selectionNumber = 0;
+    replaceQueue.mockImplementation((tracks, startIndex) => {
+      selectionNumber += 1;
+      const queue = tracks.map((track, index) => ({ ...track, queueEntryId: `selection-${selectionNumber}-${index}` }));
+      mocked.player.tracks.value = queue;
+      mocked.player.currentTrack.value = queue[startIndex];
+      return selectionNumber === 1 ? staleSelection.promise : Promise.resolve(true);
+    });
+    const alert = vi.spyOn(window, 'alert').mockImplementation(() => {});
+
+    try {
+      const first = context.playTrackInCurrentPlaylist(0);
+      const second = context.playTrackInCurrentPlaylist(0);
+      await second;
+      staleSelection.resolve(false);
+      await first;
+
+      expect(mocked.player.currentTrack.value.queueEntryId).toBe('selection-2-0');
+      expect(alert).not.toHaveBeenCalled();
+    } finally {
+      alert.mockRestore();
+      wrapper.unmount();
+    }
+  });
+
+  it('still reports a failed playback while that queue entry remains current', async () => {
+    mocked.route = {
+      name: 'music-library-playlist',
+      path: '/music-library/playlist/current-failure',
+      fullPath: '/music-library/playlist/current-failure',
+      query: {},
+      params: { playlistCode: 'current-failure' },
+      meta: {}
+    };
+    mocked.api.getPlaylistBundleByCode.mockResolvedValue({
+      profile: { playlistCode: 'current-failure', name: 'Current failure' },
+      tracks: [{ id: 'failed-song', trackId: 'failed-song', provider: 'netease', title: 'Failed song' }]
+    });
+    const wrapper = await mountPage();
+    const context = wrapper.vm.$.provides[MUSIC_LIBRARY_CONTEXT_KEY];
+    mocked.player.replaceQueueWithTracks.mockImplementation((tracks, startIndex) => {
+      const queue = tracks.map((track, index) => ({ ...track, queueEntryId: `failed-${index}` }));
+      mocked.player.tracks.value = queue;
+      mocked.player.currentTrack.value = queue[startIndex];
+      return Promise.resolve(false);
+    });
+    const alert = vi.spyOn(window, 'alert').mockImplementation(() => {});
+
+    try {
+      await context.playTrackInCurrentPlaylist(0);
+
+      expect(alert).toHaveBeenCalledOnce();
+      expect(alert).toHaveBeenCalledWith('该歌曲当前无法播放，请稍后重试');
+    } finally {
+      alert.mockRestore();
+      wrapper.unmount();
+    }
+  });
+
+  it('does not report a canceled playback after the active account changes', async () => {
+    const pendingSelection = deferred();
+    mocked.route = {
+      name: 'music-library-playlist',
+      path: '/music-library/playlist/account-cancel',
+      fullPath: '/music-library/playlist/account-cancel',
+      query: {},
+      params: { playlistCode: 'account-cancel' },
+      meta: {}
+    };
+    mocked.api.getPlaylistBundleByCode.mockResolvedValue({
+      profile: { playlistCode: 'account-cancel', name: 'Account cancel' },
+      tracks: [{ id: 'account-song', trackId: 'account-song', provider: 'netease', title: 'Account song' }]
+    });
+    const wrapper = await mountPage();
+    const context = wrapper.vm.$.provides[MUSIC_LIBRARY_CONTEXT_KEY];
+    mocked.player.replaceQueueWithTracks.mockImplementation((tracks, startIndex) => {
+      const queue = tracks.map((track, index) => ({ ...track, queueEntryId: `account-${index}` }));
+      mocked.player.tracks.value = queue;
+      mocked.player.currentTrack.value = queue[startIndex];
+      return pendingSelection.promise;
+    });
+    const alert = vi.spyOn(window, 'alert').mockImplementation(() => {});
+
+    try {
+      const selection = context.playTrackInCurrentPlaylist(0);
+      mocked.user.value = { userId: 'site-user-2' };
+      pendingSelection.resolve(false);
+      await selection;
+
+      expect(mocked.player.currentTrack.value.queueEntryId).toBe('account-0');
+      expect(alert).not.toHaveBeenCalled();
+    } finally {
+      alert.mockRestore();
+      wrapper.unmount();
+    }
+  });
+
   it('stops polling for the embedded root when the page unmounts after the entry loads', async () => {
     const originalFetch = globalThis.fetch;
     globalThis.fetch = vi.fn().mockResolvedValue({

@@ -121,12 +121,39 @@ describe('usePlayerEngine queue identity', () => {
     const selection = engine.selectTrackByIndex(1, true);
     await vi.waitFor(() => expect(finishResolve).toBeTypeOf('function'));
     await expect(engine.togglePlay()).resolves.toBe(false);
-    expect(resolvePlaybackTrack.mock.calls.filter(([request]) => request.trackId === 'B')).toHaveLength(1);
+    expect(resolvePlaybackTrack.mock.calls.filter(([request]) => request.trackId === 'B' && !request.resolveLyric)).toHaveLength(1);
     finishResolve({ audio: 'https://audio.example.com/B.mp3' });
     await expect(selection).resolves.toBe(false);
     expect(engine.currentTrack.value?.trackId).toBe('B');
     expect(engine.audioElement.paused).toBe(true);
     expect(engine.audioElement.src).toBe('');
+  });
+
+  it('ignores an empty-source media error while a selected track URL is pending', async () => {
+    let finishResolve;
+    vi.mocked(resolvePlaybackTrack).mockImplementation((request) => {
+      if (request.trackId === 'B' && !request.forceRefresh) {
+        return new Promise((resolve) => { finishResolve = resolve; });
+      }
+      return Promise.resolve({ audio: 'https://audio.example.com/unwanted-recovery.mp3' });
+    });
+    const engine = usePlayerEngine();
+    await engine.replaceQueueWithTracks([
+      { provider: 'local', trackId: 'A', title: 'A', audio: 'https://audio.example.com/A.mp3' },
+      { provider: 'netease', trackId: 'B', title: 'B' }
+    ], 0, false);
+
+    const selection = engine.selectTrackByIndex(1, true);
+    await vi.waitFor(() => expect(finishResolve).toBeTypeOf('function'));
+    engine.audioElement._emit('error');
+    expect(resolvePlaybackTrack.mock.calls.filter(
+      ([request]) => request.trackId === 'B' && request.forceRefresh === true
+    )).toHaveLength(0);
+
+    finishResolve({ audio: 'https://audio.example.com/B.mp3' });
+    await selection;
+    expect(engine.audioElement.src).toBe('https://audio.example.com/B.mp3');
+    expect(resolvePlaybackTrack.mock.calls.filter(([request]) => request.trackId === 'B' && !request.resolveLyric)).toHaveLength(1);
   });
 
   it('invalidates the old lyric request as soon as a cold next selection begins', async () => {
