@@ -11,7 +11,7 @@
 
 ## 3. Validate and deliver
 
-- [ ] 3.1 Pass affected mounted regressions, appropriate host suite/build and both changes' strict validation; review identity/navigation/transport regressions.
+- [x] 3.1 Pass affected mounted regressions, appropriate host suite/build and both changes' strict validation; review identity/navigation/transport regressions.
 - [x] 3.2 Refresh public fork snapshots and canonical patch and verify clean upstream application and changed-file identity.
-- [ ] 3.3 Commit and push verified fork/site branches; deliver only the follow-up through the clean release checkout and deploy to the personal server with rollback retained.
-- [ ] 3.4 Verify actual signed-in color/reset, one Folia transport, late-entry playlist/overlay return and native pause/seek/Esc; record screenshots, deployed identities, results and remaining limitations.
+- [x] 3.3 Commit and push verified fork/site branches; deliver only the follow-up through the clean release checkout and deploy to the personal server with rollback retained.
+- [x] 3.4 Verify actual signed-in color/reset, one Folia transport, late-entry playlist/overlay return and native pause/seek/Esc; record screenshots, deployed identities, results and remaining limitations.
