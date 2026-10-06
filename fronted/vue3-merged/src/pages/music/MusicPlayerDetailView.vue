@@ -62,6 +62,10 @@
             {{ previewSummary }}
           </p>
           <div class="meta-actions">
+            <button class="meta-collect-btn ripple-trigger" type="button" :disabled="!track || music.isTrackLikePending?.(track)" :aria-pressed="music.isTrackLiked(track)" @click="music.toggleTrackLike(track)">
+              <i class="fas fa-heart" :style="music.isTrackLiked(track) ? { color: '#ec4141' } : {}"></i>
+              {{ music.isTrackLiked(track) ? '已喜欢' : '喜欢' }}
+            </button>
             <button class="meta-collect-btn ripple-trigger" type="button" title="收藏到歌单" @click="music.openCollectDialog?.(track)">
               <i class="fas fa-folder-plus"></i>
               收藏到歌单

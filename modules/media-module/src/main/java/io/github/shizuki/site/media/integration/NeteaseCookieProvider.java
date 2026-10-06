@@ -2,6 +2,10 @@ package io.github.shizuki.site.media.integration;
 
 import io.github.shizuki.common.core.error.BusinessException;
 import io.github.shizuki.common.core.error.ErrorCode;
+import io.github.shizuki.site.media.response.MeMusicLibrarySidebarResponse;
+import io.github.shizuki.site.media.response.MusicPlaylistBundleResponse;
+import io.github.shizuki.site.media.response.MusicPlaylistSummaryResponse;
+import io.github.shizuki.site.media.response.MusicTrackResponse;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
@@ -20,7 +24,7 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
 
 /**
- * 网易云 Cookie 模式客户端（V1：读取 + 导入 + 播放兜底）。
+ * 网易云账号客户端：实时音乐库、声音/FM、喜欢状态与播放兜底。
  */
 @Component
 public class NeteaseCookieProvider {
@@ -54,6 +58,176 @@ public class NeteaseCookieProvider {
         JdkClientHttpRequestFactory requestFactory = new JdkClientHttpRequestFactory();
         requestFactory.setReadTimeout(java.time.Duration.ofSeconds(10));
         return restClientBuilder.requestFactory(requestFactory).build();
+    }
+
+    public MeMusicLibrarySidebarResponse accountLibrary(String cookie, Long siteUserId) {
+        String normalizedCookie = normalizeCookie(cookie);
+        Map<String, Object> account = ncmRequest("/user/account", Map.of(), normalizedCookie);
+        long uid = readLong(toStringObjectMap(account.get("profile")).get("userId"), 0L);
+        if (uid <= 0L) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "网易云登录已失效，请重新绑定账号");
+        }
+        List<MusicPlaylistSummaryResponse> created = new ArrayList<>();
+        List<MusicPlaylistSummaryResponse> subscribed = new ArrayList<>();
+        MusicPlaylistSummaryResponse liked = null;
+        int offset = 0;
+        boolean more;
+        do {
+            Map<String, Object> payload = ncmRequest("/user/playlist", Map.of("uid", uid, "limit", 100, "offset", offset), normalizedCookie);
+            List<Map<String, Object>> rows = requireRows(payload, "playlist");
+            for (Map<String, Object> row : rows) {
+                String id = numericId(row.get("id"));
+                boolean owned = readLong(toStringObjectMap(row.get("creator")).get("userId"), 0L) == uid;
+                boolean isLiked = owned && readInt(row.get("specialType"), 0) == 5;
+                MusicPlaylistSummaryResponse summary = new MusicPlaylistSummaryResponse(
+                    "account_netease_" + id, readString(row.get("name"), "网易云歌单"),
+                    readString(row.get("description"), ""), readString(row.get("coverImgUrl"), ""),
+                    isLiked ? "LIKED" : "CUSTOM", siteUserId, false, Math.max(0, readInt(row.get("trackCount"), 0)), "netease");
+                if (isLiked) liked = summary;
+                else if (owned) created.add(summary);
+                else subscribed.add(summary);
+            }
+            offset += rows.size();
+            more = Boolean.TRUE.equals(payload.get("more")) && !rows.isEmpty();
+        } while (more);
+        return new MeMusicLibrarySidebarResponse(null, liked, created, subscribed);
+    }
+
+    public List<String> likedTrackIds(String cookie) {
+        Map<String, Object> account = ncmRequest("/user/account", Map.of(), normalizeCookie(cookie));
+        long uid = readLong(toStringObjectMap(account.get("profile")).get("userId"), 0L);
+        if (uid <= 0L) throw new BusinessException(ErrorCode.BAD_REQUEST, "网易云登录已失效，请重新绑定账号");
+        Map<String, Object> payload = ncmRequest("/likelist", Map.of("uid", uid), cookie);
+        if (!(payload.get("ids") instanceof List<?> ids)) throw invalidNcmResponse();
+        return ids.stream().map(this::numericId).distinct().toList();
+    }
+
+    public void setTrackLiked(String trackId, boolean liked, String cookie) {
+        // API Enhanced converts the literal string "false"; a JSON boolean would be treated as true.
+        ncmRequest("/like", Map.of("id", numericId(trackId), "like", Boolean.toString(liked)), normalizeCookie(cookie));
+    }
+
+    public List<MusicPlaylistSummaryResponse> recommendedPodcasts(String cookie, String query) {
+        if (StringUtils.hasText(query)) {
+            if (query.trim().length() > 200) throw new BusinessException(ErrorCode.BAD_REQUEST, "搜索关键词过长");
+            Map<String, Object> payload = ncmRequest("/search", Map.of("keywords", query.trim(), "type", 1009, "limit", 50), readString(cookie, ""));
+            Map<String, Object> result = toStringObjectMap(payload.get("result"));
+            if (!result.containsKey("djRadios") && readInt(result.get("djRadiosCount"), -1) == 0) return List.of();
+            return requireRows(result, "djRadios").stream().map(row -> podcastSummary(row, "")).toList();
+        }
+        Map<String, Object> payload = ncmRequest("/dj/recommend", Map.of(), readString(cookie, ""));
+        return requireRows(payload, "djRadios").stream().map(row -> podcastSummary(row, "")).toList();
+    }
+
+    public MusicPlaylistBundleResponse podcastBundle(String radioId, String cookie) {
+        String id = numericId(radioId);
+        Map<String, Object> detail = ncmRequest("/dj/detail", Map.of("rid", id), readString(cookie, ""));
+        Map<String, Object> radio = toStringObjectMap(detail.get("data"));
+        if (radio.isEmpty()) throw invalidNcmResponse();
+        List<MusicTrackResponse> tracks = new ArrayList<>();
+        boolean more;
+        do {
+            Map<String, Object> payload = ncmRequest("/dj/program", Map.of("rid", id, "limit", 100, "offset", tracks.size(), "asc", "false"), readString(cookie, ""));
+            List<Map<String, Object>> programs = requireRows(payload, "programs");
+            for (Map<String, Object> program : programs) {
+                Map<String, Object> song = toStringObjectMap(program.get("mainSong"));
+                if (song.isEmpty()) throw invalidNcmResponse();
+                tracks.add(toPlatformTrack(song, tracks.size(), program));
+            }
+            more = Boolean.TRUE.equals(payload.get("more")) && !programs.isEmpty();
+        } while (more);
+        return new MusicPlaylistBundleResponse(podcastSummary(radio, id), tracks);
+    }
+
+    public MusicPlaylistBundleResponse accountPlaylistBundle(String playlistId, String cookie, Long siteUserId) {
+        String id = numericId(playlistId);
+        Map<String, Object> detail = ncmRequest("/playlist/detail", Map.of("id", id), normalizeCookie(cookie));
+        Map<String, Object> playlist = toStringObjectMap(detail.get("playlist"));
+        if (playlist.isEmpty()) throw invalidNcmResponse();
+        int total = readInt(playlist.get("trackCount"), 0);
+        List<MusicTrackResponse> tracks = new ArrayList<>();
+        do {
+            Map<String, Object> payload = ncmRequest("/playlist/track/all", Map.of("id", id, "limit", 500, "offset", tracks.size()), cookie);
+            List<Map<String, Object>> songs = requireRows(payload, "songs");
+            if (songs.isEmpty()) {
+                if (tracks.size() < total) throw invalidNcmResponse();
+                break;
+            }
+            for (Map<String, Object> song : songs) tracks.add(toPlatformTrack(song, tracks.size(), Map.of()));
+        } while (tracks.size() < total);
+        return new MusicPlaylistBundleResponse(new MusicPlaylistSummaryResponse(
+            "account_netease_" + id, readString(playlist.get("name"), "网易云歌单"), readString(playlist.get("description"), ""),
+            readString(playlist.get("coverImgUrl"), ""), readInt(playlist.get("specialType"), 0) == 5 ? "LIKED" : "CUSTOM",
+            siteUserId, false, tracks.size(), "netease"), tracks);
+    }
+
+    public List<MusicTrackResponse> personalFmTracks(String cookie) {
+        List<MusicTrackResponse> result = new ArrayList<>();
+        for (Map<String, Object> song : requireRows(ncmRequest("/personal_fm", Map.of(), normalizeCookie(cookie)), "data")) {
+            result.add(toPlatformTrack(song, result.size(), Map.of()));
+        }
+        return result;
+    }
+
+    private MusicPlaylistSummaryResponse podcastSummary(Map<String, Object> row, String fallbackId) {
+        String id = numericId(row.getOrDefault("id", fallbackId));
+        return new MusicPlaylistSummaryResponse("podcast_netease_" + id, readString(row.get("name"), "网易云声音"),
+            readString(row.get("desc"), ""), readString(row.get("picUrl"), ""), "PODCAST", 0L, true,
+            Math.max(0, readInt(row.get("programCount"), 0)), "netease");
+    }
+
+    private MusicTrackResponse toPlatformTrack(Map<String, Object> song, int sort, Map<String, Object> program) {
+        String id = numericId(song.get("id"));
+        Map<String, Object> album = toStringObjectMap(song.getOrDefault("al", song.get("album")));
+        String artist = toObjectMapList(song.getOrDefault("ar", song.get("artists"))).stream()
+            .map(row -> readString(row.get("name"), "")).filter(StringUtils::hasText).collect(java.util.stream.Collectors.joining(" / "));
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        metadata.put("album", readString(album.get("name"), ""));
+        metadata.put("durationSec", Math.max(0, readLong(song.getOrDefault("dt", song.get("duration")), 0L) / 1000L));
+        if (!program.isEmpty()) metadata.put("programId", readString(program.get("id"), ""));
+        return new MusicTrackResponse(id, "netease", readString(program.get("name"), readString(song.get("name"), id)),
+            artist, readString(program.get("coverUrl"), readString(album.get("picUrl"), "")), "", "", sort, true, "", metadata);
+    }
+
+    private List<Map<String, Object>> requireRows(Map<String, Object> payload, String key) {
+        if (!(payload.get(key) instanceof List<?>)) throw invalidNcmResponse();
+        return toObjectMapList(payload.get(key));
+    }
+
+    private String numericId(Object raw) {
+        String id = readString(raw, "");
+        if (!id.matches("[1-9][0-9]{0,18}")) throw new BusinessException(ErrorCode.BAD_REQUEST, "网易云资源 ID 无效");
+        return id;
+    }
+
+    private BusinessException invalidNcmResponse() {
+        return new BusinessException(ErrorCode.UPSTREAM_UNAVAILABLE, "网易云返回数据异常，请稍后重试");
+    }
+
+    private Map<String, Object> ncmRequest(String path, Map<String, Object> parameters, String cookie) {
+        if (!StringUtils.hasText(ncmBaseUrl)) throw new BusinessException(ErrorCode.FEATURE_DISABLED, "网易云账号服务尚未配置");
+        Map<String, Object> body = new LinkedHashMap<>(parameters);
+        body.put("cookie", readString(cookie, ""));
+        body.put("timestamp", System.currentTimeMillis());
+        try {
+            // Keep credentials out of URLs, proxy access logs and exception messages.
+            String response = restClient.post().uri(URI.create(ncmBaseUrl + path))
+                .contentType(org.springframework.http.MediaType.APPLICATION_JSON).body(body).retrieve().body(String.class);
+            Map<String, Object> payload = new com.fasterxml.jackson.databind.ObjectMapper().readValue(response,
+                new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {});
+            if (!(payload.get("code") instanceof Number)) throw invalidNcmResponse();
+            int code = readInt(payload.get("code"), -1);
+            if (code == 301 || code == 302 || code == 401) {
+                throw new BusinessException(ErrorCode.BAD_REQUEST, "网易云登录已失效，请重新绑定账号");
+            }
+            if (code != 200) throw invalidNcmResponse();
+            return payload;
+        } catch (BusinessException exception) {
+            throw exception;
+        } catch (Exception exception) {
+            LOGGER.warn("MUSIC_NETEASE_PLATFORM_FAIL path={} reason_type={}", path, exception.getClass().getSimpleName());
+            throw new BusinessException(ErrorCode.UPSTREAM_UNAVAILABLE, "网易云暂时无法连接，请稍后重试");
+        }
     }
 
     public boolean verifyCookie(String cookie) {

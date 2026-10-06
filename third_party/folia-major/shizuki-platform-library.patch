@@ -1,0 +1,121 @@
+diff --git a/src/App.tsx b/src/App.tsx
+--- a/src/App.tsx
++++ b/src/App.tsx
+@@ -719,6 +719,21 @@
+         t,
+     });
+
++    useEffect(() => {
++        const handleHostLikeState = (event: Event) => {
++            const detail = (event as CustomEvent<{ provider?: string; trackId?: string; liked?: boolean }>).detail;
++            if (detail?.provider !== 'netease' || !detail.trackId || typeof detail.liked !== 'boolean') return;
++            setLikedSongIds(previous => {
++                const next = new Set(previous);
++                for (const id of next) if (String(id) === detail.trackId) next.delete(id);
++                if (detail.liked) next.add(Number(detail.trackId));
++                return next;
++            });
++        };
++        window.addEventListener('shizuki:track-like-state', handleHostLikeState);
++        return () => window.removeEventListener('shizuki:track-like-state', handleHostLikeState);
++    }, [setLikedSongIds]);
++
+     const {
+         refresh: refreshKugouLibrary,
+         logout: logoutKugouLibrary,
+diff --git a/src/shizukiExternalBridge.ts b/src/shizukiExternalBridge.ts
+--- a/src/shizukiExternalBridge.ts
++++ b/src/shizukiExternalBridge.ts
+@@ -9,6 +9,7 @@
+
+ import { PlayerState, type LyricData, type SongResult } from './types';
+ import { usePlaybackStore } from './stores/usePlaybackStore';
++import { useOnlineProviderAccountStore } from './stores/useOnlineProviderAccountStore';
+ import { useTypographySettingsStore } from './stores/useTypographySettingsStore';
+ import { currentTime, lyricCurrentTime } from './stores/motionSignals';
+ import { findLatestActiveLineIndex } from './utils/appPlaybackHelpers';
+@@ -1087,12 +1088,15 @@
+   const artists = Array.isArray(song?.artists)
+     ? song.artists.map((artist) => String(artist?.name || '')).filter(Boolean)
+     : [];
++  const rawSong = song as unknown as { providerId?: string; provider?: string; sourceRef?: { providerId?: string; kind?: string } } | null;
++  const provider = String(rawSong?.sourceRef?.providerId || rawSong?.providerId || rawSong?.provider || 'local');
++  const account = useOnlineProviderAccountStore.getState().accounts[provider];
+   return {
+     track: song
+       ? {
+         id: song.id,
+         trackId: String((song as unknown as { trackId?: unknown }).trackId || song.id),
+-        provider: String((song as unknown as { provider?: unknown }).provider || 'netease'),
++        provider,
+         name: String(song.name || ''),
+         artists,
+         coverUrl: String(song.album?.coverUrl || ''),
+@@ -1101,7 +1105,7 @@
+       : null,
+     positionMs: Math.round(followClockPositionSec * 1000),
+     playing: followClockPlaying,
+-    liked: Boolean((state as unknown as { isLiked?: boolean }).isLiked),
++    liked: account?.hydration === 'ready' ? account.likedSongIds.some(id => String(id) === String(song?.id)) : undefined,
+     sessionVersion: latestFollowSessionVersion,
+   };
+ }
+@@ -1119,6 +1123,13 @@
+   const data = event.data as UnknownRecord | null;
+   if (!data || typeof data !== 'object' || typeof data.type !== 'string') return;
+   const type = data.type;
++
++  if (type === 'shizuki:track-like-state') {
++    if (data.provider === 'netease' && /^[1-9][0-9]*$/.test(String(data.trackId || '')) && typeof data.liked === 'boolean') {
++      window.dispatchEvent(new CustomEvent('shizuki:track-like-state', { detail: data }));
++    }
++    return;
++  }
+
+   if (type === 'shizuki:sync-cookie') {
+     writeCookieToStorage(typeof data.cookie === 'string' ? data.cookie : '');
+diff --git a/test/unit/shizukiPlatformLikes.integration.test.ts b/test/unit/shizukiPlatformLikes.integration.test.ts
+new file mode 100644
+--- /dev/null
++++ b/test/unit/shizukiPlatformLikes.integration.test.ts
+@@ -0,0 +1,40 @@
++// @vitest-environment jsdom
++import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
++import { installShizukiExternalBridge } from '../../src/shizukiExternalBridge';
++import { usePlaybackStore } from '../../src/stores/usePlaybackStore';
++import { useOnlineProviderAccountStore } from '../../src/stores/useOnlineProviderAccountStore';
++import type { SongResult } from '../../src/types';
++
++describe('Shizuki platform like bridge', () => {
++  beforeAll(() => {
++    const root = document.createElement('div');
++    root.id = 'folia-embed-root';
++    document.body.append(root);
++    vi.stubGlobal('requestAnimationFrame', vi.fn(() => 1));
++    vi.stubGlobal('cancelAnimationFrame', vi.fn());
++    vi.spyOn(window, 'setInterval').mockReturnValue(1 as unknown as ReturnType<typeof setInterval>);
++    installShizukiExternalBridge();
++  });
++  afterAll(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
++
++  it('reports the actual provider liked IDs instead of an unset playback-store flag', () => {
++    usePlaybackStore.setState({ currentSong: { id: 42, name: 'Account track', artists: [], album: { id: 1, name: 'Album', coverUrl: '' }, durationMs: 1000, sourceRef: { kind: 'online', providerId: 'netease', mediaId: '42' } } as SongResult });
++    useOnlineProviderAccountStore.getState().updateAccount('netease', { hydration: 'ready', likedSongIds: [42] });
++    const messages = vi.spyOn(window, 'postMessage');
++    window.dispatchEvent(new MessageEvent('message', { data: { type: 'shizuki:get-status' } }));
++    expect(messages).toHaveBeenCalledWith(expect.objectContaining({ type: 'shizuki:status', liked: true, track: expect.objectContaining({ provider: 'netease' }) }), '*');
++    messages.mockRestore();
++  });
++
++  it('relays an acknowledged host like to the UI without another platform write', () => {
++    const changed = vi.fn();
++    window.addEventListener('shizuki:track-like-state', changed);
++    const detail = { type: 'shizuki:track-like-state', provider: 'netease', trackId: '42', liked: false };
++    window.dispatchEvent(new MessageEvent('message', { data: detail }));
++    expect(changed).toHaveBeenCalledOnce();
++    expect(changed.mock.calls[0][0].detail).toEqual(detail);
++    window.dispatchEvent(new MessageEvent('message', { data: { ...detail, trackId: 'invalid' } }));
++    expect(changed).toHaveBeenCalledOnce();
++    window.removeEventListener('shizuki:track-like-state', changed);
++  });
++});

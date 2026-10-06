@@ -24,6 +24,7 @@ export function buildCollectPlaylistTargets(createdPlaylists, collectedPlaylists
   source.forEach((item) => {
     const normalized = normalizePlaylistItem(item);
     if (!normalized) return;
+    if (normalized.playlistCode.startsWith('account_') || normalized.playlistCode.startsWith('podcast_')) return;
     if (excludedCodes.has(normalized.playlistCode)) return;
     if (targets.has(normalized.playlistCode)) return;
     targets.set(normalized.playlistCode, normalized);

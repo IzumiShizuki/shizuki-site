@@ -20,6 +20,7 @@ import io.github.shizuki.site.media.config.MusicListenCacheProperties;
 import io.github.shizuki.site.media.integration.AmllLyricClient;
 import io.github.shizuki.site.media.integration.AsmrMusicProvider;
 import io.github.shizuki.site.media.integration.NeteaseDiscoveryClient;
+import io.github.shizuki.site.media.service.PlatformMusicLibraryService;
 import io.github.shizuki.site.media.integration.MetingMusicProvider;
 import io.github.shizuki.site.media.integration.NeteaseCookieProvider;
 import io.github.shizuki.site.media.integration.SpotifyMusicProvider;
@@ -250,6 +251,7 @@ public class MediaServiceImpl implements MediaService {
     private final NeteaseCookieProvider neteaseCookieProvider;
     private final AmllLyricClient amllLyricClient;
     private final NeteaseDiscoveryClient neteaseDiscoveryClient;
+    private final PlatformMusicLibraryService platformMusicLibraryService;
     private final AsmrMusicProvider asmrMusicProvider;
     private final MusicTrackCacheUploadPublisher musicTrackCacheUploadPublisher;
     private final MetingMusicProvider metingMusicProvider;
@@ -304,7 +306,8 @@ public class MediaServiceImpl implements MediaService {
                             MetingMusicProperties metingMusicProperties,
                             MusicListenCacheProperties musicListenCacheProperties,
                             ObjectMapper objectMapper,
-                            TransactionTemplate transactionTemplate) {
+                            TransactionTemplate transactionTemplate,
+                            PlatformMusicLibraryService platformMusicLibraryService) {
         this.objectStorageClient = objectStorageClient;
         this.mediaStorageProperties = mediaStorageProperties;
         this.ossProperties = ossProperties;
@@ -336,6 +339,7 @@ public class MediaServiceImpl implements MediaService {
         this.musicListenCacheProperties = musicListenCacheProperties;
         this.objectMapper = objectMapper;
         this.transactionTemplate = transactionTemplate;
+        this.platformMusicLibraryService = platformMusicLibraryService;
     }
 
     /**
@@ -901,6 +905,9 @@ public class MediaServiceImpl implements MediaService {
     @Override
     public MusicPlaylistBundleResponse getMusicPlaylistBundle(String playlistCode) {
         String normalizedCode = normalizePlaylistCode(playlistCode);
+        if (platformMusicLibraryService.handlesPlaylist(normalizedCode)) {
+            return platformMusicLibraryService.playlistBundle(normalizedCode);
+        }
         MusicVirtualPlaylistRef virtualPlaylistRef = parseVirtualMusicPlaylistCode(normalizedCode);
         if (virtualPlaylistRef != null) {
             return loadVirtualMusicPlaylistBundle(virtualPlaylistRef);
@@ -2833,15 +2840,7 @@ public class MediaServiceImpl implements MediaService {
     @Override
     public MeMusicLibrarySidebarResponse getMyMusicLibrarySidebar() {
         Long userId = requireLoginUserId();
-        MusicPlaylistSummaryResponse defaultSummary = buildDefaultPlaylistSummary(
-            listDefaultMusicPlaylistFromDb().size(),
-            ""
-        );
-        UserMusicPlaylistEntity likedPlaylist = ensureLikedPlaylist(userId);
-        MusicPlaylistSummaryResponse likedSummary = toPlaylistSummary(
-            likedPlaylist,
-            countPlaylistTracks(likedPlaylist.getPlaylistCode(), true)
-        );
+        MeMusicLibrarySidebarResponse platformLibrary = platformMusicLibraryService.accountLibraryIfBound(userId);
 
         List<UserMusicPlaylistEntity> createdEntities = userMusicPlaylistMapper.selectList(
             new LambdaQueryWrapper<UserMusicPlaylistEntity>()
@@ -2851,7 +2850,9 @@ public class MediaServiceImpl implements MediaService {
                 .orderByDesc(UserMusicPlaylistEntity::getId)
         );
         List<MusicPlaylistSummaryResponse> createdPlaylists = new ArrayList<>();
+        if (platformLibrary != null) createdPlaylists.addAll(platformLibrary.createdPlaylists());
         for (UserMusicPlaylistEntity item : createdEntities) {
+            if (platformLibrary != null && item.getPlaylistCode().startsWith("src_netease_")) continue;
             createdPlaylists.add(toPlaylistSummary(item, countPlaylistTracks(item.getPlaylistCode(), true)));
         }
 
@@ -2861,6 +2862,7 @@ public class MediaServiceImpl implements MediaService {
                 .orderByDesc(UserMusicPlaylistCollectEntity::getId)
         );
         List<MusicPlaylistSummaryResponse> collectedPlaylists = new ArrayList<>();
+        if (platformLibrary != null) collectedPlaylists.addAll(platformLibrary.collectedPlaylists());
         Set<String> collectedCodes = new LinkedHashSet<>();
         for (UserMusicPlaylistCollectEntity item : collectEntities) {
             String code = normalizePlaylistCode(item.getPlaylistCode());
@@ -2868,9 +2870,9 @@ public class MediaServiceImpl implements MediaService {
                 continue;
             }
             if (DEFAULT_PLAYLIST_CODE.equals(code)) {
-                collectedPlaylists.add(defaultSummary);
                 continue;
             }
+            if (platformLibrary != null && code.startsWith("src_netease_")) continue;
             UserMusicPlaylistEntity playlist = loadUserPlaylistByCode(code);
             if (playlist == null) {
                 continue;
@@ -2883,8 +2885,8 @@ public class MediaServiceImpl implements MediaService {
         }
 
         return new MeMusicLibrarySidebarResponse(
-            defaultSummary,
-            likedSummary,
+            null,
+            platformLibrary == null ? null : platformLibrary.likedPlaylist(),
             createdPlaylists,
             collectedPlaylists
         );

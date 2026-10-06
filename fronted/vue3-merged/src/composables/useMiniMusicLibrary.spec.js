@@ -23,7 +23,7 @@ describe('createMiniMusicLibraryEngine', () => {
       ]
     });
     musicApi.getPlaylistBundleByCode.mockResolvedValue({
-      profile: { playlistCode: DEFAULT_MINI_MUSIC_PLAYLIST_CODE, name: '默认歌单' },
+      profile: { playlistCode: 'focus_mix', name: 'Focus Mix' },
       tracks: [{ trackId: 'a1', title: 'Track A', artist: 'Artist A', durationSec: 125 }]
     });
 
@@ -35,8 +35,9 @@ describe('createMiniMusicLibraryEngine', () => {
     await engine.ensureReady();
 
     expect(musicApi.getMyMusicLibrarySidebar).not.toHaveBeenCalled();
-    expect(engine.sections.value.map((item) => item.key)).toEqual(['core', 'featured']);
-    expect(engine.selectedPlaylist.value.playlistCode).toBe(DEFAULT_MINI_MUSIC_PLAYLIST_CODE);
+    expect(engine.sections.value.map((item) => item.key)).toEqual(['featured']);
+    expect(engine.selectedPlaylist.value.playlistCode).toBe('focus_mix');
+    expect(musicApi.getPlaylistBundleByCode).toHaveBeenCalledWith('focus_mix', undefined);
     expect(engine.selectedTracks.value[0].durationLabel).toBe('02:05');
   });
 
@@ -52,7 +53,7 @@ describe('createMiniMusicLibraryEngine', () => {
       collectedPlaylists: [{ playlistCode: 'collected_1', name: '我的收藏' }]
     });
     musicApi.getPlaylistBundleByCode.mockResolvedValue({
-      profile: { playlistCode: DEFAULT_MINI_MUSIC_PLAYLIST_CODE, name: '默认歌单' },
+      profile: { playlistCode: 'liked', name: '红心歌单' },
       tracks: []
     });
 
@@ -66,7 +67,6 @@ describe('createMiniMusicLibraryEngine', () => {
 
     expect(musicApi.getMyMusicLibrarySidebar).toHaveBeenCalledTimes(1);
     expect(engine.corePlaylists.value.map((item) => item.playlistCode)).toEqual([
-      DEFAULT_MINI_MUSIC_PLAYLIST_CODE,
       'liked'
     ]);
     expect(engine.myPlaylists.value.map((item) => item.playlistCode)).toEqual(['created_1', 'collected_1']);
@@ -80,7 +80,7 @@ describe('createMiniMusicLibraryEngine', () => {
     });
     musicApi.getPlaylistBundleByCode
       .mockResolvedValueOnce({
-        profile: { playlistCode: DEFAULT_MINI_MUSIC_PLAYLIST_CODE, name: '默认歌单' },
+        profile: { playlistCode: 'featured_alpha', name: 'Featured Alpha' },
         tracks: [{ trackId: 'default_1', title: 'Default Track', artist: 'Default Artist' }]
       })
       .mockResolvedValueOnce({
@@ -99,7 +99,7 @@ describe('createMiniMusicLibraryEngine', () => {
     });
 
     await engine.ensureReady();
-    await engine.selectPlaylist('featured_alpha');
+    await engine.selectPlaylist('featured_alpha', { force: true });
     const result = await engine.playTrackAt(1);
 
     expect(result).toBe(true);
@@ -115,7 +115,7 @@ describe('createMiniMusicLibraryEngine', () => {
     );
   });
 
-  it('recovers to the public default playlist when auth state changes and private lists disappear', async () => {
+  it('recovers to public recommendations when auth state changes and private lists disappear', async () => {
     const musicApi = createMusicApiStub();
     const authenticated = ref(true);
 
@@ -128,7 +128,7 @@ describe('createMiniMusicLibraryEngine', () => {
     });
     musicApi.getPlaylistBundleByCode
       .mockResolvedValueOnce({
-        profile: { playlistCode: DEFAULT_MINI_MUSIC_PLAYLIST_CODE, name: '默认歌单' },
+        profile: { playlistCode: 'private_1', name: '私有歌单' },
         tracks: []
       })
       .mockResolvedValueOnce({
@@ -136,7 +136,7 @@ describe('createMiniMusicLibraryEngine', () => {
         tracks: [{ trackId: 'private_track', title: 'Private Track', artist: 'Artist' }]
       })
       .mockResolvedValueOnce({
-        profile: { playlistCode: DEFAULT_MINI_MUSIC_PLAYLIST_CODE, name: '默认歌单' },
+        profile: { playlistCode: 'featured_alpha', name: 'Featured Alpha' },
         tracks: [{ trackId: 'fallback', title: 'Fallback Track', artist: 'Artist' }]
       });
 
@@ -151,8 +151,32 @@ describe('createMiniMusicLibraryEngine', () => {
     authenticated.value = false;
     await engine.handleAuthChanged();
 
-    expect(engine.selectedPlaylist.value.playlistCode).toBe(DEFAULT_MINI_MUSIC_PLAYLIST_CODE);
-    expect(engine.sections.value.map((item) => item.key)).toEqual(['core', 'featured']);
+    expect(engine.selectedPlaylist.value.playlistCode).toBe('featured_alpha');
+    expect(engine.sections.value.map((item) => item.key)).toEqual(['featured']);
     expect(engine.selectedTracks.value[0].trackId).toBe('fallback');
+  });
+
+  it('does not inject or fetch a default playlist when the library is empty', async () => {
+    const musicApi = createMusicApiStub();
+    musicApi.getMusicLibraryHome.mockResolvedValue({ featuredPlaylists: [{ playlistCode: 'default_public', name: '旧默认歌单' }] });
+    const engine = createMiniMusicLibraryEngine({ musicApi, isAuthenticated: ref(false) });
+    await engine.ensureReady();
+    expect(engine.sections.value).toEqual([]);
+    expect(engine.selectedPlaylistCode.value).toBe('');
+    expect(musicApi.getPlaylistBundleByCode).not.toHaveBeenCalled();
+  });
+
+  it('ignores a private playlist response after switching website accounts', async () => {
+    const musicApi = createMusicApiStub();
+    const accountId = ref('account-a');
+    let resolve;
+    musicApi.getPlaylistBundleByCode.mockImplementation(() => new Promise((done) => { resolve = done; }));
+    const engine = createMiniMusicLibraryEngine({ musicApi, isAuthenticated: ref(true), getAccountId: () => accountId.value });
+    const request = engine.selectPlaylist('account_netease_10');
+    accountId.value = 'account-b';
+    resolve({ profile: { playlistCode: 'account_netease_10' }, tracks: [{ trackId: '42' }] });
+    await request;
+    expect(engine.selectedTracks.value).toEqual([]);
+    expect(engine.selectedPlaylistCode.value).toBe('');
   });
 });

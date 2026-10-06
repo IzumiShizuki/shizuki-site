@@ -1,12 +1,12 @@
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import * as defaultMusicApi from '../services/musicApi';
 
 export const DEFAULT_MINI_MUSIC_PLAYLIST_CODE = 'default_public';
 
 const DEFAULT_PLAYLIST_FALLBACK = Object.freeze({
-  playlistCode: DEFAULT_MINI_MUSIC_PLAYLIST_CODE,
-  name: '默认歌单',
-  description: '全站共通默认歌单',
+  playlistCode: '',
+  name: '选择歌单',
+  description: '',
   cover: '',
   trackCount: 0
 });
@@ -24,9 +24,9 @@ export function formatMiniTrackDuration(seconds) {
   return `${String(minute).padStart(2, '0')}:${String(second).padStart(2, '0')}`;
 }
 
-export function normalizeMiniPlaylistSummary(raw, fallbackCode = DEFAULT_MINI_MUSIC_PLAYLIST_CODE) {
+export function normalizeMiniPlaylistSummary(raw, fallbackCode = '') {
   return {
-    playlistCode: String(raw?.playlistCode || raw?.playlist_code || fallbackCode || DEFAULT_MINI_MUSIC_PLAYLIST_CODE).trim(),
+    playlistCode: String(raw?.playlistCode || raw?.playlist_code || fallbackCode || '').trim(),
     name: String(raw?.name || '未命名歌单').trim() || '未命名歌单',
     description: String(raw?.description || '').trim(),
     cover: String(raw?.cover || '').trim(),
@@ -111,6 +111,9 @@ export function createMiniMusicLibraryEngine(options = {}) {
   const player = options.player || null;
   const getAuthorizedFetch = typeof options.getAuthorizedFetch === 'function' ? options.getAuthorizedFetch : () => undefined;
   const isAuthenticatedSource = options.isAuthenticated ?? (() => false);
+  const getAccountId = typeof options.getAccountId === 'function' ? options.getAccountId : () => '';
+  let overviewVersion = 0;
+  let playlistVersion = 0;
 
   const initialized = ref(false);
   const overviewLoading = ref(false);
@@ -118,17 +121,29 @@ export function createMiniMusicLibraryEngine(options = {}) {
   const overviewError = ref('');
   const playlistError = ref('');
   const featuredPlaylists = ref([]);
-  const defaultPlaylist = ref({ ...DEFAULT_PLAYLIST_FALLBACK });
   const likedPlaylist = ref(null);
   const createdPlaylists = ref([]);
   const collectedPlaylists = ref([]);
-  const selectedPlaylistCode = ref(DEFAULT_MINI_MUSIC_PLAYLIST_CODE);
+  const selectedPlaylistCode = ref('');
   const selectedPlaylist = ref({ ...DEFAULT_PLAYLIST_FALLBACK });
   const selectedTracks = ref([]);
 
   const isAuthenticated = computed(() => toAuthValue(isAuthenticatedSource));
+  watch(() => [isAuthenticated.value, getAccountId()], () => {
+    overviewVersion += 1;
+    playlistVersion += 1;
+    initialized.value = false;
+    overviewLoading.value = false;
+    playlistLoading.value = false;
+    resetSidebarState();
+    selectedPlaylistCode.value = '';
+    selectedPlaylist.value = { ...DEFAULT_PLAYLIST_FALLBACK };
+    selectedTracks.value = [];
+    overviewError.value = '';
+    playlistError.value = '';
+  }, { flush: 'sync' });
   const corePlaylists = computed(() => {
-    const rows = [defaultPlaylist.value];
+    const rows = [];
     if (isAuthenticated.value && likedPlaylist.value?.playlistCode) {
       rows.push(likedPlaylist.value);
     }
@@ -136,12 +151,12 @@ export function createMiniMusicLibraryEngine(options = {}) {
   });
   const myPlaylists = computed(() =>
     uniquePlaylistRows([...createdPlaylists.value, ...collectedPlaylists.value]).filter(
-      (item) => item.playlistCode !== defaultPlaylist.value.playlistCode && item.playlistCode !== likedPlaylist.value?.playlistCode
+      (item) => item.playlistCode !== DEFAULT_MINI_MUSIC_PLAYLIST_CODE && item.playlistCode !== likedPlaylist.value?.playlistCode
     )
   );
   const sections = computed(() => {
     const groups = [
-      { key: 'core', label: '默认 / 快捷', caption: 'Core Collection', items: corePlaylists.value },
+      { key: 'core', label: '喜欢的音乐', caption: 'Liked Music', items: corePlaylists.value },
       { key: 'featured', label: '精选歌单', caption: 'Featured', items: uniquePlaylistRows(featuredPlaylists.value) },
       { key: 'mine', label: '我的歌单', caption: 'My Library', items: myPlaylists.value }
     ];
@@ -155,7 +170,6 @@ export function createMiniMusicLibraryEngine(options = {}) {
   }
 
   function resetSidebarState() {
-    defaultPlaylist.value = { ...DEFAULT_PLAYLIST_FALLBACK };
     likedPlaylist.value = null;
     createdPlaylists.value = [];
     collectedPlaylists.value = [];
@@ -167,6 +181,7 @@ export function createMiniMusicLibraryEngine(options = {}) {
     if (initialized.value && !force) return;
 
     overviewLoading.value = true;
+    const version = ++overviewVersion;
     overviewError.value = '';
 
     try {
@@ -175,17 +190,13 @@ export function createMiniMusicLibraryEngine(options = {}) {
         musicApi.getMusicLibraryHome(authorizedFetch),
         isAuthenticated.value ? musicApi.getMyMusicLibrarySidebar(authorizedFetch) : Promise.resolve(null)
       ]);
+      if (version !== overviewVersion) return;
 
       featuredPlaylists.value = Array.isArray(homePayload?.featuredPlaylists || homePayload?.featured_playlists)
-        ? uniquePlaylistRows(homePayload.featuredPlaylists || homePayload.featured_playlists)
+        ? uniquePlaylistRows(homePayload.featuredPlaylists || homePayload.featured_playlists).filter((item) => item.playlistCode !== DEFAULT_MINI_MUSIC_PLAYLIST_CODE)
         : [];
 
       if (sidebarPayload) {
-        const fallbackDefault = featuredPlaylists.value[0] || DEFAULT_PLAYLIST_FALLBACK;
-        defaultPlaylist.value = normalizeMiniPlaylistSummary(
-          sidebarPayload.defaultPlaylist || sidebarPayload.default_playlist || fallbackDefault,
-          fallbackDefault.playlistCode || DEFAULT_MINI_MUSIC_PLAYLIST_CODE
-        );
         likedPlaylist.value = sidebarPayload.likedPlaylist || sidebarPayload.liked_playlist
           ? normalizeMiniPlaylistSummary(sidebarPayload.likedPlaylist || sidebarPayload.liked_playlist)
           : null;
@@ -197,13 +208,14 @@ export function createMiniMusicLibraryEngine(options = {}) {
 
       initialized.value = true;
     } catch (error) {
+      if (version !== overviewVersion) return;
       if (!initialized.value) {
         featuredPlaylists.value = [];
         resetSidebarState();
       }
       overviewError.value = parseErrorMessage(error, '歌单概览加载失败');
     } finally {
-      overviewLoading.value = false;
+      if (version === overviewVersion) overviewLoading.value = false;
     }
   }
 
@@ -211,11 +223,19 @@ export function createMiniMusicLibraryEngine(options = {}) {
     const current = String(selectedPlaylistCode.value || '').trim();
     const visible = findPlaylistByCode(current, [corePlaylists.value, featuredPlaylists.value, myPlaylists.value]);
     if (visible?.playlistCode) return visible.playlistCode;
-    return defaultPlaylist.value.playlistCode || featuredPlaylists.value[0]?.playlistCode || DEFAULT_MINI_MUSIC_PLAYLIST_CODE;
+    return corePlaylists.value[0]?.playlistCode || myPlaylists.value[0]?.playlistCode || featuredPlaylists.value[0]?.playlistCode || '';
   }
 
   async function selectPlaylist(playlistCode, options = {}) {
-    const code = String(playlistCode || '').trim() || DEFAULT_MINI_MUSIC_PLAYLIST_CODE;
+    const version = ++playlistVersion;
+    const code = String(playlistCode || '').trim();
+    if (!code || code === DEFAULT_MINI_MUSIC_PLAYLIST_CODE) {
+      selectedPlaylistCode.value = '';
+      selectedPlaylist.value = { ...DEFAULT_PLAYLIST_FALLBACK };
+      selectedTracks.value = [];
+      playlistError.value = '';
+      return false;
+    }
     const force = options?.force === true;
     const nextSelection = findPlaylistByCode(code, [corePlaylists.value, featuredPlaylists.value, myPlaylists.value]);
     const canReuse =
@@ -228,7 +248,7 @@ export function createMiniMusicLibraryEngine(options = {}) {
     if (nextSelection) {
       selectedPlaylist.value = normalizeMiniPlaylistSummary(nextSelection, code);
     }
-    if (canReuse || playlistLoading.value) {
+    if (canReuse) {
       return canReuse;
     }
 
@@ -237,16 +257,18 @@ export function createMiniMusicLibraryEngine(options = {}) {
 
     try {
       const payload = await musicApi.getPlaylistBundleByCode(code, resolveAuthorizedFetch());
+      if (version !== playlistVersion) return false;
       selectedPlaylist.value = normalizeMiniPlaylistSummary(payload?.profile || payload?.playlist || nextSelection || { playlistCode: code }, code);
       selectedTracks.value = Array.isArray(payload?.tracks) ? payload.tracks.map((item, index) => normalizeMiniPlaylistTrack(item, index)) : [];
       return true;
     } catch (error) {
+      if (version !== playlistVersion) return false;
       selectedPlaylist.value = normalizeMiniPlaylistSummary(nextSelection || { playlistCode: code, name: '歌单加载失败' }, code);
       selectedTracks.value = [];
       playlistError.value = parseErrorMessage(error, '歌单加载失败，请稍后重试');
       return false;
     } finally {
-      playlistLoading.value = false;
+      if (version === playlistVersion) playlistLoading.value = false;
     }
   }
 

@@ -113,10 +113,12 @@
               <button
                 class="track-action-btn ripple-trigger"
                 type="button"
-                :title="music.isTrackLiked(item.trackId || item.id) ? '取消红心' : '加入红心'"
+                :title="music.isTrackLiked(item) ? '取消红心' : '加入红心'"
+                :disabled="music.isTrackLikePending?.(item)"
+                :aria-pressed="music.isTrackLiked(item)"
                 @click.stop="music.toggleTrackLike(item)"
               >
-                <i class="fas" :class="music.isTrackLiked(item.trackId || item.id) ? 'fa-heart liked' : 'fa-heart-crack'"></i>
+                <i class="fas" :class="music.isTrackLiked(item) ? 'fa-heart liked' : 'fa-heart-crack'"></i>
               </button>
               <button
                 class="track-action-btn ripple-trigger"
@@ -408,10 +410,12 @@
             <button
               class="track-action-btn ripple-trigger"
               type="button"
-              :title="music.isTrackLiked(item.trackId || item.id) ? '取消红心' : '加入红心'"
+              :title="music.isTrackLiked(item) ? '取消红心' : '加入红心'"
+              :disabled="music.isTrackLikePending?.(item)"
+              :aria-pressed="music.isTrackLiked(item)"
               @click.stop="music.toggleTrackLike(item)"
             >
-              <i class="fas" :class="music.isTrackLiked(item.trackId || item.id) ? 'fa-heart liked' : 'fa-heart-crack'"></i>
+              <i class="fas" :class="music.isTrackLiked(item) ? 'fa-heart liked' : 'fa-heart-crack'"></i>
             </button>
             <button
               class="track-action-btn ripple-trigger"
@@ -538,70 +542,7 @@
     </template>
 
     <template v-else>
-      <section class="panel liquid-material listening-extension-panel">
-        <header class="panel-head te-section-head">
-          <div>
-            <p class="section-kicker">Radio / Voice</p>
-            <h2>播客与音声延伸<span class="te-section-sub" aria-hidden="true">/ RADIO &amp; VOICE</span></h2>
-          </div>
-          <button
-            class="inline-panel-action ripple-trigger"
-            type="button"
-            :disabled="listeningExtensionLoading"
-            @click="loadListeningExtension({ force: true })"
-          >
-            {{ listeningExtensionLoading ? '刷新中...' : '刷新推荐' }}
-          </button>
-        </header>
-
-        <p class="podcast-note">
-          这里先复用现有音声接口形成真实内容流；网易云播客或独立 Podcast API 后续可接在同一层。
-        </p>
-
-        <div v-if="listeningExtensionLoading && !listeningExtensionWorks.length" class="empty-state">
-          正在加载听觉延伸内容...
-        </div>
-        <p v-else-if="listeningExtensionError" class="state-text error">{{ listeningExtensionError }}</p>
-        <div v-else-if="listeningExtensionWorks.length" class="listening-extension-grid">
-          <button
-            v-for="item in listeningExtensionWorks"
-            :key="`extension-work-${item.workId}`"
-            class="listening-card ripple-trigger"
-            type="button"
-            @click="openVoiceWork(item)"
-          >
-            <div class="listening-cover" :style="listeningCoverStyle(item)"></div>
-            <div class="listening-copy">
-              <p class="listening-title">{{ item.title }}</p>
-              <p class="listening-desc">{{ item.description }}</p>
-              <p class="listening-stats">{{ item.statLine || item.circle }}</p>
-              <p class="listening-tags">{{ item.tagLine }}</p>
-            </div>
-          </button>
-        </div>
-        <div v-else class="empty-state">
-          暂无可展示的音声延伸内容
-        </div>
-      </section>
-
-      <section class="panel liquid-material">
-        <header class="panel-head te-section-head">
-          <h2>外部播客源<span class="te-section-sub" aria-hidden="true">/ PODCAST SOURCES</span></h2>
-          <span class="te-section-count">预留</span>
-        </header>
-
-        <div class="podcast-grid">
-          <article v-for="item in filteredPodcastCards" :key="item.id" class="podcast-card">
-            <div class="podcast-thumb" :style="{ backgroundImage: item.cover ? `url('${item.cover}')` : '' }"></div>
-            <div class="podcast-meta">
-              <p class="podcast-title">{{ item.title }}</p>
-              <p class="podcast-desc">{{ item.description }}</p>
-            </div>
-          </article>
-        </div>
-
-        <p class="podcast-note">当前外部播客源仍为占位，后续可接入网易云 API。</p>
-      </section>
+      <MusicPlatformRadioView />
     </template>
   </section>
 </template>
@@ -611,9 +552,8 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router';
 import { useMusicLibraryContext } from '../../composables/musicLibraryContext';
 import MusicAccountSyncPanel from '../../components/music/MusicAccountSyncPanel.vue';
+import MusicPlatformRadioView from './MusicPlatformRadioView.vue';
 import TrackCollectButton from '../../components/music/TrackCollectButton.vue';
-import * as musicApi from '../../services/musicApi';
-import { normalizeListeningExtensionWorks } from '../../utils/musicListeningExtension';
 import {
   estimatePlaylistRowCapacity as estimatePlaylistRowCapacityByWidth,
   normalizePlaylistRowCapacity
@@ -624,10 +564,6 @@ const music = useMusicLibraryContext();
 const openingPlaylistCode = ref('');
 const searchPlaylistRowRef = ref(null);
 const descriptionPopoverRef = ref(null);
-const listeningExtensionLoading = ref(false);
-const listeningExtensionError = ref('');
-const listeningExtensionLoaded = ref(false);
-const listeningExtensionWorks = ref([]);
 const descriptionPopover = ref({
   visible: false,
   title: '',
@@ -644,12 +580,6 @@ const PLAYLIST_CARD_GAP = 10;
 let openPlaylistTimer = 0;
 let playlistRowResizeObserver = null;
 
-const PODCAST_PLACEHOLDER = [
-  { id: 'pod-1', title: '夜间电台（预留）', description: '后续接入外部播客源后可播放', cover: '' },
-  { id: 'pod-2', title: '学习频道（预留）', description: '暂为静态占位，不调用外部 API', cover: '' },
-  { id: 'pod-3', title: '通勤资讯（预留）', description: '后续可接入网易云播客能力', cover: '' }
-];
-
 const navKey = computed(() => String(music.ui.activeNav.value || 'recommend'));
 
 const filteredMetingPlaylists = computed(() => {
@@ -660,7 +590,6 @@ const filteredTracks = computed(() => {
   return Array.isArray(music.homeData.value?.featuredTracks) ? music.homeData.value.featuredTracks : [];
 });
 
-const filteredPodcastCards = computed(() => PODCAST_PLACEHOLDER);
 const userCreatedPlaylists = computed(() =>
   (Array.isArray(music.createdPlaylists?.value) ? music.createdPlaylists.value : [])
 );
@@ -859,13 +788,6 @@ function cozyCardCoverStyle(item) {
   return url ? { backgroundImage: `url('${url}')` } : {};
 }
 
-function listeningCoverStyle(item) {
-  const url = safeCoverUrl(item?.cover);
-  return {
-    backgroundImage: url ? `url('${url}')` : 'none'
-  };
-}
-
 function safeCoverUrl(rawUrl) {
   const raw = String(rawUrl || '').trim();
   if (!raw) return '';
@@ -943,47 +865,6 @@ async function handleMoodChip(item) {
     return;
   }
   await playPrimaryRecommendation();
-}
-
-function parseErrorMessage(error, fallback = '听觉延伸内容加载失败，请稍后重试') {
-  if (typeof error?.detail === 'string' && error.detail.trim()) return error.detail.trim();
-  if (typeof error?.message === 'string' && error.message.trim()) return error.message.trim();
-  return fallback;
-}
-
-async function loadListeningExtension(options = {}) {
-  const force = options?.force === true;
-  if (listeningExtensionLoading.value) return;
-  if (listeningExtensionLoaded.value && !force) return;
-  listeningExtensionLoading.value = true;
-  listeningExtensionError.value = '';
-  try {
-    const payload = await musicApi.searchVoiceWorks({
-      q: '',
-      page: 1,
-      limit: 6,
-      order: 'release',
-      sort: 'desc'
-    });
-    listeningExtensionWorks.value = normalizeListeningExtensionWorks(payload, 6);
-    listeningExtensionLoaded.value = true;
-  } catch (error) {
-    listeningExtensionError.value = parseErrorMessage(error);
-    if (force || !listeningExtensionWorks.value.length) {
-      listeningExtensionWorks.value = [];
-    }
-  } finally {
-    listeningExtensionLoading.value = false;
-  }
-}
-
-function openVoiceWork(item) {
-  const workId = Number(item?.workId || 0);
-  if (!Number.isFinite(workId) || workId <= 0) return;
-  router.push({
-    name: 'music-library-voice-work',
-    params: { workId: String(workId) }
-  });
 }
 
 function handleOpenCollectDialog(track) {

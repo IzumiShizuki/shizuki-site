@@ -9,6 +9,7 @@
 
 import { PlayerState, type LyricData, type SongResult } from './types';
 import { usePlaybackStore } from './stores/usePlaybackStore';
+import { useOnlineProviderAccountStore } from './stores/useOnlineProviderAccountStore';
 import { useTypographySettingsStore } from './stores/useTypographySettingsStore';
 import { currentTime, lyricCurrentTime } from './stores/motionSignals';
 import { findLatestActiveLineIndex } from './utils/appPlaybackHelpers';
@@ -1087,12 +1088,15 @@ function snapshotStatus(): UnknownRecord {
   const artists = Array.isArray(song?.artists)
     ? song.artists.map((artist) => String(artist?.name || '')).filter(Boolean)
     : [];
+  const rawSong = song as unknown as { providerId?: string; provider?: string; sourceRef?: { providerId?: string; kind?: string } } | null;
+  const provider = String(rawSong?.sourceRef?.providerId || rawSong?.providerId || rawSong?.provider || 'local');
+  const account = useOnlineProviderAccountStore.getState().accounts[provider];
   return {
     track: song
       ? {
         id: song.id,
         trackId: String((song as unknown as { trackId?: unknown }).trackId || song.id),
-        provider: String((song as unknown as { provider?: unknown }).provider || 'netease'),
+        provider,
         name: String(song.name || ''),
         artists,
         coverUrl: String(song.album?.coverUrl || ''),
@@ -1101,7 +1105,7 @@ function snapshotStatus(): UnknownRecord {
       : null,
     positionMs: Math.round(followClockPositionSec * 1000),
     playing: followClockPlaying,
-    liked: Boolean((state as unknown as { isLiked?: boolean }).isLiked),
+    liked: account?.hydration === 'ready' ? account.likedSongIds.some(id => String(id) === String(song?.id)) : undefined,
     sessionVersion: latestFollowSessionVersion,
   };
 }
@@ -1119,6 +1123,13 @@ function handleMessage(event: MessageEvent): void {
   const data = event.data as UnknownRecord | null;
   if (!data || typeof data !== 'object' || typeof data.type !== 'string') return;
   const type = data.type;
+
+  if (type === 'shizuki:track-like-state') {
+    if (data.provider === 'netease' && /^[1-9][0-9]*$/.test(String(data.trackId || '')) && typeof data.liked === 'boolean') {
+      window.dispatchEvent(new CustomEvent('shizuki:track-like-state', { detail: data }));
+    }
+    return;
+  }
 
   if (type === 'shizuki:sync-cookie') {
     writeCookieToStorage(typeof data.cookie === 'string' ? data.cookie : '');

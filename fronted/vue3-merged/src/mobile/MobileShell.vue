@@ -75,7 +75,16 @@ const isNative = isNativeAppShell();
 const library = useMiniMusicLibrary({
   player,
   isAuthenticated: auth.isAuthenticated,
-  getAuthorizedFetch: () => auth.authorizedFetch
+  getAccountId: () => String(auth.user.value?.userId || ''),
+  getAuthorizedFetch: () => {
+    const expectedUserId = String(auth.user.value?.userId || '');
+    return (url, options) => {
+      if (!auth.isAuthenticated.value || String(auth.user.value?.userId || '') !== expectedUserId) {
+        return Promise.reject(new Error('账号已切换，请重新加载音乐库'));
+      }
+      return auth.authorizedFetch(url, options);
+    };
+  }
 });
 
 const playerOpen = ref(false);

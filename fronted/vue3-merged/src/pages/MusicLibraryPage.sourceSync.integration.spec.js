@@ -28,7 +28,7 @@ vi.mock('../services/musicApi', () => {
   const names = [
     'getMusicLibraryHome', 'listMusicProviders', 'getMyMusicLibrarySidebar', 'getPlaylistBundleByCode',
     'getMetingStatus', 'getMusicSourceAccountStatus', 'upsertMusicSourceAccountCookie',
-    'importMusicSourcePlaylists'
+    'importMusicSourcePlaylists', 'getMusicSourceLikes', 'setMusicSourceTrackLiked'
   ];
   return Object.fromEntries(names.map((name) => [name, (...args) => mocked.api[name]?.(...args)]));
 });
@@ -91,6 +91,8 @@ function resetMocks({ authenticated = true, userId = 'site-user-1', boundRows = 
     getMusicSourceAccountStatus: vi.fn().mockResolvedValue(boundRows),
     upsertMusicSourceAccountCookie: vi.fn().mockResolvedValue({}),
     importMusicSourcePlaylists: vi.fn().mockResolvedValue({ importedPlaylists: 1, importedTracks: 3 }),
+    getMusicSourceLikes: vi.fn().mockResolvedValue([]),
+    setMusicSourceTrackLiked: vi.fn(async (_provider, _id, liked) => ({ liked })),
     getSpotifyStatus: vi.fn().mockResolvedValue({})
   };
 }
@@ -120,6 +122,49 @@ describe('MusicLibraryPage stored Folia account entry integration', () => {
     for (let turn = 0; turn < 4; turn += 1) await flushPromises();
     return wrapper;
   }
+
+  it('refreshes a Folia acknowledged like without sending another account mutation', async () => {
+    resetMocks({ boundRows: [{ provider: 'netease', bound: true }] });
+    const wrapper = await mountPage();
+    try {
+      const context = wrapper.vm.$.provides[MUSIC_LIBRARY_CONTEXT_KEY];
+      const track = { id: '42', provider: 'netease' };
+      mocked.api.getMusicSourceLikes.mockClear();
+      mocked.api.getMusicSourceLikes.mockResolvedValue(['42']);
+      window.dispatchEvent(new MessageEvent('message', {
+        data: { type: 'shizuki:status', track, liked: true }
+      }));
+      window.dispatchEvent(new MessageEvent('message', {
+        data: { type: 'shizuki:status', track, liked: true }
+      }));
+      await flushPromises();
+      expect(context.isTrackLiked(track)).toBe(true);
+      expect(mocked.api.getMusicSourceLikes).toHaveBeenCalledOnce();
+      expect(mocked.api.setMusicSourceTrackLiked).not.toHaveBeenCalled();
+    } finally {
+      wrapper.unmount();
+    }
+  });
+
+  it('sends one explicit normal-mode unlike and publishes the acknowledged account state', async () => {
+    resetMocks({ boundRows: [{ provider: 'netease', bound: true }] });
+    mocked.api.getMusicSourceLikes.mockResolvedValue(['42']);
+    const wrapper = await mountPage();
+    const synced = vi.fn();
+    window.addEventListener('shizuki:account-synced', synced);
+    try {
+      const context = wrapper.vm.$.provides[MUSIC_LIBRARY_CONTEXT_KEY];
+      const track = { id: '42', provider: 'netease' };
+      await context.toggleTrackLike(track);
+      expect(mocked.api.setMusicSourceTrackLiked).toHaveBeenCalledOnce();
+      expect(mocked.api.setMusicSourceTrackLiked).toHaveBeenCalledWith('netease', '42', false, expect.any(Function));
+      expect(context.isTrackLiked(track)).toBe(false);
+      expect(synced).toHaveBeenCalledOnce();
+    } finally {
+      window.removeEventListener('shizuki:account-synced', synced);
+      wrapper.unmount();
+    }
+  });
 
   it('does not swallow Escape from the embedded Folia surface before its active view can handle it', async () => {
     const wrapper = await mountPage({ teleport: true });

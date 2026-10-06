@@ -29,7 +29,7 @@
             刷新
           </button>
           <button
-            v-if="!isQueueView && music.authState.value.isAuthenticated"
+            v-if="!isQueueView && music.authState.value.isAuthenticated && !music.currentPlaylistProfile.value.playlistCode.startsWith('account_') && !music.currentPlaylistProfile.value.playlistCode.startsWith('podcast_')"
             class="hero-btn ripple-trigger"
             type="button"
             @click="music.toggleCollectCurrentPlaylist"
@@ -76,10 +76,11 @@
           <button
             class="track-action-btn ripple-trigger"
             type="button"
-            :title="music.isTrackLiked(resolveTrackId(item)) ? '取消红心' : '加入红心'"
+            :title="music.isTrackLiked(item) ? '取消红心' : '加入红心'"
+            :disabled="music.isTrackLikePending?.(item)"
             @click.stop="music.toggleTrackLike(item)"
           >
-            <i class="fas" :class="music.isTrackLiked(resolveTrackId(item)) ? 'fa-heart liked' : 'fa-heart-crack'"></i>
+            <i class="fas" :class="music.isTrackLiked(item) ? 'fa-heart liked' : 'fa-heart-crack'"></i>
           </button>
           <button
             class="track-action-btn ripple-trigger"

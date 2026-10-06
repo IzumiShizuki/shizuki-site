@@ -21,7 +21,7 @@
       <p class="section-kicker">账号歌单同步</p>
       <h2 id="netease-sync-title">把喜欢的歌单，带到网站电脑端</h2>
       <p class="section-description">
-        登录并绑定网易云账号后，可将歌单与歌曲信息同步到本站音乐库，继续在电脑上整理、搜索和播放。
+        绑定网易云账号后，直接浏览云端歌单与声音资源；喜欢和取消喜欢也会同步到这个账号。
       </p>
 
       <div v-if="authenticated && isBound" class="bound-account" data-testid="bound-account">
@@ -61,7 +61,7 @@
             @click="emit('sync', 'netease')"
           >
             <span v-if="syncBusy" class="button-spinner" aria-hidden="true"></span>
-            {{ syncBusy ? '正在同步歌单…' : '同步歌单到本站' }}
+            {{ syncBusy ? '正在刷新歌单…' : '刷新云端歌单' }}
           </button>
         </template>
         <button type="button" class="settings-action" @click="emit('open-settings')">
@@ -123,7 +123,7 @@
             <strong>{{ isBound ? '云端歌单已就绪' : '尚未绑定网易云账号' }}</strong>
             <p>
               {{ isBound
-                ? '点击同步后，歌单会出现在本站音乐库中。'
+                ? '云端歌单已接入音乐库，点击刷新可获取最新内容。'
                 : '点击“扫码绑定”，生成二维码后用手机确认。' }}
             </p>
           </div>

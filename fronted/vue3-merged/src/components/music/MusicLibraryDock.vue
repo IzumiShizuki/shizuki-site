@@ -75,7 +75,10 @@
         <i class="fas fa-list"></i>
       </button>
       <button class="mode-btn ripple-trigger" type="button" title="收藏到歌单" @click="emit('open-collect-dialog')">
-        <i class="fas fa-heart"></i>
+        <i class="fas fa-folder-plus"></i>
+      </button>
+      <button class="mode-btn ripple-trigger" type="button" :title="trackLiked ? '取消喜欢' : '喜欢这首歌'" :disabled="!track || trackLikePending" :aria-pressed="trackLiked" @click="emit('toggle-track-like')">
+        <i class="fas fa-heart" :style="trackLiked ? { color: '#ec4141' } : {}"></i>
       </button>
       <div class="twl-volume">
         <i class="fas fa-volume-low volume-icon"></i>
@@ -138,6 +141,8 @@ import { useDismissiblePopover } from '../../composables/useDismissiblePopover';
 
 const props = defineProps({
   track: { type: Object, default: null },
+  trackLiked: { type: Boolean, default: false },
+  trackLikePending: { type: Boolean, default: false },
   tracks: { type: Array, default: () => [] },
   queueTracks: { type: Array, default: null },
   currentTrackId: { type: String, default: '' },
@@ -162,7 +167,8 @@ const emit = defineEmits([
   'set-volume',
   'select-track',
   'open-player-detail',
-  'open-collect-dialog'
+  'open-collect-dialog',
+  'toggle-track-like'
 ]);
 const rootRef = ref(null);
 const queueOpen = ref(false);

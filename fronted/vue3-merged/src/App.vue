@@ -572,7 +572,11 @@ const ambientMixer = useAmbientMixer();
 const miniMusicLibrary = useMiniMusicLibrary({
   player,
   isAuthenticated: auth.isAuthenticated,
-  getAuthorizedFetch: () => auth.authorizedFetch
+  getAccountId: () => String(auth.user.value?.userId || ''),
+  getAuthorizedFetch: () => {
+    const expectedUserId = String(auth.user.value?.userId || '');
+    return (path, options) => auth.authorizedFetch(path, options, { expectedUserId });
+  }
 });
 const musicUi = useMusicLibraryUiState();
 const ui = useUiPreferences();
@@ -1202,6 +1206,14 @@ async function refreshAmbientLibraryStatus() {
 
 async function handleAtmosphereMusicRefresh() {
   await miniMusicLibrary.ensureReady({ force: true });
+}
+
+function handleMusicAccountSynced() {
+  miniMusicLibrary.initialized.value = false;
+  miniMusicLibrary.selectedTracks.value = [];
+  if (atmospherePanelVisible.value && siteAtmosphere.panelTab === 'music') {
+    void miniMusicLibrary.ensureReady({ force: true });
+  }
 }
 
 async function handleAtmospherePlaylistSelect(playlistCode) {
@@ -3277,6 +3289,7 @@ onMounted(async () => {
   window.addEventListener('pagehide', onPageHide);
   window.addEventListener('pageshow', onPageShow);
   window.addEventListener(MUSIC_EQ_CHANGE_EVENT, handleEqChangeEvent);
+  window.addEventListener('shizuki:account-synced', handleMusicAccountSynced);
   window.addEventListener(AUTHOR_PROFILE_CACHE_UPDATED_EVENT, handleAuthorProfileCacheUpdated);
   window.addEventListener(AI_CHAT_OPEN_EVENT, handleAiChatOpenEvent);
 
@@ -3315,6 +3328,7 @@ onBeforeUnmount(() => {
   window.removeEventListener('pagehide', onPageHide);
   window.removeEventListener('pageshow', onPageShow);
   window.removeEventListener(MUSIC_EQ_CHANGE_EVENT, handleEqChangeEvent);
+  window.removeEventListener('shizuki:account-synced', handleMusicAccountSynced);
   window.removeEventListener(AUTHOR_PROFILE_CACHE_UPDATED_EVENT, handleAuthorProfileCacheUpdated);
   window.removeEventListener(AI_CHAT_OPEN_EVENT, handleAiChatOpenEvent);
   window.removeEventListener('keydown', onGlobalHotkey);

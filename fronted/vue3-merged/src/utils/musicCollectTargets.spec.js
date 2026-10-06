@@ -21,5 +21,14 @@ describe('buildCollectPlaylistTargets', () => {
     const targets = buildCollectPlaylistTargets(created, [], { excludedCodes: ['x2'] });
     expect(targets.map((item) => item.playlistCode)).toEqual(['x1']);
   });
+
+  it('keeps live platform libraries out of local track collection actions', () => {
+    const targets = buildCollectPlaylistTargets([
+      { playlistCode: 'account_netease_10' },
+      { playlist_code: 'podcast_netease_90' },
+      { playlistCode: 'upl_custom' }
+    ], []);
+    expect(targets.map((item) => item.playlistCode)).toEqual(['upl_custom']);
+  });
 });
 
