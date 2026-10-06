@@ -1594,7 +1594,7 @@ const platformLikes = usePlatformMusicLikes({
       sidebarData.value.likedPlaylist.trackCount = Math.max(0, sidebarData.value.likedPlaylist.trackCount + (liked ? 1 : -1));
     }
     if (!liked && isPlaylistRoute.value && currentPlaylistProfile.value.playlistCode === likedPlaylistCode.value) {
-      playlistBrowseVersion += 1;
+      playlistBrowseLoadGeneration += 1;
       playlistBrowseTracks.value = playlistBrowseTracks.value.filter((track) => resolveMusicLikeTarget(track).key !== key);
       playlistBrowseProfile.value = { ...playlistBrowseProfile.value, trackCount: playlistBrowseTracks.value.length };
       playlistBrowseLoading.value = false;
