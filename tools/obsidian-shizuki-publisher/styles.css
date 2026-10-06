@@ -439,3 +439,202 @@ body.shizuki-dark-vault img {
     transform: none;
   }
 }
+
+.shizuki-todo-sidebar {
+  --shizuki-panel-accent: #82c8b2;
+  --shizuki-panel-accent-soft: rgba(130, 200, 178, 0.15);
+  --shizuki-panel-line: rgba(190, 220, 210, 0.15);
+  height: 100%;
+  padding: 18px 14px 16px;
+  overflow-y: auto;
+  color: var(--text-normal);
+}
+
+.shizuki-todo-header {
+  padding: 4px 4px 14px;
+}
+
+.shizuki-todo-header h2 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 680;
+  letter-spacing: -0.035em;
+}
+
+.shizuki-todo-header p {
+  margin: 6px 0 0;
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.shizuki-todo-session {
+  margin-bottom: 12px;
+}
+
+.shizuki-todo-session-actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 5px;
+}
+
+.shizuki-todo-form {
+  display: flex;
+  gap: 7px;
+  margin: 12px 0 18px;
+}
+
+.shizuki-todo-form input {
+  width: 1px;
+  min-width: 0;
+  flex: 1 1 auto;
+  padding: 7px 9px;
+  border: 1px solid var(--shizuki-panel-line);
+  border-radius: 9px;
+  background: rgba(14, 16, 23, 0.55);
+  color: var(--text-normal);
+  font-size: 11px;
+}
+
+.shizuki-todo-form input:focus {
+  border-color: var(--shizuki-panel-accent);
+  box-shadow: 0 0 0 2px var(--shizuki-panel-accent-soft);
+}
+
+.shizuki-todo-form button {
+  width: auto;
+  min-width: 48px;
+  padding: 4px 10px;
+  flex: 0 0 auto;
+}
+
+.shizuki-todo-section {
+  margin: 0 0 17px;
+}
+
+.shizuki-todo-section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 7px;
+}
+
+.shizuki-todo-section-heading h3 {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.shizuki-todo-section-heading span {
+  min-width: 20px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--shizuki-panel-accent-soft);
+  color: var(--shizuki-panel-accent);
+  font-size: 9px;
+  text-align: center;
+}
+
+.shizuki-todo-list {
+  display: grid;
+  gap: 7px;
+}
+
+.shizuki-todo-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  min-width: 0;
+  padding: 10px 10px 9px;
+  border: 1px solid var(--shizuki-panel-line);
+  border-radius: 10px;
+  background: rgba(18, 21, 27, 0.74);
+}
+
+.shizuki-todo-item input[type='checkbox'] {
+  margin: 2px 0 0;
+  accent-color: var(--shizuki-panel-accent);
+  flex: 0 0 auto;
+}
+
+.shizuki-todo-item-body {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.shizuki-todo-title {
+  overflow-wrap: anywhere;
+  color: var(--text-normal);
+  font-size: 11px;
+  font-weight: 590;
+  line-height: 1.45;
+}
+
+.shizuki-todo-item.is-done .shizuki-todo-title {
+  color: var(--text-muted);
+  text-decoration: line-through;
+}
+
+.shizuki-todo-detail {
+  margin-top: 4px;
+  overflow-wrap: anywhere;
+  color: var(--text-faint);
+  font-size: 10px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+
+.shizuki-todo-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 7px;
+}
+
+.shizuki-todo-priority,
+.shizuki-todo-due {
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.045);
+  color: var(--text-faint);
+  font-size: 9px;
+}
+
+.shizuki-todo-priority.is-high {
+  background: rgba(229, 142, 155, 0.12);
+  color: #e9a6b0;
+}
+
+.shizuki-todo-priority.is-low {
+  color: #9aa6b4;
+}
+
+.shizuki-todo-due {
+  color: #afabd8;
+}
+
+.shizuki-todo-loading,
+.shizuki-todo-empty {
+  padding: 16px 12px;
+  border: 1px dashed var(--shizuki-panel-line);
+  border-radius: 10px;
+  color: var(--text-muted);
+  font-size: 10px;
+  line-height: 1.55;
+  text-align: center;
+}
+
+.shizuki-todo-sidebar .shizuki-publisher-error {
+  margin-bottom: 8px;
+}
+
+@media (max-width: 260px) {
+  .shizuki-todo-sidebar {
+    padding-inline: 10px;
+  }
+
+  .shizuki-todo-session-actions {
+    flex-direction: column;
+  }
+}

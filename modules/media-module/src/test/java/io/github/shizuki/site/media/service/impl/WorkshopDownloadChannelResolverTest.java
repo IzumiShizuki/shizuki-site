@@ -32,6 +32,7 @@ class WorkshopDownloadChannelResolverTest {
 
         assertEquals("STEAMCMD", state.channel());
         assertTrue(state.available());
+        assertTrue(state.message().contains("下载结果取决于"));
     }
 
     @Test

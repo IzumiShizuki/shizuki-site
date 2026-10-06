@@ -70,4 +70,22 @@ describe('wallpaperApi', () => {
     expect(fetchMock.mock.calls[1][0]).toContain('order=asc');
     expect(fetchMock.mock.calls[1][0]).toContain('ratios=21x9%2C32x9');
   });
+
+  it('reuses the parameterized result and lets explicit refresh bypass it', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      headers: { get: () => 'application/json' },
+      json: async () => ({ code: 'OK', data: { items: [{ item_id: 'cache-test' }] } })
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const params = { query: 'cache-e2e-unique-20261002', page: 1, sort: 'trend', tags: [] };
+
+    const first = await searchWorkshopWallpapers(params);
+    const reused = await searchWorkshopWallpapers(params);
+    const refreshed = await searchWorkshopWallpapers(params, null, { forceRefresh: true });
+
+    expect(first).toEqual(reused);
+    expect(refreshed).toEqual(first);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
 });

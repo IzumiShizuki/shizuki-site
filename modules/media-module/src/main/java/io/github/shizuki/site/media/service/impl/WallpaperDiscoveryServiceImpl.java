@@ -74,6 +74,7 @@ public class WallpaperDiscoveryServiceImpl implements WallpaperDiscoveryService 
     private final WallpaperOutboundClient outboundClient;
     private final WorkshopMetadataProvider workshopMetadataProvider;
     private final WorkshopDownloadChannelResolver downloadChannelResolver;
+    private final WorkshopPreviewMetadataCache workshopPreviewMetadataCache = new WorkshopPreviewMetadataCache();
 
     public WallpaperDiscoveryServiceImpl(WallpaperDiscoveryProperties discoveryProperties,
                                          WallpaperWorkshopProperties workshopProperties,
@@ -134,10 +135,12 @@ public class WallpaperDiscoveryServiceImpl implements WallpaperDiscoveryService 
             if (!WORKSHOP_ITEM_ID_PATTERN.matcher(itemId).matches()) {
                 continue;
             }
+            String previewUrl = detail.path("preview_url").asText("");
+            cacheWorkshopPreviewMetadata(itemId, previewUrl);
             items.add(new WorkshopSearchItemResponse(
                     itemId,
                     normalizeWorkshopTitle(detail.path("title").asText(""), itemId),
-                    detail.path("preview_url").asText(""),
+                    previewUrl,
                     WORKSHOP_DETAIL_URL_BASE + itemId
             ));
         }
@@ -159,6 +162,9 @@ public class WallpaperDiscoveryServiceImpl implements WallpaperDiscoveryService 
                 + buildWorkshopRequiredTagsQuery(tags, false);
         String html = httpGet(url, "text/html");
         List<WorkshopSearchItemResponse> items = WorkshopBrowseHtmlParser.parse(html, WORKSHOP_DETAIL_URL_BASE);
+        for (WorkshopSearchItemResponse item : items) {
+            cacheWorkshopPreviewMetadata(item.itemId(), item.previewUrl());
+        }
         boolean hasMore = items.size() >= pageSize;
         return new WorkshopSearchResponse(items, page, pageSize, hasMore, -1, "browse_scrape");
     }
@@ -198,7 +204,10 @@ public class WallpaperDiscoveryServiceImpl implements WallpaperDiscoveryService 
             if (!WORKSHOP_ITEM_ID_PATTERN.matcher(itemId).matches()) {
                 throw new BusinessException(ErrorCode.BAD_REQUEST, "workshop item id is invalid");
             }
-            previewUrl = getWorkshopItem(itemId).previewUrl();
+            previewUrl = workshopPreviewMetadataCache.get(itemId);
+            if (!StringUtils.hasText(previewUrl)) {
+                previewUrl = getWorkshopItem(itemId).previewUrl();
+            }
             requireTrustedWorkshopPreviewHost(outboundClient.parseHttpUri(previewUrl));
         } else if ("wallhaven".equals(source)) {
             if (!WALLHAVEN_ID_PATTERN.matcher(itemId).matches()) {
@@ -349,6 +358,20 @@ public class WallpaperDiscoveryServiceImpl implements WallpaperDiscoveryService 
     private void requireDiscoveryEnabled() {
         if (!discoveryProperties.isEnabled()) {
             throw new BusinessException(ErrorCode.FORBIDDEN, "Wallpaper discovery is disabled");
+        }
+    }
+
+    private void cacheWorkshopPreviewMetadata(String itemId, String previewUrl) {
+        if (!WORKSHOP_ITEM_ID_PATTERN.matcher(readString(itemId, "")).matches()
+                || !StringUtils.hasText(previewUrl)) {
+            return;
+        }
+        try {
+            URI uri = outboundClient.parseHttpUri(previewUrl);
+            requireTrustedWorkshopPreviewHost(uri);
+            workshopPreviewMetadataCache.put(itemId, uri.toString());
+        } catch (BusinessException ignored) {
+            // Search metadata is an optimization only; untrusted URLs are never cached.
         }
     }
 

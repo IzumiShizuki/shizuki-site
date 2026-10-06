@@ -13,7 +13,7 @@
       location ^~ /music/     → rewrite 去前缀 → 127.0.0.1:18081
       location ^~ /netease/   → 根路径（Folia 前端内部 API 调用）→ 127.0.0.1:18081
   → folia-gateway (nginx:8080, 仅 127.0.0.1:18081 暴露)
-      ├── /netease/ → shizuki-site-music-ncm-api:3000（Docker DNS 每 10 秒刷新，shizuki-site_default 网络）
+      ├── /netease/ → shizuki-site-music-ncm-api:3000（现有容器，shizuki-site_default 网络，Docker DNS 每 10 秒刷新）
       ├── / → dist 静态资源（vite base=/music/）
 ```
 
@@ -30,7 +30,15 @@
 | `/opt/folia/deploy/compose.yaml` | 自定义 compose（gateway + external 网络） |
 | 镜像 `folia-local/gateway:0.7.7-music` | Folia gateway 构建产物 |
 
-## 补丁记录（相对上游 main）
+## Folia 上游同步状态（2026-09-30）
+
+- 源码分支 `/opt/folia/folia-major-main:folia-embed` 已合并上游稳定版 `v0.7.11`（上游 tag commit `6fe68d89`，merge commit `fa4b6714`，桥接类型兼容修复 `69a97532`）。
+- 此次只同步并检查源码，没有构建或部署；当前生产镜像仍是 `folia-local/gateway:0.7.7-music`。
+- Shizuki 修改的完整 AGPL patch 和源码快照见 `third_party/folia-major/`。
+
+## 补丁记录（相对上游 v0.7.11）
+
+完整、可重放的补丁为 `third_party/folia-major/shizuki-folia-v0.7.11.patch`。主要修改如下：
 
 1. **`src/vite.config.ts`**：`base` 支持 `VITE_BASE_PATH` 环境变量
    ```ts
@@ -38,9 +46,12 @@
      : (process.env.VITE_BASE_PATH ? process.env.VITE_BASE_PATH.replace(/\/+$/, '') + '/' : '/'),
    ```
 2. **`src/shizukiExternalBridge.ts`**（新增）：外部控制桥（cookie 同步 / 完整主站播放会话 / 控制意图回传），源码见 `third_party/folia-major/`；网易云 Cookie 优先使用 `online_provider:netease:cookie` 并双写旧键 `netease_cookie`；嵌入态不得自行解析音源、歌词或输出音频；主歌词颜色由音乐工具栏覆盖并可恢复主题默认色。
-3. **`src/index.tsx`**：挂载桥
-4. **`deploy/docker/gateway/nginx.conf.template`**：netease 反代指向 `shizuki-site-music-ncm-api:3000`（而非官方 netease-api 容器），通过 Docker DNS 10 秒刷新动态解析，避免上游容器换 IP 后持续 502；移除 kugou/qq/backend（未部署）
-5. **`deploy/docker/images/gateway.Dockerfile`**：新增 `ARG VITE_BASE_PATH=/music` + `ENV VITE_BASE_PATH=${VITE_BASE_PATH}`
+3. **`src/index.tsx`**：挂载桥。
+4. **`src/bootstrap.tsx` / `src/components/app/AppShell.tsx`**：支持 `?embed=1` 与 `#folia-embed-root`，嵌入时切至 player 视图并跳过独立窗口初始化。
+5. **`src/components/visualizer/cadenza/VisualizerCadenza.tsx`**：保留长歌词换行的逐行居中布局；回归测试位于 `third_party/folia-major/test/unit/cadenzaWrappedLyrics.test.ts`。
+6. **`deploy/docker/gateway/nginx.conf.template`**：netease 反代指向 `shizuki-site-music-ncm-api:3000`（而非官方 netease-api 容器），通过 Docker DNS 每 10 秒刷新动态解析，避免容器换 IP 后持续 502；未部署的 Kugou/QQ/backend 路由保持关闭。
+7. **`deploy/docker/images/gateway.Dockerfile`**：新增 `ARG VITE_BASE_PATH=/music` + `ENV VITE_BASE_PATH=${VITE_BASE_PATH}`。
+8. **依赖源**：`package.json` 与 lockfile 中 KuGou tarball URL 统一使用 `gh-proxy.com`。
 
 ## 部署步骤（新环境）
 
@@ -73,7 +84,17 @@ docker exec openresty nginx -t && docker exec openresty nginx -s reload
 ## 升级 Folia
 
 ```bash
-# 重下 main 源码 → 重放补丁 1/2/3/4/5 → 重新构建 gateway → up -d
+# 在现有 folia-embed fork 中合并已校验的上游 release tag，不要用上游压缩包覆盖整个源码目录。
+# 先检查并保存工作区未提交改动，再将官方 tag bundle 传到服务器：
+git -C /opt/folia/folia-major-main status --short --branch
+git -C /opt/folia/folia-major-main fetch /path/to/verified-folia-upstream.bundle \
+  refs/tags/vX.Y.Z:refs/remotes/upstream/vX.Y.Z
+git -C /opt/folia/folia-major-main merge refs/remotes/upstream/vX.Y.Z
+
+# 审查合并并完成验证后，才构建并部署：
+cd /opt/folia/deploy
+docker compose -f compose.yaml build gateway
+docker compose -f compose.yaml up -d
 # 前端互通代码在 vue3-merged 仓库（MusicLibraryPage.vue 等），随主站前端一起发布
 ```
 
