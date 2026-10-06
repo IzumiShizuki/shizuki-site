@@ -77,7 +77,7 @@
           <span>♪</span>
         </div>
         <strong>登录后启用云歌单</strong>
-        <p>本站账号用于保存同步后的歌单目录，并在多设备间保留你的音乐库。</p>
+        <p>登录并绑定网易云账号后，可在多设备直接浏览云端歌单和喜欢的音乐。</p>
       </div>
 
       <template v-else>
@@ -165,10 +165,9 @@
     </aside>
 
     <footer class="sync-boundary-note">
-      <span class="boundary-chip">仅网易云支持账号歌单导入</span>
+      <span class="boundary-chip">网易云歌单与喜欢实时同步</span>
       <p>
-        同步仅保存歌单与歌曲元数据到本站电脑端音乐库；播放时按需获取音频流，
-        <strong>不会把音频文件下载到电脑。</strong>
+        歌单与喜欢状态直接读取网易云账号；播放时按需获取音频流。
         QQ 音乐与酷狗目前仅用于搜索和按需播放。
       </p>
     </footer>
