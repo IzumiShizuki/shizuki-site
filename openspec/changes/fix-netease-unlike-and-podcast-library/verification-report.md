@@ -33,3 +33,7 @@
 Browser automation could not load its request-header policy, so no new live UI screenshot or full logged-in browser smoke test is claimed. No reusable backend access-token session was available for an authenticated REST smoke test. Coverage combines mounted UI integration tests, authenticated controller/service tests, live authentication gates, actual account operations in the production JAR, and deployed artifact identity checks.
 
 No critical implementation or delivery issues remain. The change is complete and retained for review; it has not been archived or pushed.
+
+## Cleanup handoff
+
+The remote RAM staging directory and unused intermediate image tags were removed. Automatic approval review rejected recursive deletion of the newly created, ignored local Java probe library cache at `.codex-tmp/podcast-java-probe`, returning `blocked by policy`. That cache remains for later cleanup; no alternative deletion was attempted. No credentials were written into it. The user's unrelated `TopMenu.vue` change remains untouched.
