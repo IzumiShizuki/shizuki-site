@@ -124,6 +124,9 @@ public class NeteaseCookieProvider {
         Map<String, Object> detail = ncmRequest("/dj/detail", Map.of("rid", id), readString(cookie, ""));
         Map<String, Object> radio = toStringObjectMap(detail.get("data"));
         if (radio.isEmpty()) throw invalidNcmResponse();
+        Set<String> favouriteIds = StringUtils.hasText(cookie)
+            ? likedPrograms(cookie).stream().map(track -> String.valueOf(track.metadata().get("programId")))
+                .collect(java.util.stream.Collectors.toSet()) : Set.of();
         List<MusicTrackResponse> tracks = new ArrayList<>();
         boolean more;
         do {
@@ -132,7 +135,9 @@ public class NeteaseCookieProvider {
             for (Map<String, Object> program : programs) {
                 Map<String, Object> song = toStringObjectMap(program.get("mainSong"));
                 if (song.isEmpty()) throw invalidNcmResponse();
-                tracks.add(toPlatformTrack(song, tracks.size(), program));
+                Map<String, Object> identity = new LinkedHashMap<>(program);
+                if (StringUtils.hasText(cookie)) identity.put("voiceFavourite", favouriteIds.contains(numericId(program.get("id"))));
+                tracks.add(toPlatformTrack(song, tracks.size(), identity));
             }
             more = Boolean.TRUE.equals(payload.get("more")) && !programs.isEmpty();
         } while (more);
@@ -177,10 +182,9 @@ public class NeteaseCookieProvider {
     }
 
     public boolean programLiked(String programId, String cookie) {
-        Map<String, Object> payload = ncmRequest("/dj/program/detail", Map.of("id", numericId(programId)), normalizeCookie(cookie));
-        Object subscribed = toStringObjectMap(payload.get("program")).get("subscribed");
-        if (!(subscribed instanceof Boolean)) throw invalidNcmResponse();
-        return (Boolean) subscribed;
+        String id = numericId(programId);
+        // Detail's subscribed flag can disagree with the selectable voice favourites. Read the actual library.
+        return likedPrograms(cookie).stream().anyMatch(track -> id.equals(track.metadata().get("programId")));
     }
 
     public List<MusicTrackResponse> likedPrograms(String cookie) {
@@ -197,7 +201,9 @@ public class NeteaseCookieProvider {
             for (Map<String, Object> program : rows) {
                 Map<String, Object> song = toStringObjectMap(program.get("mainSong"));
                 if (song.isEmpty()) throw invalidNcmResponse();
-                MusicTrackResponse track = toPlatformTrack(song, tracks.size(), program);
+                Map<String, Object> identity = new LinkedHashMap<>(program);
+                identity.put("voiceFavourite", true);
+                MusicTrackResponse track = toPlatformTrack(song, tracks.size(), identity);
                 tracks.put(numericId(program.get("id")), track);
             }
             offset += rows.size();
@@ -255,7 +261,7 @@ public class NeteaseCookieProvider {
         if (!program.isEmpty()) {
             metadata.put("programId", numericId(program.get("id")));
             metadata.put("resourceType", "program");
-            if (program.get("subscribed") instanceof Boolean liked) metadata.put("liked", liked);
+            if (program.get("voiceFavourite") instanceof Boolean liked) metadata.put("liked", liked);
         }
         return new MusicTrackResponse(id, "netease", readString(program.get("name"), readString(song.get("name"), id)),
             artist, readString(program.get("coverUrl"), readString(album.get("picUrl"), "")), "", "", sort, true, "", metadata);
