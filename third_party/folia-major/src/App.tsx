@@ -719,6 +719,21 @@ export default function App() {
         t,
     });
 
+    useEffect(() => {
+        const handleHostLikeState = (event: Event) => {
+            const detail = (event as CustomEvent<{ provider?: string; trackId?: string; liked?: boolean }>).detail;
+            if (detail?.provider !== 'netease' || !detail.trackId || typeof detail.liked !== 'boolean') return;
+            setLikedSongIds(previous => {
+                const next = new Set(previous);
+                for (const id of next) if (String(id) === detail.trackId) next.delete(id);
+                if (detail.liked) next.add(Number(detail.trackId));
+                return next;
+            });
+        };
+        window.addEventListener('shizuki:track-like-state', handleHostLikeState);
+        return () => window.removeEventListener('shizuki:track-like-state', handleHostLikeState);
+    }, [setLikedSongIds]);
+
     const {
         refresh: refreshKugouLibrary,
         logout: logoutKugouLibrary,

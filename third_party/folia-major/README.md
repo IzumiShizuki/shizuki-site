@@ -4,10 +4,12 @@
 
 ## 当前对应源码
 
+2026-10-06 普通音乐页的平台歌单/点赞集成另提供后续补丁 [`shizuki-platform-library.patch`](shizuki-platform-library.patch)，须在下述完整补丁之后应用。它更新 `src/App.tsx` 与 `src/shizukiExternalBridge.ts`，并增加账号红心桥接测试：状态读取真实平台喜欢列表，主站已确认的点赞结果只更新 Folia 界面。下述部署提交与镜像记录为此前发布，本次补丁仅完成本地验证，尚未部署。
+
 - 用户 fork：[IzumiShizuki/folia-major](https://github.com/IzumiShizuki/folia-major)，分支 `codex/unify-folia-workspace`。
 - 本次字幕色实现：`c755facfe0d2fb53303aefc977d41f72375e2e07`；线上运行提交（含空白清理）：`1fca2ef15922c55b8655873bbd4d6a4415db828b`。源码 tip：`d8f8725388d94f02ce99da95ecd632f2d1f96a26`，新增部分仅为最终验收文档，应用源码与线上运行提交一致。
 - 完整差异：[`shizuki-folia-v0.7.11.patch`](shizuki-folia-v0.7.11.patch)，**310,935 bytes; SHA-256 `d79e9167675ca415a9cc80e5ec1f941b1f68eda42770ca5395d36c7a83fa3000`; `76` changed files**。可应用到干净 `6fe68d89`，已实际应用并逐项核对全部目标 Git blob。
-- 本目录 **57 个 TS/TSX 源码及测试快照**与完整 fork 逐字节一致；桥快照 `shizukiExternalBridge.ts` 对应 fork 的 `src/shizukiExternalBridge.ts`。
+- 此前公开的 **57 个 TS/TSX 源码及测试快照**与完整 fork 逐字节一致；本次另更新两个快照并添加桥接测试，重现这些修改需再应用后续平台音乐库补丁。桥快照 `shizukiExternalBridge.ts` 对应 fork 的 `src/shizukiExternalBridge.ts`。
 - 完整 fork 的本地目录 `D:\program\_codex_deploy\folia-major-v0.7.8-upstream` 保留旧目录名，实际基线为 v0.7.11。旧 `embedded-history-isolation.patch` 仅作历史参考。
 
 ## 主要修改
@@ -20,6 +22,8 @@
 6. 完整播放器在共享 renderer 边界消费主歌词色，包括 Canvas 等派生强调色；背景、翻译与和声保留原主题，重置恢复当前主题。主站选色过程即时发送并去重，移除重复的 host 播放栏，普通列表扩展到当前准确队列项并在返回时定位。
 
 ## 验证与历史
+
+本次平台音乐库桥接通过 TypeScript、3 个相关测试文件的 5 项测试及生产构建，后续补丁应用检查通过。主站验证与能力边界见 [平台音乐库验收报告](../../openspec/changes/unify-music-platform-library/verification-report.md)。以下为此前字幕色与队列改动的历史验证记录。
 
 本次 Folia 受影响验证 **100 files / 1056 passed / 1 skipped**；背景隔离后再验证 **9 files / 130 tests**，TypeScript 与严格 OpenSpec 通过。独立干净发布分支 **251 files / 1513 tests，exit 0**；最终居中定位调整另通过 **2 files / 4 tests** 并重建精确生产提交。实际字幕色、重置、单播放栏、原生暂停/拖动/Esc、第 450 首返回定位与原生 purple 83 首歌单替换验收通过。此前完整套件 4,385 通过、2 跳过；唯一 Windows modSignature 符号链接 EPERM 在干净上游也复现，未削弱该测试。
 

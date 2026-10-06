@@ -29,7 +29,7 @@
       <button class="retry-sidebar-btn ripple-trigger" type="button" @click="emit('retry')">重试</button>
     </div>
 
-    <section class="list-block">
+    <section v-if="corePlaylists.length" class="list-block">
       <h3>我的音乐</h3>
       <button
         v-for="item in corePlaylists"

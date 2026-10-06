@@ -1,13 +1,12 @@
 import { reactive, ref } from 'vue';
 import { mapLegacyLevelsToBands10 } from '../utils/audioEngine/eqBands10Mapping';
 
-const DEFAULT_PLAYLIST_CODE = 'default_public';
 const DEFAULT_SEARCH_PROVIDERS = ['netease', 'kuwo', 'qq'];
 
 export const MUSIC_PRIMARY_NAV = [
   { key: 'recommend', label: '推荐', icon: 'fas fa-house' },
   { key: 'playlist', label: '歌单', icon: 'fas fa-compact-disc' },
-  { key: 'radio', label: '播客', icon: 'fas fa-podcast' }
+  { key: 'radio', label: '声音 / 电台', icon: 'fas fa-podcast' }
 ];
 
 function clamp01(value) {
@@ -22,7 +21,7 @@ function normalizePath(path) {
 
 function createMusicLibraryUiState() {
   const activeNav = ref(MUSIC_PRIMARY_NAV[0].key);
-  const selectedPlaylistCode = ref(DEFAULT_PLAYLIST_CODE);
+  const selectedPlaylistCode = ref('');
   const homeSearchKeyword = ref('');
   const globalSearchKeyword = ref('');
   const globalSearchType = ref('all');

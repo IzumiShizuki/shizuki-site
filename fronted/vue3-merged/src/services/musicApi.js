@@ -404,9 +404,44 @@ export async function deleteMusicSourceAccount(provider, authorizedFetch) {
 
 export async function importMusicSourcePlaylists(provider, authorizedFetch) {
   const request = requireAuthorizedFetch(authorizedFetch);
-  const response = await request(`/api/v1/me/music/source-accounts/${encodeURIComponent(provider)}/import-playlists`, {
-    method: 'POST'
+  const response = await request(`/api/v1/me/music/source-accounts/${encodeURIComponent(provider)}/library`, {
+    method: 'GET'
   });
+  const library = unwrapApiResponse(response);
+  const playlists = [library?.likedPlaylist || library?.liked_playlist, ...(library?.createdPlaylists || library?.created_playlists || []), ...(library?.collectedPlaylists || library?.collected_playlists || [])].filter(Boolean);
+  return {
+    library,
+    importedPlaylists: playlists.length,
+    importedTracks: playlists.reduce((count, item) => count + Math.max(0, Number(item.trackCount ?? item.track_count ?? 0)), 0),
+    skippedPlaylists: 0,
+    failedPlaylists: 0
+  };
+}
+
+export async function getMusicSourceLikes(provider, authorizedFetch) {
+  const response = await requireAuthorizedFetch(authorizedFetch)(
+    `/api/v1/me/music/source-accounts/${encodeURIComponent(provider)}/likes`, { method: 'GET' }
+  );
+  return unwrapApiResponse(response);
+}
+
+export async function setMusicSourceTrackLiked(provider, trackId, liked, authorizedFetch) {
+  const response = await requireAuthorizedFetch(authorizedFetch)(
+    `/api/v1/me/music/source-accounts/${encodeURIComponent(provider)}/likes/${encodeURIComponent(trackId)}`,
+    { method: 'PUT', body: { liked: Boolean(liked) } }
+  );
+  return unwrapApiResponse(response);
+}
+
+export async function getRecommendedPodcasts(options = {}, authorizedFetch) {
+  const response = await (typeof authorizedFetch === 'function' ? authorizedFetch : httpRequest)(
+    '/api/v1/music/discovery/podcasts', { method: 'GET', query: { q: String(options.q || '').trim() } }
+  );
+  return unwrapApiResponse(response);
+}
+
+export async function getPersonalFmTracks(authorizedFetch) {
+  const response = await requireAuthorizedFetch(authorizedFetch)('/api/v1/me/music/discovery/personal-fm', { method: 'GET' });
   return unwrapApiResponse(response);
 }
 

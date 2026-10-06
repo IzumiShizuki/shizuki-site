@@ -379,7 +379,8 @@ class MediaServiceImplTest {
             metingMusicProperties,
             listenCacheProperties,
             new com.fasterxml.jackson.databind.ObjectMapper(),
-            new TransactionTemplate(new NoOpTransactionManager())
+            new TransactionTemplate(new NoOpTransactionManager()),
+            new io.github.shizuki.site.media.service.PlatformMusicLibraryService(neteaseCookieProvider, userMusicClient)
         );
 
         BusinessException exception = Assertions.assertThrows(
@@ -1583,6 +1584,27 @@ class MediaServiceImplTest {
         );
     }
 
+    @Test
+    void shouldMergeLiveAccountLibraryAndHideDefaultAndImportedDuplicates() {
+        LoginUserContext.set(new LoginUser(9L, Set.of("USER"), Set.of()));
+        Mockito.when(userMusicClient.getSourceAccountCookiePlaintext(9L, "netease")).thenReturn("account-cookie");
+        var cloud = new io.github.shizuki.site.media.response.MusicPlaylistSummaryResponse("account_netease_42", "云端", "", "", "CUSTOM", 9L, false, 1, "netease");
+        Mockito.when(neteaseCookieProvider.accountLibrary("account-cookie", 9L)).thenReturn(
+            new io.github.shizuki.site.media.response.MeMusicLibrarySidebarResponse(null, cloud, List.of(cloud), List.of()));
+        UserMusicPlaylistEntity imported = new UserMusicPlaylistEntity();
+        imported.setPlaylistCode("src_netease_42_u_9");
+        UserMusicPlaylistEntity local = new UserMusicPlaylistEntity();
+        local.setPlaylistCode("upl_local");
+        local.setUserId(9L);
+        Mockito.when(userMusicPlaylistMapper.selectList(Mockito.any())).thenReturn(List.of(imported, local));
+        Mockito.when(userMusicPlaylistCollectMapper.selectList(Mockito.any())).thenReturn(List.of());
+        var library = mediaService.getMyMusicLibrarySidebar();
+        Assertions.assertNull(library.defaultPlaylist());
+        Assertions.assertEquals("account_netease_42", library.likedPlaylist().playlistCode());
+        Assertions.assertEquals(List.of("account_netease_42", "upl_local"), library.createdPlaylists().stream().map(item -> item.playlistCode()).toList());
+        Mockito.verify(userMusicPlaylistMapper, Mockito.never()).insert(Mockito.any(UserMusicPlaylistEntity.class));
+    }
+
     private MediaServiceImpl buildMediaService(String defaultApiKey, TransactionTemplate transactionTemplate) {
         MediaStorageProperties mediaStorageProperties = new MediaStorageProperties();
         mediaStorageProperties.setPublicBucket("shizuki-public");
@@ -1639,7 +1661,8 @@ class MediaServiceImplTest {
             metingMusicProperties,
             listenCacheProperties,
             new com.fasterxml.jackson.databind.ObjectMapper(),
-            transactionTemplate
+            transactionTemplate,
+            new io.github.shizuki.site.media.service.PlatformMusicLibraryService(neteaseCookieProvider, userMusicClient)
         );
     }
 

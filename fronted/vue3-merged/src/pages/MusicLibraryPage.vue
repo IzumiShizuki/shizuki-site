@@ -280,6 +280,8 @@
         :play-mode="player.playMode.value"
         :volume="player.volume.value"
         :detail-layout="isPlayerDetailRoute"
+        :track-liked="isTrackLiked(player.currentTrack.value)"
+        :track-like-pending="platformLikes.isPending(player.currentTrack.value)"
         @toggle-play="player.togglePlay"
         @prev="player.playPrev"
         @next="player.playNext"
@@ -288,6 +290,7 @@
         @set-volume="player.setVolume"
         @select-track="handleSelectTrackFromDock"
         @open-collect-dialog="openCollectDialog()"
+        @toggle-track-like="toggleTrackLike(player.currentTrack.value)"
         @open-player-detail="enterPlayerDetail"
       />
     </div>
@@ -297,7 +300,7 @@
       :track="collectDialogTrack"
       :playlist-options="collectPlaylistTargets"
       :can-collect="auth.isAuthenticated.value"
-      :can-collect-default-public="isAdminUser"
+      :can-collect-default-public="false"
       :busy="collectDialogBusy"
       :error-text="collectDialogError"
       @close="closeCollectDialog"
@@ -330,6 +333,7 @@ import SubtleScrollArea from '../components/SubtleScrollArea.vue';
 import { MUSIC_LIBRARY_CONTEXT_KEY } from '../composables/musicLibraryContext';
 import { useAuthSession } from '../composables/useAuthSession';
 import { usePlayerBridge } from '../composables/playerBridge';
+import { resolveMusicLikeTarget, usePlatformMusicLikes } from '../composables/usePlatformMusicLikes';
 import { HOME_STAGE_CONTEXT_KEY } from '../utils/homeTimeStageState';
 import { MUSIC_PRIMARY_NAV, useMusicLibraryUiState } from './musicLibraryUiState';
 import * as musicApi from '../services/musicApi';
@@ -422,6 +426,7 @@ let foliaModeGeneration = 0;
 let playlistBrowseLoadGeneration = 0;
 let musicPlaybackRequestGeneration = 0;
 let musicPlaybackRequestAccountIdentity = '';
+let foliaLikesRefresh = null;
 const foliaQueueOptions = computed(() => (Array.isArray(player.tracks?.value) ? player.tracks.value : []));
 const foliaCurrentQueueEntryId = computed(() => String(player.currentTrack?.value?.queueEntryId || ''));
 let foliaLastKnownNeteaseCookie = '';
@@ -1467,12 +1472,10 @@ function handleFoliaBridgeMessage(event) {
     }
     // 点赞状态同步：Folia 的红心 → 普通模式红心（仅当明确给出且登录时）
     if (typeof data.liked === 'boolean' && data.track?.id && auth.isAuthenticated.value) {
-      const trackId = String(data.track.id);
-      const liked = Boolean(data.liked);
-      const currentlyLiked = music.isTrackLiked?.(trackId);
-      if (typeof music.isTrackLiked === 'function' && currentlyLiked !== liked) {
-        // 尽力同步（网易云 like 与站点红心体系可能不同，静默失败）
-        music.toggleTrackLike?.({ trackId, id: trackId, provider: 'netease', title: data.track.name || '' });
+      // Folia has already written the account mutation. Only refresh the shared read model.
+      if (resolveMusicLikeTarget(data.track).provider === 'netease'
+        && isTrackLiked(data.track) !== data.liked && !platformLikes.pendingKeys.value.size) {
+        void refreshFoliaAccountLikes();
       }
     }
     return;
@@ -1573,7 +1576,23 @@ const musicSourceMode = ref('meting_first');
 const musicAccountProviderOrder = ref(['netease', 'qqmusic', 'kugou']);
 
 const collectingPlaylist = ref(false);
-const likedTrackIds = ref(new Set());
+const platformLikes = usePlatformMusicLikes({
+  api: musicApi,
+  isAuthenticated: () => Boolean(auth.isAuthenticated.value),
+  getAccountId: () => String(auth.user.value?.userId || ''),
+  getAuthorizedFetch: createAccountScopedMusicFetch,
+  onLogin: goLogin,
+  onError: (message) => window.alert(message),
+  onSynced: ({ provider, trackId, liked }) => {
+    postToFolia({ type: 'shizuki:track-like-state', provider, trackId, liked });
+    window.dispatchEvent(new CustomEvent('shizuki:account-synced', { detail: { provider } }));
+    if (sidebarData.value.likedPlaylist) {
+      sidebarData.value.likedPlaylist.trackCount = Math.max(0, sidebarData.value.likedPlaylist.trackCount + (liked ? 1 : -1));
+    }
+    if (isPlaylistRoute.value && currentPlaylistProfile.value.playlistCode === likedPlaylistCode.value) void reloadCurrentPlaylist();
+  }
+});
+let sidebarRequestVersion = 0;
 const searchLoading = ref(false);
 const searchLoadingMore = ref(false);
 const searchLoadingMoreError = ref('');
@@ -1625,9 +1644,9 @@ const playlistBrowseAutoLoadLocked = ref(false);
 const playlistBrowseLoading = ref(false);
 const playlistBrowseError = ref('');
 const playlistBrowseProfile = ref({
-  playlistCode: DEFAULT_PLAYLIST_CODE,
-  name: '默认歌单',
-  description: '全站共通默认歌单',
+  playlistCode: '',
+  name: '歌单',
+  description: '',
   cover: ''
 });
 const playlistBrowseTracks = ref([]);
@@ -1668,8 +1687,8 @@ const currentPlaylistProfile = computed(() => {
   }
   const raw = playlistBrowseProfile.value || {};
   return {
-    playlistCode: String(raw.playlistCode || raw.playlist_code || DEFAULT_PLAYLIST_CODE),
-    name: String(raw.name || '默认歌单'),
+    playlistCode: String(raw.playlistCode || raw.playlist_code || ''),
+    name: String(raw.name || '歌单'),
     description: String(raw.description || ''),
     cover: String(raw.cover || ''),
     trackCount: Number(raw.trackCount || raw.track_count || 0)
@@ -1712,6 +1731,7 @@ const isAdminUser = computed(() => {
 
 const authState = computed(() => ({
   isAuthenticated: Boolean(auth.isAuthenticated.value),
+  accountId: String(auth.user.value?.userId || ''),
   isAdmin: isAdminUser.value
 }));
 
@@ -1719,20 +1739,11 @@ const selectedPlaylistCode = computed(() => {
   if (isPlaylistRoute.value && currentPlaylistCodeFromRoute.value) {
     return currentPlaylistCodeFromRoute.value;
   }
-  return String(ui.selectedPlaylistCode.value || DEFAULT_PLAYLIST_CODE);
+  return String(ui.selectedPlaylistCode.value || '');
 });
 
 const corePlaylists = computed(() => {
   const list = [];
-  const fallbackDefault = {
-    playlistCode: DEFAULT_PLAYLIST_CODE,
-    name: '默认歌单',
-    description: '全站共通默认歌单',
-    icon: 'fas fa-earth-asia'
-  };
-  const defaultPlaylist = normalizePlaylistSummary(sidebarData.value.defaultPlaylist || fallbackDefault, DEFAULT_PLAYLIST_CODE);
-  list.push({ ...defaultPlaylist, icon: 'fas fa-earth-asia' });
-
   if (auth.isAuthenticated.value && sidebarData.value.likedPlaylist) {
     list.push({
       ...normalizePlaylistSummary(sidebarData.value.likedPlaylist),
@@ -1756,7 +1767,7 @@ const collectedPlaylists = computed(() =>
 
 const collectPlaylistTargets = computed(() =>
   buildCollectPlaylistTargets(createdPlaylists.value, collectedPlaylists.value, {
-    excludedCodes: [DEFAULT_PLAYLIST_CODE]
+    excludedCodes: [DEFAULT_PLAYLIST_CODE, ...[...createdPlaylists.value, ...collectedPlaylists.value].filter((item) => item.playlistCode.startsWith('account_')).map((item) => item.playlistCode)]
   })
 );
 
@@ -1814,9 +1825,9 @@ function computeVoiceEntryVisible(rows) {
   return Boolean(asmr.enabled) && Boolean(asmr.visible);
 }
 
-function normalizePlaylistSummary(raw, fallbackCode = DEFAULT_PLAYLIST_CODE) {
+function normalizePlaylistSummary(raw, fallbackCode = '') {
   return {
-    playlistCode: String(raw?.playlistCode || raw?.playlist_code || fallbackCode || DEFAULT_PLAYLIST_CODE).trim(),
+    playlistCode: String(raw?.playlistCode || raw?.playlist_code || fallbackCode || '').trim(),
     name: String(raw?.name || '未命名歌单').trim() || '未命名歌单',
     description: String(raw?.description || '').trim(),
     cover: String(raw?.cover || raw?.coverUrl || raw?.cover_url || '').trim(),
@@ -2706,19 +2717,15 @@ function maybeAutoLoadNextSearchPage() {
 }
 
 async function loadSidebarData() {
+  const version = ++sidebarRequestVersion;
   if (!auth.isAuthenticated.value) {
     sidebarError.value = '';
     sidebarData.value = {
-      defaultPlaylist: {
-        playlistCode: DEFAULT_PLAYLIST_CODE,
-        name: '默认歌单',
-        description: '全站共通默认歌单'
-      },
+      defaultPlaylist: null,
       likedPlaylist: null,
       createdPlaylists: [],
       collectedPlaylists: []
     };
-    likedTrackIds.value = new Set();
     return true;
   }
 
@@ -2726,9 +2733,9 @@ async function loadSidebarData() {
   try {
     sidebarError.value = '';
     const payload = await musicApi.getMyMusicLibrarySidebar(createAccountScopedMusicFetch(accountId));
-    if (!auth.isAuthenticated.value || String(auth.user.value?.userId || '') !== accountId) return false;
+    if (!auth.isAuthenticated.value || String(auth.user.value?.userId || '') !== accountId || version !== sidebarRequestVersion) return false;
     sidebarData.value = {
-      defaultPlaylist: normalizePlaylistSummary(payload?.defaultPlaylist || payload?.default_playlist, DEFAULT_PLAYLIST_CODE),
+      defaultPlaylist: null,
       likedPlaylist: payload?.likedPlaylist || payload?.liked_playlist ? normalizePlaylistSummary(payload?.likedPlaylist || payload?.liked_playlist) : null,
       createdPlaylists: Array.isArray(payload?.createdPlaylists || payload?.created_playlists)
         ? (payload.createdPlaylists || payload.created_playlists).map((item) => normalizePlaylistSummary(item))
@@ -2738,7 +2745,7 @@ async function loadSidebarData() {
         : []
     };
     await loadLikedTrackIds();
-    if (!auth.isAuthenticated.value || String(auth.user.value?.userId || '') !== accountId) return false;
+    if (!auth.isAuthenticated.value || String(auth.user.value?.userId || '') !== accountId || version !== sidebarRequestVersion) return false;
     return true;
   } catch (error) {
     if (!auth.isAuthenticated.value || String(auth.user.value?.userId || '') !== accountId) return false;
@@ -2748,26 +2755,25 @@ async function loadSidebarData() {
 }
 
 async function loadLikedTrackIds() {
-  const accountId = String(auth.user.value?.userId || '');
-  const likedCode = likedPlaylistCode.value;
-  if (!auth.isAuthenticated.value || !likedCode) {
-    likedTrackIds.value = new Set();
-    return;
-  }
+  if (!auth.isAuthenticated.value || (!likedPlaylistCode.value.startsWith('account_netease_') && !musicSourceAccounts.value?.netease?.bound)) return;
+  await platformLikes.refresh();
+  if (platformLikes.error.value) sidebarError.value = platformLikes.error.value;
+}
 
+async function refreshFoliaAccountLikes() {
+  const accountId = String(auth.user.value?.userId || '');
+  if (foliaLikesRefresh?.accountId === accountId) return;
+  if (!musicSourceAccounts.value?.netease?.bound && !likedPlaylistCode.value.startsWith('account_netease_')) return;
+  const request = { accountId };
+  foliaLikesRefresh = request;
   try {
-    const payload = await musicApi.getPlaylistBundleByCode(likedCode, createAccountScopedMusicFetch(accountId));
-    if (!auth.isAuthenticated.value || String(auth.user.value?.userId || '') !== accountId) return;
-    const tracks = Array.isArray(payload?.tracks) ? payload.tracks : [];
-    const next = new Set();
-    tracks.forEach((item) => {
-      const key = String(item?.trackId || item?.track_id || item?.id || '').trim();
-      if (key) next.add(key);
-    });
-    likedTrackIds.value = next;
-  } catch {
-    if (!auth.isAuthenticated.value || String(auth.user.value?.userId || '') !== accountId) return;
-    likedTrackIds.value = new Set();
+    const refreshed = await platformLikes.refresh();
+    if (!refreshed || !auth.isAuthenticated.value || String(auth.user.value?.userId || '') !== accountId) return;
+    window.dispatchEvent(new CustomEvent('shizuki:account-synced', { detail: { provider: 'netease' } }));
+    if (isPlaylistRoute.value && currentPlaylistProfile.value.playlistCode === likedPlaylistCode.value) void reloadCurrentPlaylist();
+  } finally {
+    if (foliaLikesRefresh === request) foliaLikesRefresh = null;
+    if (platformLikes.error.value) sidebarError.value = platformLikes.error.value;
   }
 }
 
@@ -2957,6 +2963,10 @@ async function handleBindMusicSourceAccount(provider) {
 
     if (String(currentSession?.status || '').trim().toUpperCase() === 'COMPLETED') {
       await loadMusicSourceAccountsStatus();
+      if (normalizedProvider === 'netease') {
+        platformLikes.reset();
+        await loadSidebarData();
+      }
       musicSourceBindSessions.value = {
         ...musicSourceBindSessions.value,
         [normalizedProvider]: {}
@@ -3034,6 +3044,10 @@ async function handleSaveMusicSourceCookie(provider) {
       ...musicSourceCookieInputs.value,
       [normalizedProvider]: ''
     };
+    if (normalizedProvider === 'netease') {
+      platformLikes.reset();
+      await loadSidebarData();
+    }
   } catch (error) {
     window.alert(parseErrorMessage(error, '保存 Cookie 失败'));
   } finally {
@@ -3241,7 +3255,8 @@ async function ensureCurrentRoutePlaylistLoaded(options = {}) {
     playlistBrowseLoading.value = false;
     return;
   }
-  const playlistCode = currentPlaylistCodeFromRoute.value || DEFAULT_PLAYLIST_CODE;
+  const playlistCode = currentPlaylistCodeFromRoute.value;
+  if (!playlistCode) return;
   ui.setSelectedPlaylistCode(playlistCode);
   const force = options?.force === true;
   const authenticated = Boolean(auth.isAuthenticated.value);
@@ -3288,7 +3303,7 @@ async function ensureCurrentRoutePlaylistLoaded(options = {}) {
   try {
     const payload = await musicApi.getPlaylistBundleByCode(
       playlistCode,
-      authenticated ? auth.authorizedFetch : undefined
+      authenticated ? createAccountScopedMusicFetch(accountId) : undefined
     );
     if (!isCurrentRequest()) return;
     const profile = normalizePlaylistSummary(payload?.profile || payload?.playlist, playlistCode);
@@ -3571,48 +3586,8 @@ async function handleCollectDialogDefaultPublic() {
   }
 }
 
-function isTrackLiked(trackId) {
-  return likedTrackIds.value.has(String(trackId || ''));
-}
-
-async function toggleTrackLike(trackInput) {
-  const id = String(trackInput?.trackId || trackInput?.track_id || trackInput?.id || trackInput || '').trim();
-  if (!id) return;
-
-  const provider = String(trackInput?.provider || trackInput?.providerCode || trackInput?.provider_code || 'local').trim() || 'local';
-  const next = new Set(likedTrackIds.value);
-  if (next.has(id)) next.delete(id);
-  else next.add(id);
-  likedTrackIds.value = next;
-
-  if (!auth.isAuthenticated.value || !likedPlaylistCode.value) {
-    return;
-  }
-
-  try {
-    if (next.has(id)) {
-      await musicApi.upsertMyMusicPlaylistTrack(
-        likedPlaylistCode.value,
-        toPlaylistTrackUpsertPayload(trackInput, next.size, likedPlaylistCode.value),
-        auth.authorizedFetch
-      );
-    } else {
-      await musicApi.deleteMyMusicPlaylistTrack(
-        likedPlaylistCode.value,
-        provider,
-        id,
-        auth.authorizedFetch
-      );
-    }
-    await loadSidebarData();
-  } catch (error) {
-    const rollback = new Set(likedTrackIds.value);
-    if (rollback.has(id)) rollback.delete(id);
-    else rollback.add(id);
-    likedTrackIds.value = rollback;
-    window.alert(parseErrorMessage(error, '更新红心歌单失败'));
-  }
-}
+const isTrackLiked = platformLikes.isLiked;
+const toggleTrackLike = platformLikes.toggle;
 
 function openPlaylistDetail(playlistCode) {
   const code = String(playlistCode || '').trim();
@@ -3800,7 +3775,9 @@ const musicContext = Object.freeze({
   collectTrackToDefaultPublic,
   openCollectDialog,
   toggleTrackLike,
-  isTrackLiked
+  isTrackLiked,
+  isTrackLikePending: platformLikes.isPending,
+  authorizedMusicFetch: () => auth.isAuthenticated.value ? createAccountScopedMusicFetch(String(auth.user.value?.userId || '')) : undefined
 });
 
 provide(MUSIC_LIBRARY_CONTEXT_KEY, musicContext);
@@ -3809,6 +3786,22 @@ watch(
   [isPlaylistRoute, isQueueRoute, () => currentPlaylistAllTracks.value.length, currentPlaylistTrackIdentity, currentPlaylistTrackIndex],
   revealCurrentPlaylistTrack,
   { immediate: true }
+);
+
+watch(
+  () => musicSourceAccounts.value?.netease?.bound,
+  (bound, previous) => {
+    if (bound === previous || previous === undefined) return;
+    platformLikes.reset();
+    sidebarData.value = {
+      ...sidebarData.value,
+      likedPlaylist: null,
+      createdPlaylists: sidebarData.value.createdPlaylists.filter((item) => !item.playlistCode.startsWith('account_netease_')),
+      collectedPlaylists: sidebarData.value.collectedPlaylists.filter((item) => !item.playlistCode.startsWith('account_netease_'))
+    };
+    void loadSidebarData();
+  },
+  { flush: 'sync' }
 );
 
 watch(
@@ -3906,6 +3899,9 @@ watch(
     () => String(auth.user.value?.userId || '')
   ],
   async ([isAuthenticated]) => {
+    sidebarData.value = { defaultPlaylist: null, likedPlaylist: null, createdPlaylists: [], collectedPlaylists: [] };
+    playlistBrowseLoadGeneration += 1;
+    playlistBrowseTracks.value = [];
     await Promise.all([
       loadHomeData(),
       loadMusicProviderVisibility(),
@@ -4057,7 +4053,7 @@ async function returnToMusicLibrary() {
   }
 
   const code = source.sitePlaylistCode;
-  if (code && foliaPlaylistOptions.value.some((item) => item.playlistCode === code)) {
+  if (code && (code === currentPlaylistCodeFromRoute.value || foliaPlaylistOptions.value.some((item) => item.playlistCode === code))) {
     router.push({ name: 'music-library-playlist', params: { playlistCode: code } });
   } else {
     router.push({ name: 'music-library-queue' });
