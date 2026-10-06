@@ -39,12 +39,12 @@
 
 ## Delivery notes
 
-The local master merge is verified as the requested release preparation. Push and deployment remain for the subsequent release step. A successful production Steam download was not verified; local mock/fake-process acceptance does not establish live account or upstream behavior.
+The initial local master merge was verified as release preparation. The explicitly authorized combined release was subsequently deployed on 2026-10-07; see `deployment-report.md`. No Git push was performed. A successful production Steam download was not verified; local mock/fake-process acceptance does not establish live account or upstream behavior.
 
 ## 7. Authorized combined production release (2026-10-07)
 
 - [x] 7.1 Merge exact commit `bf793d5e76d244ce3cf07bc791ac27f19cd654e8` into the current music/podcast release; verify both wallpaper and deployed music commits remain ancestors and preserve unrelated user edits.
 - [x] 7.2 Run the combined frontend suite/build, affected wallpaper and music backend tests, monolith auth checks, and Java 17 package; verify OpenSpec contracts against the merged artifacts.
-- [ ] 7.3 Create and verify a fresh recoverable production snapshot, database backup, frozen current images, and source rollback archive within available server capacity.
-- [ ] 7.4 Deploy verified frontend/backend artifacts to `111.228.35.186`, including the byte-progress prerequisite; verify runtime identity, database schema, public wallpaper discovery and retained music/podcast APIs.
-- [ ] 7.5 Record release identity, acceptance limits and recovery instructions; update tasks, run strict OpenSpec validation and commit the delivery record locally without pushing.
+- [x] 7.3 Create and verify a fresh recoverable production snapshot, database backup, frozen current images, and source rollback archive within available server capacity.
+- [x] 7.4 Deploy verified frontend/backend artifacts to `111.228.35.186`, including the byte-progress prerequisite; verify runtime identity, database schema, public wallpaper discovery and retained music/podcast APIs.
+- [x] 7.5 Record release identity, acceptance limits and recovery instructions; update tasks, run strict OpenSpec validation and commit the delivery record locally without pushing.
