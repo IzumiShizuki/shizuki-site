@@ -3042,6 +3042,10 @@ public class MediaServiceImpl implements MediaService {
     @Transactional(rollbackFor = Exception.class)
     public MusicPlaylistBundleResponse removeMyMusicPlaylistTrack(String playlistCode, String provider, String trackId) {
         Long userId = requireLoginUserId();
+        String normalizedCode = normalizePlaylistCode(playlistCode);
+        if (normalizedCode.startsWith("account_netease_")) {
+            return platformMusicLibraryService.unlikePlaylistTrack(normalizedCode, normalizeTrackProvider(provider), readString(trackId, ""));
+        }
         UserMusicPlaylistEntity playlist = requireOwnedUserPlaylist(userId, playlistCode);
         String normalizedProvider = normalizeTrackProvider(provider);
         String normalizedTrackId = readString(trackId, "");

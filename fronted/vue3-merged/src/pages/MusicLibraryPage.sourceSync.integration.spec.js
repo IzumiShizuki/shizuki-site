@@ -167,6 +167,32 @@ describe('MusicLibraryPage stored Folia account entry integration', () => {
     }
   });
 
+  it('removes an acknowledged unlike from the liked view without a failing post-write playlist reload or changing playback', async () => {
+    resetMocks({ boundRows: [{ provider: 'netease', bound: true }] });
+    mocked.route.name = 'music-library-playlist';
+    mocked.route.params = { playlistCode: 'account_netease_5' };
+    mocked.api.getMyMusicLibrarySidebar.mockResolvedValue({ likedPlaylist: { playlistCode: 'account_netease_5', trackCount: 2 } });
+    mocked.api.getMusicSourceLikes.mockResolvedValue(['42', '43']);
+    mocked.api.getPlaylistBundleByCode.mockResolvedValue({
+      profile: { playlistCode: 'account_netease_5', name: '我喜欢的音乐', trackCount: 2 },
+      tracks: [{ trackId: '42', provider: 'netease' }, { trackId: '43', provider: 'netease' }]
+    });
+    const wrapper = await mountPage();
+    try {
+      const context = wrapper.vm.$.provides[MUSIC_LIBRARY_CONTEXT_KEY];
+      mocked.api.getPlaylistBundleByCode.mockClear();
+      mocked.api.getPlaylistBundleByCode.mockRejectedValue(new Error('Playlist not found'));
+      mocked.player.currentTrack.value = context.currentPlaylistAllTracks.value[0];
+      await context.toggleTrackLike(context.currentPlaylistAllTracks.value[0]);
+      await flushPromises();
+      expect(context.currentPlaylistError.value).toBe('');
+      expect(context.currentPlaylistAllTracks.value.map((item) => item.trackId || item.id)).toEqual(['43']);
+      expect(mocked.api.getPlaylistBundleByCode).not.toHaveBeenCalled();
+      expect(mocked.player.currentTrack.value.trackId || mocked.player.currentTrack.value.id).toBe('42');
+      expect(mocked.player.replaceQueueWithTracks).not.toHaveBeenCalled();
+    } finally { wrapper.unmount(); }
+  });
+
   it('does not swallow Escape from the embedded Folia surface before its active view can handle it', async () => {
     const wrapper = await mountPage({ teleport: true });
     const forwardedEscape = vi.fn();

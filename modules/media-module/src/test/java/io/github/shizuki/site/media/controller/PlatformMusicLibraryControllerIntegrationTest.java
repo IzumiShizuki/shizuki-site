@@ -37,6 +37,23 @@ class PlatformMusicLibraryControllerIntegrationTest {
     }
 
     @Test
+    void shouldValidateProgramDesiredStateAndRequireACollectionSource() throws Exception {
+        mvc.perform(MockMvcRequestBuilders.put("/api/v1/me/music/source-accounts/netease/podcast-likes/777")
+            .contentType(MediaType.APPLICATION_JSON).content("{}"))
+            .andExpect(MockMvcResultMatchers.status().isBadRequest());
+        mvc.perform(MockMvcRequestBuilders.get("/api/v1/me/music/source-accounts/netease/podcasts"))
+            .andExpect(MockMvcResultMatchers.status().isBadRequest());
+        Mockito.verifyNoInteractions(service);
+        Mockito.when(service.setProgramLiked("netease", "777", false)).thenReturn(Map.of("programId", "777", "liked", false));
+        mvc.perform(MockMvcRequestBuilders.put("/api/v1/me/music/source-accounts/netease/podcast-likes/777")
+            .contentType(MediaType.APPLICATION_JSON).content("{\"liked\":false}"))
+            .andExpect(MockMvcResultMatchers.status().isOk())
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.programId").value("777"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.liked").value(false));
+        Mockito.verify(service).setProgramLiked("netease", "777", false);
+    }
+
+    @Test
     void shouldReadCloudLikesAndSearchPodcasts() throws Exception {
         Mockito.when(service.likedTrackIds("netease")).thenReturn(List.of("42"));
         Mockito.when(service.podcasts("声音")).thenReturn(List.of());

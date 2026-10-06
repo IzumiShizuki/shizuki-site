@@ -109,8 +109,13 @@ class AuthEntryFilterTest {
             new MockHttpServletRequest("GET", "/api/v1/me/music/source-accounts/netease/library"),
             new MockHttpServletRequest("GET", "/api/v1/me/music/source-accounts/netease/likes"),
             new MockHttpServletRequest("PUT", "/api/v1/me/music/source-accounts/netease/likes/42"),
+            new MockHttpServletRequest("GET", "/api/v1/me/music/source-accounts/netease/podcasts"),
+            new MockHttpServletRequest("GET", "/api/v1/me/music/source-accounts/netease/podcast-likes"),
+            new MockHttpServletRequest("GET", "/api/v1/me/music/source-accounts/netease/podcast-likes/777"),
+            new MockHttpServletRequest("PUT", "/api/v1/me/music/source-accounts/netease/podcast-likes/777"),
             new MockHttpServletRequest("GET", "/api/v1/me/music/discovery/personal-fm")
         )) {
+            request.addHeader("X-User-Id", "7");
             MockHttpServletResponse response = new MockHttpServletResponse();
             AtomicBoolean invoked = new AtomicBoolean(false);
 

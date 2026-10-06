@@ -67,5 +67,34 @@ public class PlatformMusicLibraryController {
         return ApiResponse.success(platforms.personalFm());
     }
 
+    @GetMapping("/me/music/source-accounts/{provider}/podcasts")
+    @RateLimit(key = "music.platform.personal-podcasts", limit = 30, windowSeconds = 60)
+    @Operation(summary = "当前平台账号的播客合集")
+    public ApiResponse<List<MusicPlaylistSummaryResponse>> personalPodcasts(@PathVariable("provider") String provider,
+            @RequestParam("source") String source) {
+        return ApiResponse.success(platforms.personalPodcasts(provider, source));
+    }
+
+    @PutMapping("/me/music/source-accounts/{provider}/podcast-likes/{programId}")
+    @RateLimit(key = "music.platform.program-like", limit = 60, windowSeconds = 60)
+    @AuditLog(action = "music.platform.program.like", resource = "music_source_account")
+    @Operation(summary = "设置网易云声音喜欢状态")
+    public ApiResponse<Map<String, Object>> setProgramLike(@PathVariable("provider") String provider,
+            @PathVariable("programId") String programId, @Valid @RequestBody TrackLikeRequest request) {
+        return ApiResponse.success(platforms.setProgramLiked(provider, programId, request.liked()));
+    }
+
+    @GetMapping("/me/music/source-accounts/{provider}/podcast-likes")
+    @RateLimit(key = "music.platform.program-likes", limit = 30, windowSeconds = 60)
+    public ApiResponse<List<MusicTrackResponse>> likedPrograms(@PathVariable("provider") String provider) {
+        return ApiResponse.success(platforms.likedPrograms(provider));
+    }
+
+    @GetMapping("/me/music/source-accounts/{provider}/podcast-likes/{programId}")
+    @RateLimit(key = "music.platform.program-like-state", limit = 60, windowSeconds = 60)
+    public ApiResponse<Map<String, Object>> programLikeState(@PathVariable("provider") String provider, @PathVariable("programId") String programId) {
+        return ApiResponse.success(platforms.programLikeState(provider, programId));
+    }
+
     public record TrackLikeRequest(@NotNull Boolean liked) {}
 }

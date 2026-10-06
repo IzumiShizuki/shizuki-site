@@ -2,6 +2,7 @@ package io.github.shizuki.site.media.integration;
 
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
@@ -30,13 +31,77 @@ class NeteasePlatformLibraryTest {
 
     private void expect(String path, String json) {
         server.expect(requestTo("http://ncm.test" + path)).andExpect(method(HttpMethod.POST))
+            .andExpect(header("X-APICACHE-FORCE-FETCH", "true"))
             .andExpect(content().json("{\"cookie\":\"" + COOKIE + "\"}", false))
             .andRespond(withSuccess(json, MediaType.APPLICATION_JSON));
     }
 
     @Test
+    void shouldReadCompleteProgramFavouritesAndKeepPlayableSongIdentitySeparate() {
+        expect("/user/account", "{\"code\":200,\"profile\":{\"userId\":12}}");
+        server.expect(requestTo("http://ncm.test/api"))
+            .andExpect(header("X-APICACHE-FORCE-FETCH", "true"))
+            .andExpect(content().json("{\"uri\":\"/api/djprogram/subscribed/paged\",\"crypto\":\"weapi\",\"data\":{\"uid\":\"12\",\"limit\":100,\"offset\":0},\"cookie\":\"MUSIC_U=test-secret\"}", false))
+            .andRespond(withSuccess("{\"code\":200,\"programs\":[{\"id\":777,\"name\":\"我的声音\",\"subscribed\":true,\"mainSong\":{\"id\":42}}],\"more\":true}", MediaType.APPLICATION_JSON));
+        server.expect(requestTo("http://ncm.test/api"))
+            .andExpect(content().json("{\"data\":{\"offset\":1}}", false))
+            .andRespond(withSuccess("{\"code\":200,\"programs\":[{\"id\":778,\"mainSong\":{\"id\":43}}],\"more\":false}", MediaType.APPLICATION_JSON));
+        var tracks = provider.likedPrograms(COOKIE);
+        Assertions.assertEquals(java.util.List.of("42", "43"), tracks.stream().map(track -> track.trackId()).toList());
+        Assertions.assertEquals("777", tracks.get(0).metadata().get("programId"));
+        Assertions.assertEquals(true, tracks.get(0).metadata().get("liked"));
+        server.verify();
+    }
+
+    @Test
+    void shouldUseVoiceFavouriteContractForExplicitUnlikeAndReadItsRealState() {
+        server.expect(requestTo("http://ncm.test/api"))
+            .andExpect(header("X-APICACHE-FORCE-FETCH", "true"))
+            .andExpect(content().json("{\"uri\":\"/api/djprogram/unsubscribe\",\"data\":{\"id\":\"777\"},\"crypto\":\"weapi\"}", false))
+            .andRespond(withSuccess("{\"code\":200}", MediaType.APPLICATION_JSON));
+        expect("/dj/program/detail", "{\"code\":200,\"program\":{\"subscribed\":true}}");
+        expect("/dj/program/detail", "{\"code\":200,\"program\":{}}");
+        provider.setProgramLiked("777", false, COOKIE);
+        Assertions.assertTrue(provider.programLiked("777", COOKIE));
+        Assertions.assertThrows(BusinessException.class, () -> provider.programLiked("777", COOKIE));
+        server.verify();
+    }
+
+    @Test
+    void shouldPageSubscribedCollectionsAndReadCreatedCollectionsAsDifferentSources() {
+        expect("/dj/sublist", "{\"code\":200,\"djRadios\":[{\"id\":90}],\"hasMore\":true}");
+        expect("/dj/sublist", "{\"code\":200,\"djRadios\":[{\"id\":91}],\"hasMore\":false}");
+        expect("/user/account", "{\"code\":200,\"profile\":{\"userId\":12}}");
+        expect("/user/audio", "{\"code\":200,\"djRadios\":[{\"id\":92,\"programCount\":10}]}");
+        Assertions.assertEquals(2, provider.personalPodcasts("subscribed", COOKIE).size());
+        Assertions.assertEquals("podcast_netease_92", provider.personalPodcasts("created", COOKIE).get(0).playlistCode());
+        Assertions.assertThrows(BusinessException.class, () -> provider.personalPodcasts("other", COOKIE));
+        server.verify();
+    }
+
+    @Test
+    void shouldDistinguishRealEmptyFavouritesFromMalformedUpstreamData() {
+        expect("/user/account", "{\"code\":200,\"profile\":{\"userId\":12}}");
+        expect("/api", "{\"code\":200,\"programs\":[],\"more\":false,\"count\":0}");
+        expect("/user/account", "{\"code\":200,\"profile\":{\"userId\":12}}");
+        expect("/api", "{\"code\":200,\"programs\":[],\"more\":true,\"count\":10}");
+        Assertions.assertTrue(provider.likedPrograms(COOKIE).isEmpty());
+        Assertions.assertThrows(BusinessException.class, () -> provider.likedPrograms(COOKIE));
+        server.verify();
+    }
+
+    @Test
+    void shouldRejectIncompleteCreatedCollectionsRatherThanReportPartialSuccess() {
+        expect("/user/account", "{\"code\":200,\"profile\":{\"userId\":12}}");
+        expect("/user/audio", "{\"code\":200,\"djRadios\":[{\"id\":92}],\"hasMore\":true,\"count\":2}");
+        Assertions.assertThrows(BusinessException.class, () -> provider.personalPodcasts("created", COOKIE));
+        server.verify();
+    }
+
+    @Test
     void shouldSendUnlikeAsStringAndKeepCookieOutOfUrl() {
         server.expect(requestTo("http://ncm.test/like")).andExpect(method(HttpMethod.POST))
+            .andExpect(header("X-APICACHE-FORCE-FETCH", "true"))
             .andExpect(content().json("{\"id\":\"42\",\"like\":\"false\",\"cookie\":\"MUSIC_U=test-secret\"}", false))
             .andRespond(withSuccess("{\"code\":200}", MediaType.APPLICATION_JSON));
         provider.setTrackLiked("42", false, COOKIE);
