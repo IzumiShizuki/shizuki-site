@@ -17,7 +17,7 @@
 
 The official NetEase web client's [core JavaScript](https://s3.music.126.net/web/s/core_c7686f506f6f2607bb7f6cea1951f039.js) defines `program_fav-list`, `program_fav-add` and `program_fav-del` as `/api/djprogram/subscribed/paged`, `/api/djprogram/subscribe` and `/api/djprogram/unsubscribe`. These use program IDs; list rows include `mainSong` for playback. `program-like` uses a different public resource thumbs-up contract and is not the selectable favourite library.
 
-The installed [NeteaseCloudMusicApiEnhanced](https://github.com/NeteaseCloudMusicApiEnhanced/api-enhanced) generic `/api` module supports those favourite URIs with JSON `data` and `crypto: weapi`. Detail's `program.subscribed` is the voice favourite flag; `radio.subed` represents subscribing to a whole collection.
+The installed [NeteaseCloudMusicApiEnhanced](https://github.com/NeteaseCloudMusicApiEnhanced/api-enhanced) generic `/api` module supports those favourite URIs with JSON `data` and `crypto: weapi`. During the actual production-JAR roundtrip, detail's `program.subscribed` remained false while the confirmed favourite library contained the program. It is therefore not used to infer personal favourite state. Single-program state and bound-account collection hearts now derive from the complete favourite library. The temporary favourite left by that failed diagnostic assumption was explicitly removed and the original empty voice library was freshly verified before further tests.
 
 - Favourite voices: generic `/api` with URI `/api/djprogram/subscribed/paged`, current account UID, limit and offset; response `programs`, `more`, `count`.
 - Favourite writes: generic `/api` with URI `subscribe` / `unsubscribe` and `data.id` equal to program ID.

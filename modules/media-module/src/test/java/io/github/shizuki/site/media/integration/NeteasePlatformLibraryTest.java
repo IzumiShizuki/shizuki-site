@@ -42,7 +42,7 @@ class NeteasePlatformLibraryTest {
         server.expect(requestTo("http://ncm.test/api"))
             .andExpect(header("X-APICACHE-FORCE-FETCH", "true"))
             .andExpect(content().json("{\"uri\":\"/api/djprogram/subscribed/paged\",\"crypto\":\"weapi\",\"data\":{\"uid\":\"12\",\"limit\":100,\"offset\":0},\"cookie\":\"MUSIC_U=test-secret\"}", false))
-            .andRespond(withSuccess("{\"code\":200,\"programs\":[{\"id\":777,\"name\":\"我的声音\",\"subscribed\":true,\"mainSong\":{\"id\":42}}],\"more\":true}", MediaType.APPLICATION_JSON));
+            .andRespond(withSuccess("{\"code\":200,\"programs\":[{\"id\":777,\"name\":\"我的声音\",\"subscribed\":false,\"mainSong\":{\"id\":42}}],\"more\":true}", MediaType.APPLICATION_JSON));
         server.expect(requestTo("http://ncm.test/api"))
             .andExpect(content().json("{\"data\":{\"offset\":1}}", false))
             .andRespond(withSuccess("{\"code\":200,\"programs\":[{\"id\":778,\"mainSong\":{\"id\":43}}],\"more\":false}", MediaType.APPLICATION_JSON));
@@ -59,8 +59,10 @@ class NeteasePlatformLibraryTest {
             .andExpect(header("X-APICACHE-FORCE-FETCH", "true"))
             .andExpect(content().json("{\"uri\":\"/api/djprogram/unsubscribe\",\"data\":{\"id\":\"777\"},\"crypto\":\"weapi\"}", false))
             .andRespond(withSuccess("{\"code\":200}", MediaType.APPLICATION_JSON));
-        expect("/dj/program/detail", "{\"code\":200,\"program\":{\"subscribed\":true}}");
-        expect("/dj/program/detail", "{\"code\":200,\"program\":{}}");
+        expect("/user/account", "{\"code\":200,\"profile\":{\"userId\":12}}");
+        expect("/api", "{\"code\":200,\"programs\":[{\"id\":777,\"subscribed\":false,\"mainSong\":{\"id\":42}}],\"more\":false}");
+        expect("/user/account", "{\"code\":200,\"profile\":{\"userId\":12}}");
+        expect("/api", "{\"code\":200}");
         provider.setProgramLiked("777", false, COOKIE);
         Assertions.assertTrue(provider.programLiked("777", COOKIE));
         Assertions.assertThrows(BusinessException.class, () -> provider.programLiked("777", COOKIE));
@@ -148,6 +150,8 @@ class NeteasePlatformLibraryTest {
     @Test
     void shouldMapPodcastProgramToPlayableMainSongIdentity() {
         expect("/dj/detail", "{\"code\":200,\"data\":{\"id\":90,\"name\":\"声音\"}}");
+        expect("/user/account", "{\"code\":200,\"profile\":{\"userId\":12}}");
+        expect("/api", "{\"code\":200,\"programs\":[{\"id\":777,\"subscribed\":false,\"mainSong\":{\"id\":42}}],\"more\":false}");
         expect("/dj/program", """
             {"code":200,"programs":[{"id":777,"name":"节目标题","mainSong":{"id":42,"name":"主音轨","duration":123000,"artists":[{"name":"主播"}]}}],"more":false}
             """);
@@ -156,6 +160,7 @@ class NeteasePlatformLibraryTest {
         Assertions.assertEquals("42", result.tracks().get(0).trackId());
         Assertions.assertEquals("节目标题", result.tracks().get(0).title());
         Assertions.assertEquals("777", result.tracks().get(0).metadata().get("programId"));
+        Assertions.assertEquals(true, result.tracks().get(0).metadata().get("liked"));
         server.verify();
     }
 
