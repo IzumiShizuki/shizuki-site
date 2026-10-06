@@ -46,12 +46,53 @@ public class PlatformMusicLibraryService {
         return Map.of("provider", "netease", "trackId", trackId, "liked", liked);
     }
 
+    /** Compatibility for pages loaded before cloud playlists replaced local liked playlists. */
+    public MusicPlaylistBundleResponse unlikePlaylistTrack(String code, String provider, String trackId) {
+        requireNetease(provider);
+        String cookie = requiredCookie();
+        Long userId = requireUserId();
+        MusicPlaylistSummaryResponse liked = netease.accountLibrary(cookie, userId).likedPlaylist();
+        if (liked == null || !liked.playlistCode().equals(code)) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "只能从当前账号喜欢的音乐中取消喜欢");
+        }
+        // Prepare the response before writing: a failed read must never hide a successful unlike.
+        MusicPlaylistBundleResponse before = netease.accountPlaylistBundle(code.substring("account_netease_".length()), cookie, userId);
+        netease.setTrackLiked(trackId, false, cookie);
+        List<MusicTrackResponse> tracks = before.tracks().stream()
+            .filter(track -> !track.trackId().equals(trackId)).toList();
+        MusicPlaylistSummaryResponse profile = before.profile();
+        return new MusicPlaylistBundleResponse(new MusicPlaylistSummaryResponse(
+            profile.playlistCode(), profile.name(), profile.description(), profile.cover(), profile.playlistType(),
+            profile.ownerUserId(), profile.isPublic(), tracks.size(), profile.sourceProvider()), tracks);
+    }
+
     public List<MusicPlaylistSummaryResponse> podcasts(String query) {
         return netease.recommendedPodcasts(optionalCookie(), query);
     }
 
     public List<MusicTrackResponse> personalFm() {
         return netease.personalFmTracks(requiredCookie());
+    }
+
+    public List<MusicPlaylistSummaryResponse> personalPodcasts(String provider, String source) {
+        requireNetease(provider);
+        return netease.personalPodcasts(source, requiredCookie());
+    }
+
+    public Map<String, Object> setProgramLiked(String provider, String programId, boolean liked) {
+        requireNetease(provider);
+        netease.setProgramLiked(programId, liked, requiredCookie());
+        return Map.of("provider", "netease", "programId", programId, "liked", liked);
+    }
+
+    public List<MusicTrackResponse> likedPrograms(String provider) {
+        requireNetease(provider);
+        return netease.likedPrograms(requiredCookie());
+    }
+
+    public Map<String, Object> programLikeState(String provider, String programId) {
+        requireNetease(provider);
+        return Map.of("programId", programId, "liked", netease.programLiked(programId, requiredCookie()));
     }
 
     public boolean handlesPlaylist(String code) {

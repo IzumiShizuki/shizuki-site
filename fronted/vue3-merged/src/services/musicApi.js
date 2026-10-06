@@ -433,6 +433,31 @@ export async function setMusicSourceTrackLiked(provider, trackId, liked, authori
   return unwrapApiResponse(response);
 }
 
+export async function getMyPodcasts(source, authorizedFetch) {
+  return unwrapApiResponse(await requireAuthorizedFetch(authorizedFetch)(
+    '/api/v1/me/music/source-accounts/netease/podcasts', { method: 'GET', query: { source } }
+  ));
+}
+
+export async function setMusicSourceProgramLiked(provider, programId, liked, authorizedFetch) {
+  return unwrapApiResponse(await requireAuthorizedFetch(authorizedFetch)(
+    `/api/v1/me/music/source-accounts/${encodeURIComponent(provider)}/podcast-likes/${encodeURIComponent(programId)}`,
+    { method: 'PUT', body: { liked: Boolean(liked) } }
+  ));
+}
+
+export async function getMusicSourceProgramLikes(provider, authorizedFetch) {
+  return unwrapApiResponse(await requireAuthorizedFetch(authorizedFetch)(
+    `/api/v1/me/music/source-accounts/${encodeURIComponent(provider)}/podcast-likes`, { method: 'GET' }
+  ));
+}
+
+export async function getMusicSourceProgramLikeState(provider, programId, authorizedFetch) {
+  return unwrapApiResponse(await requireAuthorizedFetch(authorizedFetch)(
+    `/api/v1/me/music/source-accounts/${encodeURIComponent(provider)}/podcast-likes/${encodeURIComponent(programId)}`, { method: 'GET' }
+  ));
+}
+
 export async function getRecommendedPodcasts(options = {}, authorizedFetch) {
   const response = await (typeof authorizedFetch === 'function' ? authorizedFetch : httpRequest)(
     '/api/v1/music/discovery/podcasts', { method: 'GET', query: { q: String(options.q || '').trim() } }

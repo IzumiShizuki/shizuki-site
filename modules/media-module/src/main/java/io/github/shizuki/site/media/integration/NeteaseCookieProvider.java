@@ -139,6 +139,74 @@ public class NeteaseCookieProvider {
         return new MusicPlaylistBundleResponse(podcastSummary(radio, id), tracks);
     }
 
+    public List<MusicPlaylistSummaryResponse> personalPodcasts(String source, String cookie) {
+        String normalizedCookie = normalizeCookie(cookie);
+        if ("created".equals(source)) {
+            Map<String, Object> account = ncmRequest("/user/account", Map.of(), normalizedCookie);
+            String uid = numericId(toStringObjectMap(account.get("profile")).get("userId"));
+            Map<String, Object> payload = ncmRequest("/user/audio", Map.of("uid", uid), normalizedCookie);
+            List<Map<String, Object>> rows = requireRows(payload, "djRadios");
+            // This installed endpoint has no offset parameter. Never present a truncated response as complete.
+            if (Boolean.TRUE.equals(payload.get("hasMore")) || readInt(payload.get("count"), rows.size()) > rows.size()) {
+                throw invalidNcmResponse();
+            }
+            return rows.stream().map(row -> podcastSummary(row, "")).toList();
+        }
+        if (!"subscribed".equals(source)) throw new BusinessException(ErrorCode.BAD_REQUEST, "播客来源无效");
+        Map<String, MusicPlaylistSummaryResponse> result = new LinkedHashMap<>();
+        int offset = 0;
+        boolean more;
+        do {
+            Map<String, Object> payload = ncmRequest("/dj/sublist", Map.of("limit", 100, "offset", offset), normalizedCookie);
+            List<Map<String, Object>> rows = requireRows(payload, "djRadios");
+            for (Map<String, Object> row : rows) {
+                MusicPlaylistSummaryResponse summary = podcastSummary(row, "");
+                result.put(summary.playlistCode(), summary);
+            }
+            offset += rows.size();
+            more = Boolean.TRUE.equals(payload.get("hasMore"));
+            if (more && rows.isEmpty()) throw invalidNcmResponse();
+        } while (more);
+        return List.copyOf(result.values());
+    }
+
+    public void setProgramLiked(String programId, boolean liked, String cookie) {
+        // The selectable voice library uses program favourites, distinct from a public thumbs-up count.
+        ncmRequest("/api", Map.of("uri", liked ? "/api/djprogram/subscribe" : "/api/djprogram/unsubscribe",
+            "data", Map.of("id", numericId(programId)), "crypto", "weapi"), normalizeCookie(cookie));
+    }
+
+    public boolean programLiked(String programId, String cookie) {
+        Map<String, Object> payload = ncmRequest("/dj/program/detail", Map.of("id", numericId(programId)), normalizeCookie(cookie));
+        Object subscribed = toStringObjectMap(payload.get("program")).get("subscribed");
+        if (!(subscribed instanceof Boolean)) throw invalidNcmResponse();
+        return (Boolean) subscribed;
+    }
+
+    public List<MusicTrackResponse> likedPrograms(String cookie) {
+        String normalizedCookie = normalizeCookie(cookie);
+        Map<String, Object> account = ncmRequest("/user/account", Map.of(), normalizedCookie);
+        String uid = numericId(toStringObjectMap(account.get("profile")).get("userId"));
+        Map<String, MusicTrackResponse> tracks = new LinkedHashMap<>();
+        int offset = 0;
+        boolean more;
+        do {
+            Map<String, Object> payload = ncmRequest("/api", Map.of("uri", "/api/djprogram/subscribed/paged",
+                "data", Map.of("uid", uid, "limit", 100, "offset", offset), "crypto", "weapi"), normalizedCookie);
+            List<Map<String, Object>> rows = requireRows(payload, "programs");
+            for (Map<String, Object> program : rows) {
+                Map<String, Object> song = toStringObjectMap(program.get("mainSong"));
+                if (song.isEmpty()) throw invalidNcmResponse();
+                MusicTrackResponse track = toPlatformTrack(song, tracks.size(), program);
+                tracks.put(numericId(program.get("id")), track);
+            }
+            offset += rows.size();
+            more = Boolean.TRUE.equals(payload.get("more"));
+            if (more && rows.isEmpty()) throw invalidNcmResponse();
+        } while (more);
+        return List.copyOf(tracks.values());
+    }
+
     public MusicPlaylistBundleResponse accountPlaylistBundle(String playlistId, String cookie, Long siteUserId) {
         String id = numericId(playlistId);
         Map<String, Object> detail = ncmRequest("/playlist/detail", Map.of("id", id), normalizeCookie(cookie));
@@ -184,7 +252,11 @@ public class NeteaseCookieProvider {
         Map<String, Object> metadata = new LinkedHashMap<>();
         metadata.put("album", readString(album.get("name"), ""));
         metadata.put("durationSec", Math.max(0, readLong(song.getOrDefault("dt", song.get("duration")), 0L) / 1000L));
-        if (!program.isEmpty()) metadata.put("programId", readString(program.get("id"), ""));
+        if (!program.isEmpty()) {
+            metadata.put("programId", numericId(program.get("id")));
+            metadata.put("resourceType", "program");
+            if (program.get("subscribed") instanceof Boolean liked) metadata.put("liked", liked);
+        }
         return new MusicTrackResponse(id, "netease", readString(program.get("name"), readString(song.get("name"), id)),
             artist, readString(program.get("coverUrl"), readString(album.get("picUrl"), "")), "", "", sort, true, "", metadata);
     }
@@ -212,6 +284,8 @@ public class NeteaseCookieProvider {
         try {
             // Keep credentials out of URLs, proxy access logs and exception messages.
             String response = restClient.post().uri(URI.create(ncmBaseUrl + path))
+                // NCM's URL/cookie cache ignores JSON bodies, including body-only credentials and desired state.
+                .header("X-APICACHE-FORCE-FETCH", "true")
                 .contentType(org.springframework.http.MediaType.APPLICATION_JSON).body(body).retrieve().body(String.class);
             Map<String, Object> payload = new com.fasterxml.jackson.databind.ObjectMapper().readValue(response,
                 new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {});

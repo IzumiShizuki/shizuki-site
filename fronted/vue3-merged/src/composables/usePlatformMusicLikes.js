@@ -4,14 +4,17 @@ export function resolveMusicLikeTarget(track) {
   const raw = track && typeof track === 'object' ? track : { trackId: track, provider: 'netease' };
   let provider = String(raw.provider || raw.providerId || raw.sourceRef?.providerId || 'local').trim().toLowerCase();
   if (['qqmusic', 'tencent'].includes(provider)) provider = 'qq';
-  const trackId = String(raw.trackId || raw.track_id || raw.id || raw.sourceRef?.mediaId || '').trim();
-  return { provider, trackId, key: `${provider}:${trackId}` };
+  const programId = String(raw.programId || raw.metadata?.programId || raw.metadata?.program_id || '').trim();
+  const resourceType = programId ? 'program' : 'song';
+  const trackId = programId || String(raw.trackId || raw.track_id || raw.id || raw.sourceRef?.mediaId || '').trim();
+  return { provider, trackId, resourceType, key: resourceType === 'program' ? `${provider}:program:${trackId}` : `${provider}:${trackId}` };
 }
 
 export function usePlatformMusicLikes(options) {
   const likedKeys = ref(new Set());
   const pendingKeys = ref(new Set());
   const error = ref('');
+  const knownPrograms = ref(new Set());
   let accountGeneration = 0;
   let refreshGeneration = 0;
   let mutationGeneration = 0;
@@ -20,6 +23,7 @@ export function usePlatformMusicLikes(options) {
     refreshGeneration += 1;
     likedKeys.value = new Set();
     pendingKeys.value = new Set();
+    knownPrograms.value = new Set();
     error.value = '';
   }
   watch(() => [options.isAuthenticated(), options.getAccountId()], reset, { flush: 'sync' });
@@ -39,7 +43,8 @@ export function usePlatformMusicLikes(options) {
       const ids = await options.api.getMusicSourceLikes('netease', options.getAuthorizedFetch(requestScope.accountId));
       if (!requestScope.current() || version !== refreshGeneration || mutations !== mutationGeneration) return false;
       if (!Array.isArray(ids)) throw new Error('网易云喜欢列表返回异常');
-      likedKeys.value = new Set(ids.map((id) => `netease:${String(id).trim()}`));
+      likedKeys.value = new Set([...likedKeys.value].filter((key) => key.includes(':program:'))
+        .concat(ids.map((id) => `netease:${String(id).trim()}`)));
       error.value = '';
       return true;
     } catch (failure) {
@@ -56,6 +61,21 @@ export function usePlatformMusicLikes(options) {
     return pendingKeys.value.has(resolveMusicLikeTarget(track).key);
   }
 
+  function seedPrograms(tracks) {
+    if (!options.isAuthenticated()) return;
+    const known = new Set(knownPrograms.value);
+    const liked = new Set(likedKeys.value);
+    for (const track of tracks) {
+      const target = resolveMusicLikeTarget(track);
+      const state = track?.metadata?.liked;
+      if (target.resourceType !== 'program' || typeof state !== 'boolean' || known.has(target.key) || pendingKeys.value.has(target.key)) continue;
+      known.add(target.key);
+      if (state) liked.add(target.key);
+    }
+    knownPrograms.value = known;
+    likedKeys.value = liked;
+  }
+
   async function toggle(track) {
     const target = resolveMusicLikeTarget(track);
     if (!target.trackId || isPending(track)) return false;
@@ -68,11 +88,22 @@ export function usePlatformMusicLikes(options) {
       return false;
     }
     const requestScope = scope();
-    const liked = !isLiked(track);
     pendingKeys.value = new Set([...pendingKeys.value, target.key]);
     mutationGeneration += 1;
     try {
-      const response = await options.api.setMusicSourceTrackLiked(target.provider, target.trackId, liked, options.getAuthorizedFetch(requestScope.accountId));
+      const fetch = options.getAuthorizedFetch(requestScope.accountId);
+      if (target.resourceType === 'program' && !knownPrograms.value.has(target.key)) {
+        const state = await options.api.getMusicSourceProgramLikeState(target.provider, target.trackId, fetch);
+        if (!requestScope.current()) return false;
+        if (typeof state?.liked !== 'boolean') throw new Error('网易云声音喜欢状态返回异常');
+        knownPrograms.value = new Set([...knownPrograms.value, target.key]);
+        const next = new Set(likedKeys.value);
+        if (state.liked) next.add(target.key); else next.delete(target.key);
+        likedKeys.value = next;
+      }
+      const liked = !isLiked(track);
+      const action = target.resourceType === 'program' ? options.api.setMusicSourceProgramLiked : options.api.setMusicSourceTrackLiked;
+      const response = await action(target.provider, target.trackId, liked, fetch);
       if (!requestScope.current()) return false;
       if (response?.liked !== liked) throw new Error('网易云未确认喜欢状态，请重试');
       mutationGeneration += 1;
@@ -95,5 +126,5 @@ export function usePlatformMusicLikes(options) {
     }
   }
 
-  return { likedKeys, pendingKeys, error, refresh, reset, isLiked, isPending, toggle };
+  return { likedKeys, pendingKeys, error, refresh, reset, seedPrograms, isLiked, isPending, toggle };
 }

@@ -1583,13 +1583,23 @@ const platformLikes = usePlatformMusicLikes({
   getAuthorizedFetch: createAccountScopedMusicFetch,
   onLogin: goLogin,
   onError: (message) => window.alert(message),
-  onSynced: ({ provider, trackId, liked }) => {
+  onSynced: ({ provider, trackId, key, resourceType, liked }) => {
+    if (resourceType === 'program') {
+      window.dispatchEvent(new CustomEvent('shizuki:podcast-likes-synced', { detail: { provider, programId: trackId, liked } }));
+      return;
+    }
     postToFolia({ type: 'shizuki:track-like-state', provider, trackId, liked });
     window.dispatchEvent(new CustomEvent('shizuki:account-synced', { detail: { provider } }));
     if (sidebarData.value.likedPlaylist) {
       sidebarData.value.likedPlaylist.trackCount = Math.max(0, sidebarData.value.likedPlaylist.trackCount + (liked ? 1 : -1));
     }
-    if (isPlaylistRoute.value && currentPlaylistProfile.value.playlistCode === likedPlaylistCode.value) void reloadCurrentPlaylist();
+    if (!liked && isPlaylistRoute.value && currentPlaylistProfile.value.playlistCode === likedPlaylistCode.value) {
+      playlistBrowseVersion += 1;
+      playlistBrowseTracks.value = playlistBrowseTracks.value.filter((track) => resolveMusicLikeTarget(track).key !== key);
+      playlistBrowseProfile.value = { ...playlistBrowseProfile.value, trackCount: playlistBrowseTracks.value.length };
+      playlistBrowseLoading.value = false;
+      playlistBrowseError.value = '';
+    }
   }
 });
 let sidebarRequestVersion = 0;
@@ -3308,6 +3318,7 @@ async function ensureCurrentRoutePlaylistLoaded(options = {}) {
     if (!isCurrentRequest()) return;
     const profile = normalizePlaylistSummary(payload?.profile || payload?.playlist, playlistCode);
     const tracks = Array.isArray(payload?.tracks) ? payload.tracks.map((item, index) => normalizeApiTrack(item, index)) : [];
+    platformLikes.seedPrograms(tracks);
     playlistBrowseProfile.value = profile;
     playlistBrowseTracks.value = tracks;
     resetPlaylistBrowseVisibleCount(tracks.length);
@@ -3739,6 +3750,7 @@ const musicContext = Object.freeze({
   collectPlaylistTargets,
   currentPlaylistProfile,
   currentPlaylistAllTracks,
+  seedProgramLikes: platformLikes.seedPrograms,
   currentPlaylistTracks,
   currentTrackRevealVersion,
   currentPlaylistHasMore,

@@ -7,7 +7,8 @@ afterEach(() => scopes.splice(0).forEach((scope) => scope.stop()));
 function fixture() {
   const account = ref('user-a');
   const authenticated = ref(true);
-  const api = { getMusicSourceLikes: vi.fn().mockResolvedValue(['42']), setMusicSourceTrackLiked: vi.fn(async (_p, _id, liked) => ({ liked })) };
+  const api = { getMusicSourceLikes: vi.fn().mockResolvedValue(['42']), setMusicSourceTrackLiked: vi.fn(async (_p, _id, liked) => ({ liked })),
+    getMusicSourceProgramLikeState: vi.fn().mockResolvedValue({ liked: true }), setMusicSourceProgramLiked: vi.fn(async (_p, _id, liked) => ({ liked })) };
   const onError = vi.fn();
   const onLogin = vi.fn();
   const onSynced = vi.fn();
@@ -19,6 +20,35 @@ function fixture() {
 const track = { provider: 'netease', trackId: '42' };
 
 describe('account-backed music likes', () => {
+  it('keeps program favourites separate from song likes and reads the current account state for an unknown queued program', async () => {
+    const { engine, api, account } = fixture();
+    const program = { provider: 'netease', trackId: '42', metadata: { programId: '777', liked: true } };
+    await engine.refresh();
+    engine.seedPrograms([program]);
+    expect(engine.isLiked(program)).toBe(true);
+    await engine.toggle(program);
+    expect(api.setMusicSourceProgramLiked).toHaveBeenCalledWith('netease', '777', false, 'user-a');
+    expect(api.setMusicSourceTrackLiked).not.toHaveBeenCalled();
+    expect(engine.isLiked(track)).toBe(true);
+    account.value = 'user-b';
+    expect(engine.isLiked(program)).toBe(false);
+    await engine.toggle(program);
+    expect(api.getMusicSourceProgramLikeState).toHaveBeenCalledWith('netease', '777', 'user-b');
+    expect(api.setMusicSourceProgramLiked).toHaveBeenLastCalledWith('netease', '777', false, 'user-b');
+  });
+
+  it('does not write a program or seed an old queued state after changing accounts during its state read', async () => {
+    const { engine, api, account } = fixture();
+    let resolve;
+    api.getMusicSourceProgramLikeState.mockImplementation(() => new Promise((done) => { resolve = done; }));
+    const program = { provider: 'netease', trackId: '42', metadata: { programId: '777' } };
+    const operation = engine.toggle(program);
+    account.value = 'user-b';
+    resolve({ liked: true });
+    expect(await operation).toBe(false);
+    expect(api.setMusicSourceProgramLiked).not.toHaveBeenCalled();
+    expect(engine.isLiked(program)).toBe(false);
+  });
   it('reads cloud likes with provider identity and sends explicit unlike then like', async () => {
     const { engine, api, onSynced } = fixture();
     await engine.refresh();

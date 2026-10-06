@@ -146,6 +146,23 @@ class MediaServiceImplTest {
     }
 
     @Test
+    void shouldUnlikeCloudLikedTrackThroughLegacyPlaylistRoute() {
+        LoginUserContext.set(new LoginUser(3L, Set.of("USER"), Set.of()));
+        Mockito.when(userMusicClient.getSourceAccountCookiePlaintext(3L, "netease")).thenReturn("MUSIC_U=fixture");
+        var summary = new io.github.shizuki.site.media.response.MusicPlaylistSummaryResponse(
+            "account_netease_5", "我喜欢的音乐", "", "", "LIKED", 3L, false, 1, "netease");
+        Mockito.when(neteaseCookieProvider.accountLibrary("MUSIC_U=fixture", 3L)).thenReturn(
+            new io.github.shizuki.site.media.response.MeMusicLibrarySidebarResponse(null, summary, List.of(), List.of()));
+        Mockito.when(neteaseCookieProvider.accountPlaylistBundle("5", "MUSIC_U=fixture", 3L)).thenReturn(
+            new MusicPlaylistBundleResponse(summary, List.of(new MusicTrackResponse("42", "netease", "喜欢的歌", "", "", "", "", 0, true, "", Map.of()))));
+        MusicPlaylistBundleResponse result = Assertions.assertDoesNotThrow(
+            () -> mediaService.removeMyMusicPlaylistTrack("account_netease_5", "netease", "42"));
+        Assertions.assertTrue(result.tracks().isEmpty());
+        Mockito.verify(neteaseCookieProvider).setTrackLiked("42", false, "MUSIC_U=fixture");
+        Mockito.verifyNoInteractions(userMusicPlaylistTrackMapper);
+    }
+
+    @Test
     void shouldPersistNumericDisabledHomeFlagWhenCreatingAudioAsset() {
         LoginUserContext.set(new LoginUser(3L, Set.of("USER"), Set.of()));
         Mockito.when(objectStorageClient.objectExists("shizuki-private", "ambient/rain.ogg"))
