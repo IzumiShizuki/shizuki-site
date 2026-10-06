@@ -38,8 +38,8 @@ describe('MusicAccountSyncPanel', () => {
 
     expect(wrapper.get('[data-testid="bound-account"]').text()).toContain('MUSIC_U***88');
     expect(wrapper.text()).toContain('已绑定');
-    expect(wrapper.text()).toContain('仅网易云支持账号歌单导入');
-    expect(wrapper.text()).toContain('不会把音频文件下载到电脑');
+    expect(wrapper.text()).toContain('网易云歌单与喜欢实时同步');
+    expect(wrapper.text()).toContain('歌单与喜欢状态直接读取网易云账号');
 
     await wrapper.get('[data-testid="bind-button"]').trigger('click');
     await wrapper.get('[data-testid="sync-button"]').trigger('click');

@@ -11,6 +11,10 @@ The music workspace SHALL expose NetEase podcast recommendations, podcast progra
 - **WHEN** a user opens a recommended NetEase podcast
 - **THEN** its actual programs are listed and selecting a program plays its main song through the shared queue
 
+#### Scenario: Guest podcast discovery
+- **WHEN** a visitor without a website login requests podcast recommendations
+- **THEN** the gateway permits that public discovery request while account playlists, likes, mutations, and personal FM remain authenticated
+
 #### Scenario: Personal FM needs an account
 - **WHEN** an unbound user requests personal FM
 - **THEN** the interface requests account binding and does not present placeholder tracks

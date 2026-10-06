@@ -87,6 +87,42 @@ class AuthEntryFilterTest {
     }
 
     @Test
+    void shouldAllowConfiguredPodcastDiscoveryWithoutToken() throws Exception {
+        AuthService authService = Mockito.mock(AuthService.class);
+        AuthEntryFilter filter = newFilter(authService, configuredGuestPaths());
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/music/discovery/podcasts");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        AtomicBoolean invoked = new AtomicBoolean(false);
+
+        filter.doFilter(request, response, captureGuestChain(invoked));
+
+        assertThat(invoked).isTrue();
+        assertThat(response.getStatus()).isEqualTo(200);
+        Mockito.verifyNoInteractions(authService);
+    }
+
+    @Test
+    void shouldKeepPlatformAccountLibraryLikesAndFmAuthenticated() throws Exception {
+        AuthService authService = Mockito.mock(AuthService.class);
+        AuthEntryFilter filter = newFilter(authService, configuredGuestPaths());
+        for (MockHttpServletRequest request : List.of(
+            new MockHttpServletRequest("GET", "/api/v1/me/music/source-accounts/netease/library"),
+            new MockHttpServletRequest("GET", "/api/v1/me/music/source-accounts/netease/likes"),
+            new MockHttpServletRequest("PUT", "/api/v1/me/music/source-accounts/netease/likes/42"),
+            new MockHttpServletRequest("GET", "/api/v1/me/music/discovery/personal-fm")
+        )) {
+            MockHttpServletResponse response = new MockHttpServletResponse();
+            AtomicBoolean invoked = new AtomicBoolean(false);
+
+            filter.doFilter(request, response, (chainRequest, chainResponse) -> invoked.set(true));
+
+            assertThat(invoked).as(request.getRequestURI()).isFalse();
+            assertThat(response.getStatus()).as(request.getRequestURI()).isEqualTo(401);
+        }
+        Mockito.verifyNoInteractions(authService);
+    }
+
+    @Test
     void shouldDowngradeInvalidTokenOnGuestResolvePlaybackPath() throws Exception {
         AuthService authService = Mockito.mock(AuthService.class);
         Mockito.when(authService.introspectByAccessToken("expired-token"))

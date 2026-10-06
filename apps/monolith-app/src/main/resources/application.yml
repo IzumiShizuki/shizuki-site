@@ -462,6 +462,7 @@ shizuki:
       - /api/v1/music/playlist/default/**
       - /api/v1/music/playlists/**
       - /api/v1/music/library/home
+      - /api/v1/music/discovery/podcasts
       - /api/v1/music/search
       - /api/v1/music/tracks/resolve-playback
       - /api/v1/music/tracks/stream/**

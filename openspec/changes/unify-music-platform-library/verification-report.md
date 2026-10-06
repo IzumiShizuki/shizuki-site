@@ -1,13 +1,13 @@
 # Verification Report: unify-music-platform-library
 
-验证日期：2026-10-06。范围为本仓库的普通音乐界面、平台音乐服务及公开的 Folia 后续补丁。
+验证日期：2026-10-06。范围为本仓库的普通音乐界面、平台音乐服务、公开 Folia 补丁，以及用户随后授权的个人服务器部署。精确运行身份、恢复点和真实线上验收见 [部署报告](deployment-report.md)；下方初始本地验证记录保留。
 
 ## Summary
 
 | Dimension | Status |
 | --- | --- |
-| Completeness | 8/8 任务完成，4/4 需求有实现；质量检查通过，本地提交作为交付步骤 |
-| Correctness | 10/10 场景具备实现和相关行为覆盖；前端 80、后端 77、Folia 5 项测试通过 |
+| Completeness | 11/11 任务完成，4/4 需求有实现；本地交付和授权部署完成 |
+| Correctness | 11/11 场景具备实现和相关覆盖；发布主站 92、媒体 77、网关 13、Folia 5 项测试通过；真实线上资源/账号读取及声音播放通过 |
 | Coherence | 复用现有 NCM、账号凭据和共享播放器；无新依赖或数据库迁移 |
 
 ## Requirement and scenario coverage
@@ -18,6 +18,7 @@
 | Unified account playlists：云端歌单与无可用歌单空态 | `MediaServiceImpl.java:2841` 实时平台侧栏与旧副本去重；`NeteaseCookieProvider.java:142` 实时曲目；`useMiniMusicLibrary.js:178` 无默认歌单与空态 | `MediaServiceImplTest` 保留真实自建歌单且不创建本地 LIKED；客户端真实账号、创建/订阅分类测试；迷你库默认移除、空态及账号切换测试 |
 | Account-backed likes：显式点赞/取消、失败与重复操作 | `usePlatformMusicLikes.js:33` 读取真实列表、`:59` 等待成功结果；`PlatformMusicLibraryService.java` 读取当前用户加密凭据；`PlatformMusicLibraryController.java` 校验显式状态 | 客户端验证 POST、字符串 false、Cookie 仅在 body；服务验证未登录/未绑定/平台不支持；控制器验证取消及缺失 liked；前端验证失败保留、重复点击和错误确认 |
 | Shared identity and account isolation：同 ID 不同平台、请求期间切号、Folia 已完成点赞 | `usePlatformMusicLikes.js` provider:trackId、请求代数与受限 fetch；普通/迷你/移动端库与声音视图取消旧账号响应；`MusicLibraryPage.vue:2735` 只刷新 Folia 读模型并合并重复通知 | 前端 likes、mini、radio 账号切换测试；sourceSync 集成验证 Folia 连续通知只读取一次且零 mutation，普通模式显式取消只写一次；Folia 桥测试真实账号喜欢状态和已确认状态转发 |
+| Guest podcast discovery：公开推荐、账号内容鉴权 | `application.yml` 精确 guest path；`AuthEntryFilterTest.java` 使用真实 YAML 校验公开推荐与受保护账号端点 | 网关 13 项通过；公网推荐/节目 200，账号 library/likes/FM 401 |
 
 ## Validation
 
@@ -64,9 +65,9 @@
 - CRITICAL：无未实现需求或失败的适用检查。
 - WARNING：无已发现的需求/设计偏离。
 - 能力边界：本次完整账号库和真实点赞支持网易云。现有 QQ/酷狗账号代理尚未部署，继续保留已有搜索播放能力，账号操作显示明确不可用。该边界已写入 proposal/design。
-- 验证边界：上游使用客户端契约 fixtures，浏览器使用模拟 API；本次没有操作真实平台账号进行端到端点赞，也没有发布线上应用。发布时仍需用已绑定账号验收登录有效性、资源访问权限和实际平台状态。
+- 验证边界：初始本地浏览器使用模拟 API；随后授权部署已完成，以已有真实登录态验收平台歌单、喜欢读取、声音节目、FM 及普通模式播放。未修改真实平台喜欢列表；点赞和取消的写入行为由契约/集成测试覆盖，不能把真实读取验收等同于真实 mutation 端到端验收。
 - 历史默认歌单管理 API 与用户数据保留兼容；普通和迷你音乐界面不再展示或自动选择默认歌单。
 
 ## Handoff
 
-本地实现、适用检查、OpenSpec 严格校验和本地 Git 提交作为本阶段交付。变更保持未归档；线上发布和更多平台账号服务属于后续范围。提交号可通过 `git log -1` 获取。初始存在的 `TopMenu.vue` 用户修改保持在工作区，不纳入本次提交。浏览器测试服务已停止，依赖 junction 已安全移除；自动审批以策略拦截为由拒绝删除 `.codex/tmp` 验证目录，临时源码、截图、tar 与备份保留在 Git 忽略目录，不影响实现交付。
+实现与授权部署完成，OpenSpec 保持未归档；其他平台账号服务仍为后续范围。实际发布身份和恢复点见部署报告，本地提交号可通过 `git log -1` 获取。`TopMenu.vue` 用户修改保持原样，未纳入发布或提交。原浏览器测试服务已停止，服务器 RAM 发布目录已清理；自动审批策略拦截的本地临时素材/未完成备份传输文件继续保留，不作为恢复点，不影响实现或部署。

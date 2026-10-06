@@ -4,10 +4,10 @@
 
 ## 当前对应源码
 
-2026-10-06 普通音乐页的平台歌单/点赞集成另提供后续补丁 [`shizuki-platform-library.patch`](shizuki-platform-library.patch)，须在下述完整补丁之后应用。它更新 `src/App.tsx` 与 `src/shizukiExternalBridge.ts`，并增加账号红心桥接测试：状态读取真实平台喜欢列表，主站已确认的点赞结果只更新 Folia 界面。下述部署提交与镜像记录为此前发布，本次补丁仅完成本地验证，尚未部署。
+2026-10-06 普通音乐页的平台歌单/点赞集成另提供后续补丁 [`shizuki-platform-library.patch`](shizuki-platform-library.patch)，须在下述完整补丁之后应用。它更新 `src/App.tsx` 与 `src/shizukiExternalBridge.ts`，并增加账号红心桥接测试：状态读取真实平台喜欢列表，主站已确认的点赞结果只更新 Folia 界面。本次已部署至个人服务器，运行提交为 `5bf98f77dfdc77f670ebf17e5c16973b4d30e6c5`，镜像为 `sha256:eb896d63646e3494e8fccdff52428a3271ad7b1fae3712b2b2cf2610e9bddcc2`；198 个预期文件逐项 SHA-256 校验通过。[完整对应源码与 AGPL 许可证](https://site.shizuki.online/music/source/) 随运行版本公开提供，详见 [平台音乐库部署报告](../../openspec/changes/unify-music-platform-library/deployment-report.md)。下述字幕色提交与镜像记录为此前发布。
 
 - 用户 fork：[IzumiShizuki/folia-major](https://github.com/IzumiShizuki/folia-major)，分支 `codex/unify-folia-workspace`。
-- 本次字幕色实现：`c755facfe0d2fb53303aefc977d41f72375e2e07`；线上运行提交（含空白清理）：`1fca2ef15922c55b8655873bbd4d6a4415db828b`。源码 tip：`d8f8725388d94f02ce99da95ecd632f2d1f96a26`，新增部分仅为最终验收文档，应用源码与线上运行提交一致。
+- 此前字幕色实现：`c755facfe0d2fb53303aefc977d41f72375e2e07`；本次发布前运行提交（含空白清理）：`1fca2ef15922c55b8655873bbd4d6a4415db828b`。原 fork 源码 tip：`d8f8725388d94f02ce99da95ecd632f2d1f96a26`，新增部分仅为此前验收文档；此次音乐库桥接以生产基线单独生成 `5bf98f77`，保留原 fork 工作区。
 - 完整差异：[`shizuki-folia-v0.7.11.patch`](shizuki-folia-v0.7.11.patch)，**310,935 bytes; SHA-256 `d79e9167675ca415a9cc80e5ec1f941b1f68eda42770ca5395d36c7a83fa3000`; `76` changed files**。可应用到干净 `6fe68d89`，已实际应用并逐项核对全部目标 Git blob。
 - 此前公开的 **57 个 TS/TSX 源码及测试快照**与完整 fork 逐字节一致；本次另更新两个快照并添加桥接测试，重现这些修改需再应用后续平台音乐库补丁。桥快照 `shizukiExternalBridge.ts` 对应 fork 的 `src/shizukiExternalBridge.ts`。
 - 完整 fork 的本地目录 `D:\program\_codex_deploy\folia-major-v0.7.8-upstream` 保留旧目录名，实际基线为 v0.7.11。旧 `embedded-history-isolation.patch` 仅作历史参考。
@@ -39,9 +39,9 @@
 
 详见 [排查记录](../../openspec/changes/unify-folia-workspace-navigation/diagnosis.md) 与 [最终验收报告](../../openspec/changes/unify-folia-workspace-navigation/verification-report.md)。
 
-本次跟进：[排查记录](../../openspec/changes/fix-folia-color-controls-and-queue-return/diagnosis.md)、[验证与交付报告](../../openspec/changes/fix-folia-color-controls-and-queue-return/verification-report.md)。下方为最终部署身份；文档与公共源码同步提交较运行提交新，但不改变应用源码。
+此前跟进：[排查记录](../../openspec/changes/fix-folia-color-controls-and-queue-return/diagnosis.md)、[验证与交付报告](../../openspec/changes/fix-folia-color-controls-and-queue-return/verification-report.md)。下方保留该次历史部署身份；当前平台音乐库部署身份见本文开头和部署报告。
 
-## 个人服务器部署
+## 2026-10-02 个人服务器部署历史
 
 服务器 `111.228.35.186`；源码 `/opt/folia/folia-major-main`，部署分支 `codex/deploy-shizuki-folia-20261001`，运行实现 `1fca2ef15922c55b8655873bbd4d6a4415db828b`。从干净提交与现有生产 Vite 参数本地构建，逐文件 SHA-256 清单校验运行镜像中的全部 193 个文件，OCI revision 与提交一致。
 
