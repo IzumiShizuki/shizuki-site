@@ -11,5 +11,5 @@
 
 ## 3. Verification and deployment
 
-- [ ] 3.1 Run applicable tests and builds, verify the OpenSpec change, validate strictly and commit the implementation locally.
-- [ ] 3.2 Build an isolated production release, verify a recovery point, deploy, check live unlike and personal podcast behavior, and record delivery evidence.
+- [x] 3.1 Run applicable tests and builds, verify the OpenSpec change, validate strictly and commit the implementation locally.
+- [x] 3.2 Build an isolated production release, verify a recovery point, deploy, check live unlike and personal podcast behavior, and record delivery evidence.
