@@ -147,17 +147,18 @@ describe('MusicLibraryPage stored Folia account entry integration', () => {
 
   it('refreshes a Folia acknowledged like without sending another account mutation', async () => {
     resetMocks({ boundRows: [{ provider: 'netease', bound: true }] });
+    const track = { id: '42', provider: 'netease' };
+    mocked.player.currentTrack.value = track;
     const wrapper = await mountPage();
     try {
       const context = wrapper.vm.$.provides[MUSIC_LIBRARY_CONTEXT_KEY];
-      const track = { id: '42', provider: 'netease' };
       mocked.api.getMusicSourceLikes.mockClear();
       mocked.api.getMusicSourceLikes.mockResolvedValue(['42']);
       window.dispatchEvent(new MessageEvent('message', {
-        data: { type: 'shizuki:status', track, liked: true }
+        data: { type: 'shizuki:status', track, liked: true, sessionVersion: 0 }
       }));
       window.dispatchEvent(new MessageEvent('message', {
-        data: { type: 'shizuki:status', track, liked: true }
+        data: { type: 'shizuki:status', track, liked: true, sessionVersion: 0 }
       }));
       await flushPromises();
       expect(context.isTrackLiked(track)).toBe(true);
