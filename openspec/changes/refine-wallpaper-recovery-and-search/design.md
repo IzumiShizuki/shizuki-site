@@ -55,3 +55,9 @@ Alternative: copying Wallpaper Engine's exact blue/black palette would discard s
 ## Migration Plan
 
 No database migration or new dependency is expected. Migrate compatible existing browser snapshots defensively. Deliver locally committed implementation and verification evidence; deployment requires a separate authorized task. Rollback is a code revert with safe reading of existing browser cache versions.
+
+## Authorized release continuation (2026-10-07)
+
+The user explicitly requested redeployment after a read-only audit found the live `cd69da6a` music/podcast release omitted the wallpaper merge. Merge the exact verified master commit `bf793d5e` into that release branch so ancestry and executable contents both retain wallpaper and current cloud-music behavior. The merge also carries the existing wallpaper byte-progress prerequisite and its additive database columns. Preserve unrelated local edits and all existing private production settings; do not push Git or rebuild the unchanged Folia service.
+
+Use fresh backups and frozen current images before switching. The server root disk is constrained, so prepare full snapshots and artifact build contexts in RAM and, if necessary, verify a complete snapshot in the existing private local backup area before discarding its RAM copy. Keep a persistent database/source rollback checkpoint and manifest on the server. A rollback to the current application can retain the additive nullable byte-progress columns; restoring a complete database snapshot is a separate recovery operation. Confirm actual compiled wallpaper classes, frontend artifact hashes, source ancestry and migration state after switching.

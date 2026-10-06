@@ -1,5 +1,22 @@
 # Verification Report: refine-wallpaper-recovery-and-search
 
+## Combined release verification (2026-10-07)
+
+The authorized release merges exact master commit `bf793d5e76d244ce3cf07bc791ac27f19cd654e8` with the currently deployed music/podcast code `cd69da6adc2370174f3479cbc3b1741da1b10db6` in the existing clean managed release worktree. The merge has no conflicts. Wallpaper discovery/cache/import implementation comes from the verified master merge; the current music page, cloud provider, authentication configuration and Folia product implementation have no staged differences from the preceding release. The user's unrelated main-worktree `TopMenu.vue` edit remains outside build inputs.
+
+Completeness/correctness/coherence: all nine wallpaper requirements and nineteen scenarios retain the implementation/test mapping below and in the verified master acceptance report. The existing byte-progress prerequisite is included with its three migration copies, model/response fields and application progress display. No additional implementation or dependency changes were necessary for the combined release.
+
+Fresh acceptance on the merge result:
+
+- Full frontend suite: 255 test files, 1,585 tests passed, including wallpaper cache/session/API/discovery and current music/podcast integration tests.
+- Focused backend: 101 media tests passed across the downloader, wallpaper service/preview/cache/channel and cloud-library/controller suites; 13 monolith authentication-filter tests passed. No test was excluded or skipped in these selected suites.
+- Production Vite build passed using current production frontend settings; its existing large-chunk advisory remains. Java 17 offline Maven monolith package with compilation/test compilation passed.
+- The inherited Obsidian publisher's 19 existing Node tests passed; the tool is not installed or published by this release.
+
+These fresh checks verify the combined code and artifacts. Prior desktop/mobile and recovery browser evidence belongs to the exact wallpaper master merge; a new logged-in production browser run and a successful real SteamCMD download are not claimed. Live release identity, successful migration 1015, HTTP acceptance and the verified fresh full recovery checkpoint are recorded in `deployment-report.md`. All 26 tasks are complete.
+
+Cleanup handoff: automatic approval review rejected the checked PowerShell recursive deletion of the newly created incomplete optional off-host copy at `D:/program/_codex_deploy/private-backups/wallpaper-release-20261007-cd69da6a`, with reason `blocked by policy`. The incomplete copy remains marked `INCOMPLETE` and is not a verified restore point. Do not retry its deletion through another tool. The complete fresh server restore point has independently verified application, configuration, database and all configured named-volume archives.
+
 ## Summary
 
 | Dimension | Status |

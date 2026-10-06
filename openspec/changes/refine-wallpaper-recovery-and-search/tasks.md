@@ -28,6 +28,23 @@
 - [x] 5.3 Produce an OpenSpec verification report mapping requirements to implementation/tests with measurement evidence and explicit production Steam/upstream verification limits.
 - [x] 5.4 Update tasks, run strict OpenSpec validation, clean task temporary files and commit all scoped changes locally with the specified author; leave a clean branch without push.
 
+## 6. Master merge and release-candidate acceptance
+
+- [x] 6.1 Merge the frozen wallpaper handoff commit `f66d3ceeeb46a6a42b42a9cc82b4f8ef382148d9` into the clean master worktree; keep all nine unrelated Folia/music conflict files at the pre-merge master versions.
+- [x] 6.2 Preserve the wallpaper byte-progress prerequisite and verify the extra `App.vue` changes against the byte-progress commit and startup-recovery implementation.
+- [x] 6.3 Run the merged full frontend suite and production build with `VITE_GATEWAY_BASE_URL=/`.
+- [x] 6.4 Run the existing Obsidian publisher Node tests, affected backend tests/reactor checks, and Java 17 monolith package build.
+- [x] 6.5 Repeat wallpaper recovery and desktop discovery browser acceptance against the merge result; verify master music fixes remain unchanged.
+- [x] 6.6 Record merge and artifact evidence in `merge-acceptance-report.md`, run strict OpenSpec validation, and create the local merge commit without pushing or deploying.
+
 ## Delivery notes
 
-User authorization covers local implementation and acceptance by Luna. A successful authenticated download on the production server requires a separately established environment and must not be asserted from mocks. Record any external follow-up here and in verification-report.md; it does not replace local regression acceptance.
+The initial local master merge was verified as release preparation. The explicitly authorized combined release was subsequently deployed on 2026-10-07; see `deployment-report.md`. No Git push was performed. A successful production Steam download was not verified; local mock/fake-process acceptance does not establish live account or upstream behavior.
+
+## 7. Authorized combined production release (2026-10-07)
+
+- [x] 7.1 Merge exact commit `bf793d5e76d244ce3cf07bc791ac27f19cd654e8` into the current music/podcast release; verify both wallpaper and deployed music commits remain ancestors and preserve unrelated user edits.
+- [x] 7.2 Run the combined frontend suite/build, affected wallpaper and music backend tests, monolith auth checks, and Java 17 package; verify OpenSpec contracts against the merged artifacts.
+- [x] 7.3 Create and verify a fresh recoverable production snapshot, database backup, frozen current images, and source rollback archive within available server capacity.
+- [x] 7.4 Deploy verified frontend/backend artifacts to `111.228.35.186`, including the byte-progress prerequisite; verify runtime identity, database schema, public wallpaper discovery and retained music/podcast APIs.
+- [x] 7.5 Record release identity, acceptance limits and recovery instructions; update tasks, run strict OpenSpec validation and commit the delivery record locally without pushing.
