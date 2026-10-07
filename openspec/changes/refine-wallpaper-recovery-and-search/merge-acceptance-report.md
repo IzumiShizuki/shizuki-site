@@ -1,5 +1,7 @@
 # Master Merge and Release-Candidate Acceptance
 
+Subsequent delivery: the user authorized a combined wallpaper/music redeployment on 2026-10-07. Exact master merge `bf793d5e` and current production music code `cd69da6a` are ancestors of deployed code `a3f9225d`; see `deployment-report.md` for fresh acceptance and recovery evidence. The remaining sections preserve the original master-merge acceptance record.
+
 ## Merge plan and scope
 
 - Target worktree: `D:/program/_codex_deploy/shizuki-site-folia-release-candidate`.

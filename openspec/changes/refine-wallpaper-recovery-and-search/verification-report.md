@@ -13,7 +13,9 @@ Fresh acceptance on the merge result:
 - Production Vite build passed using current production frontend settings; its existing large-chunk advisory remains. Java 17 offline Maven monolith package with compilation/test compilation passed.
 - The inherited Obsidian publisher's 19 existing Node tests passed; the tool is not installed or published by this release.
 
-These fresh checks verify the combined code and artifacts. Prior desktop/mobile and recovery browser evidence belongs to the exact wallpaper master merge; a new logged-in production browser run and a successful real SteamCMD download are not claimed. Live release identity, migration and HTTP acceptance are recorded separately in the deployment report after switching. Deployment and recovery tasks remain pending until their evidence is available.
+These fresh checks verify the combined code and artifacts. Prior desktop/mobile and recovery browser evidence belongs to the exact wallpaper master merge; a new logged-in production browser run and a successful real SteamCMD download are not claimed. Live release identity, successful migration 1015, HTTP acceptance and the verified fresh full recovery checkpoint are recorded in `deployment-report.md`. All 26 tasks are complete.
+
+Cleanup handoff: automatic approval review rejected the checked PowerShell recursive deletion of the newly created incomplete optional off-host copy at `D:/program/_codex_deploy/private-backups/wallpaper-release-20261007-cd69da6a`, with reason `blocked by policy`. The incomplete copy remains marked `INCOMPLETE` and is not a verified restore point. Do not retry its deletion through another tool. The complete fresh server restore point has independently verified application, configuration, database and all configured named-volume archives.
 
 ## Summary
 
