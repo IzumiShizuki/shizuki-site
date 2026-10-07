@@ -10,6 +10,11 @@ function pad(value) {
 export function parseCalendarDate(value) {
   const raw = String(value || '').trim();
   if (!raw) return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    const [year, month, day] = raw.split('-').map(Number);
+    const local = new Date(year, month - 1, day);
+    return dateKey(local) === raw ? local : null;
+  }
   const ts = Date.parse(raw);
   if (!Number.isFinite(ts)) return null;
   return new Date(ts);
@@ -110,11 +115,12 @@ export function buildCalendarWeeks(currentMonth, entries, options = {}) {
     const rangeBars = (Array.isArray(entries) ? entries : [])
       .filter((item) => item.isRange)
       .map((item) => {
-        const start = maxDate(item.start, weekStart);
-        const end = minDate(item.end, weekEnd);
+        const start = maxDate(new Date(item.start.getFullYear(), item.start.getMonth(), item.start.getDate()), weekStart);
+        const end = minDate(new Date(item.end.getFullYear(), item.end.getMonth(), item.end.getDate()), weekEnd);
         if (!start || !end || start.getTime() > end.getTime()) return null;
         return {
           key: `${item.key}_${dateKey(weekStart)}`,
+          date: dateKey(start),
           startColumn: weekdayColumn(start),
           endColumn: weekdayColumn(end) + 1,
           title: item.title,

@@ -23,7 +23,8 @@
     </LightAppHeaderPortal>
     <p class="calendar-gesture-hint">上下滚动或拖动可切换月份，日历始终展示最近 6 周。</p>
 
-    <p v-if="errorText" class="error-text">{{ errorText }}</p>
+    <p v-if="loading" role="status">正在同步日历事项…</p>
+    <p v-if="errorText" class="error-text" role="alert">{{ errorText }}</p>
 
     <div class="weekday-row">
       <span v-for="name in weekdayNames" :key="name">{{ name }}</span>
@@ -39,15 +40,17 @@
     >
       <article v-for="week in calendarWeeks" :key="week.key" class="calendar-week liquid-material">
         <div class="week-range-layer">
-          <span
+          <button
             v-for="bar in week.rangeBars"
             :key="bar.key"
             class="week-range-item"
+            type="button"
             :style="{ gridColumn: `${bar.startColumn} / ${bar.endColumn}` }"
             :title="bar.tooltip"
+            @click="selectedDate = bar.date"
           >
             {{ bar.title }}
-          </span>
+          </button>
         </div>
         <div class="week-day-grid">
           <section
@@ -58,38 +61,32 @@
             :aria-current="day.isToday ? 'date' : undefined"
           >
             <header>
-              <span class="day-number">{{ day.dayOfMonth }}</span>
+              <button class="day-number" type="button" :aria-label="`${day.isoDate}，查看全部事项与截止时间`" @click="selectedDate = day.isoDate">{{ day.dayOfMonth }}</button>
               <span v-if="day.isToday" class="today-badge">今天</span>
             </header>
             <ol class="day-item-list">
               <li v-for="(item, index) in day.singleItems" :key="item.key">
-                {{ index + 1 }} {{ item.label }}
+                <button class="day-item" type="button" @click="selectedDate = day.isoDate">{{ index + 1 }} {{ item.label }}</button>
               </li>
             </ol>
           </section>
         </div>
       </article>
     </section>
+    <CalendarDateDetails v-if="selectedDate" :date="selectedDate" :entries="calendarEntries" :loading="loading" :error="errorText" :now="today" @close="selectedDate = ''" @retry="hydrate" />
   </section>
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
-import { useAuthSession } from '../../../composables/useAuthSession';
-import {
-  listLightAppProjects,
-  listLightAppSchedules,
-  listLightAppTasks,
-  listLightAppTodos
-} from '../../../services/lightAppsApi';
-import { readGuestLightAppData, readRemoteLightAppCache, writeRemoteLightAppCache } from '../../../utils/lightAppsDataStore';
+import { computed, onBeforeUnmount, ref } from 'vue';
+import { useTimePrismCalendar } from '../../../composables/useTimePrismCalendar';
+import CalendarDateDetails from './CalendarDateDetails.vue';
 import {
   buildCalendarWeeks,
   CALENDAR_WEEKDAY_NAMES,
   formatCalendarMonthLabel,
   formatCalendarTodayLabel,
   normalizeCalendarMonth,
-  parseCalendarDate,
   resolveCalendarPointerMonthDelta,
   resolveCalendarWheelMonthDelta
 } from './timePrismCalendarState';
@@ -102,15 +99,10 @@ const props = defineProps({
   }
 });
 
-const auth = useAuthSession();
-const errorText = ref('');
-const today = ref(new Date());
+const { entries: calendarEntries, loading, error: errorText, now: today, refresh: hydrate } = useTimePrismCalendar();
+const selectedDate = ref('');
 const currentMonth = ref(normalizeCalendarMonth(today.value));
 const calendarBodyRef = ref(null);
-const todos = ref([]);
-const tasks = ref([]);
-const schedules = ref([]);
-const projects = ref([]);
 const pointerGesture = ref({
   pointerId: 0,
   startX: 0,
@@ -128,53 +120,6 @@ const monthLabel = computed(() => {
   return formatCalendarMonthLabel(currentMonth.value);
 });
 const todayLabel = computed(() => formatCalendarTodayLabel(today.value));
-
-const projectMap = computed(() => {
-  const map = new Map();
-  (Array.isArray(projects.value) ? projects.value : []).forEach((item) => {
-    map.set(Number(item.projectId), item);
-  });
-  return map;
-});
-
-const calendarEntries = computed(() => {
-  const entries = [];
-  const appendItem = (raw, sourceType) => {
-    const showOnCalendar = raw?.showOnCalendar !== false;
-    if (!showOnCalendar) return;
-
-    const timingMode = String(raw?.timingMode || (sourceType === 'schedule' ? 'RANGE' : 'DEADLINE')).toUpperCase();
-    const timePrecision = String(raw?.timePrecision || 'MINUTE').toUpperCase();
-    const dueAt = parseDate(raw?.dueAt || raw?.endAt);
-    const rangeStartAt = parseDate(raw?.rangeStartAt || raw?.startAt);
-    const title = String(raw?.title || '').trim();
-    if (!title) return;
-
-    const fallbackStart = sourceType === 'schedule' ? rangeStartAt : dueAt;
-    const fallbackEnd = sourceType === 'schedule' ? dueAt : dueAt;
-    const start = timingMode === 'RANGE' ? rangeStartAt || fallbackStart : dueAt || fallbackEnd;
-    const end = timingMode === 'RANGE' ? dueAt || fallbackEnd : dueAt || fallbackEnd;
-    if (!start || !end) return;
-
-    const projectId = Number(raw?.projectId) || null;
-    const projectName = projectId ? projectMap.value.get(projectId)?.name || `项目#${projectId}` : '无项目';
-    entries.push({
-      key: `${sourceType}_${raw?.todoId ?? raw?.taskId ?? raw?.scheduleId ?? `${title}_${raw?.dueAt || raw?.endAt || raw?.rangeStartAt || raw?.startAt || ''}`}`,
-      sourceType,
-      title,
-      projectName,
-      timePrecision,
-      start,
-      end,
-      isRange: timingMode === 'RANGE'
-    });
-  };
-
-  (Array.isArray(todos.value) ? todos.value : []).forEach((item) => appendItem(item, 'todo'));
-  (Array.isArray(tasks.value) ? tasks.value : []).forEach((item) => appendItem(item, 'task'));
-  (Array.isArray(schedules.value) ? schedules.value : []).forEach((item) => appendItem(item, 'schedule'));
-  return entries;
-});
 
 const calendarWeeks = computed(() => {
   return buildCalendarWeeks(currentMonth.value, calendarEntries.value, {
@@ -232,6 +177,7 @@ function handleCalendarWheel(event) {
 }
 
 function handleCalendarPointerDown(event) {
+  if (event.target?.closest('button')) return;
   if (event.pointerType === 'mouse' && event.button !== 0) return;
   pointerGesture.value.pointerId = event.pointerId;
   pointerGesture.value.startX = event.clientX;
@@ -240,6 +186,7 @@ function handleCalendarPointerDown(event) {
 }
 
 function handleCalendarPointerUp(event) {
+  if (!pointerGesture.value.pointerId) return;
   if (pointerGesture.value.pointerId && event.pointerId !== pointerGesture.value.pointerId) return;
   const offset = resolveCalendarPointerMonthDelta({
     startX: pointerGesture.value.startX,
@@ -251,49 +198,6 @@ function handleCalendarPointerUp(event) {
   resetCalendarPointerGesture();
   applyCalendarMonthDelta(offset);
 }
-
-async function hydrate() {
-  errorText.value = '';
-  await auth.ensureReady();
-  if (!auth.isAuthenticated.value) {
-    const guest = readGuestLightAppData();
-    projects.value = Array.isArray(guest.projects) ? guest.projects : [];
-    todos.value = Array.isArray(guest.todos) ? guest.todos : [];
-    tasks.value = Array.isArray(guest.tasks) ? guest.tasks : [];
-    schedules.value = Array.isArray(guest.schedules) ? guest.schedules : [];
-    return;
-  }
-
-  try {
-    const [projectList, todoList, taskList, scheduleList] = await Promise.all([
-      listLightAppProjects(auth.authorizedFetch),
-      listLightAppTodos(auth.authorizedFetch),
-      listLightAppTasks(auth.authorizedFetch),
-      listLightAppSchedules(auth.authorizedFetch)
-    ]);
-    projects.value = Array.isArray(projectList) ? projectList : [];
-    todos.value = Array.isArray(todoList) ? todoList : [];
-    tasks.value = Array.isArray(taskList) ? taskList : [];
-    schedules.value = Array.isArray(scheduleList) ? scheduleList : [];
-    writeRemoteLightAppCache({
-      projects: projects.value,
-      todos: todos.value,
-      tasks: tasks.value,
-      schedules: schedules.value
-    });
-  } catch (error) {
-    const cache = readRemoteLightAppCache();
-    projects.value = Array.isArray(cache.projects) ? cache.projects : [];
-    todos.value = Array.isArray(cache.todos) ? cache.todos : [];
-    tasks.value = Array.isArray(cache.tasks) ? cache.tasks : [];
-    schedules.value = Array.isArray(cache.schedules) ? cache.schedules : [];
-    errorText.value = error?.message || '日历数据加载失败，已回退缓存数据。';
-  }
-}
-
-onMounted(() => {
-  hydrate();
-});
 
 onBeforeUnmount(() => {
   resetWheelGesture();
@@ -407,6 +311,9 @@ onBeforeUnmount(() => {
 }
 
 .week-range-item {
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
   border-radius: 8px;
   background: rgba(106, 169, 255, 0.24);
   border: 1px solid rgba(106, 169, 255, 0.5);
@@ -455,6 +362,10 @@ onBeforeUnmount(() => {
 .day-number {
   font-weight: 600;
 }
+.day-number, .day-item { color: inherit; border: 0; background: transparent; padding: 0; text-align: left; cursor: pointer; font: inherit; }
+.day-number { min-width: 28px; min-height: 24px; font-weight: 600; }
+.day-item { display: block; width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+button:focus-visible { outline: 2px solid var(--theme-focus-ring, rgb(var(--accent-readable-rgb))); outline-offset: 2px; }
 
 .today-badge {
   border-radius: 999px;

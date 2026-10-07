@@ -1,5 +1,17 @@
 const GUEST_DATA_KEY = 'shizuki.lightApps.guest.v1';
 const REMOTE_CACHE_KEY = 'shizuki.lightApps.remoteCache.v1';
+export const LIGHT_APP_DATA_CHANGED_EVENT = 'shizuki:light-app-data-changed';
+const CALENDAR_CACHE_PREFIX = 'shizuki.lightApps.calendarCache.v1.';
+
+export function isLightAppDataStorageKey(key) {
+  return key === null || key === GUEST_DATA_KEY || key === REMOTE_CACHE_KEY;
+}
+
+function notifyDataChanged(key) {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent(LIGHT_APP_DATA_CHANGED_EVENT, { detail: { key } }));
+  }
+}
 
 const DEFAULT_TASK_COLUMNS = Object.freeze([
   { columnCode: 'todo', title: '待处理', sortNum: 10, enabled: true },
@@ -538,7 +550,9 @@ export function readGuestLightAppData() {
 }
 
 export function writeGuestLightAppData(data) {
-  return writeStorageJson(GUEST_DATA_KEY, data);
+  const result = writeStorageJson(GUEST_DATA_KEY, data);
+  notifyDataChanged(GUEST_DATA_KEY);
+  return result;
 }
 
 export function updateGuestLightAppData(mutator) {
@@ -558,5 +572,15 @@ export function writeRemoteLightAppCache(partial) {
     ...current,
     ...source
   };
-  return writeStorageJson(REMOTE_CACHE_KEY, merged);
+  const result = writeStorageJson(REMOTE_CACHE_KEY, merged);
+  notifyDataChanged(REMOTE_CACHE_KEY);
+  return result;
+}
+
+export function readLightAppCalendarCache(userId) {
+  return readStorageJson(CALENDAR_CACHE_PREFIX + String(userId));
+}
+
+export function writeLightAppCalendarCache(userId, data) {
+  return writeStorageJson(CALENDAR_CACHE_PREFIX + String(userId), data);
 }

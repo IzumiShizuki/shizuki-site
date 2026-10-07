@@ -334,6 +334,9 @@ describe('BlogListPage category panel', () => {
     expect(publishedDay.attributes('aria-label')).toContain('2 篇公开文章');
     await publishedDay.trigger('click');
     await settle();
+    expect(wrapper.find('.calendar-active-filter').exists()).toBe(false);
+    document.body.querySelector('.calendar-details .article-summary button').click();
+    await settle();
 
     const selectedDate = publishedDay.attributes('aria-label').match(/\d{4}-\d{2}-\d{2}/)[0];
     expect(wrapper.get('.calendar-active-filter').text()).toContain(selectedDate);
@@ -455,12 +458,14 @@ describe('BlogListPage category panel', () => {
     const drawer = document.body.querySelector('[data-auxiliary-drawer]');
     expect(drawer).not.toBeNull();
     expect(drawer.textContent).toContain('分类筛选');
-    expect(drawer.textContent).toContain('文章日历');
+    expect(drawer.textContent).toContain('我的事项');
     expect(drawer.textContent).toContain('Shizuki');
     expect(drawer.textContent).toContain('站点天气');
     expect(drawer.textContent).toContain('今日一言');
 
     drawer.querySelector('.calendar-day.has-posts').click();
+    await settle();
+    document.body.querySelector('.calendar-details .article-summary button').click();
     await settle();
     expect(wrapper.get('.blog-auxiliary-trigger').attributes('aria-expanded')).toBe('false');
     expect(mocked.listPosts.mock.calls.at(-1)[0].publishedFrom).toMatch(/T00:00:00\.000Z$/);

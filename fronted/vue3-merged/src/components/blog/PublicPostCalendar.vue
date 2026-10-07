@@ -1,7 +1,7 @@
 <template>
-  <section class="post-calendar" aria-label="按发布日期浏览文章">
+  <section class="post-calendar" aria-label="文章与个人事项日历">
     <header class="calendar-heading">
-      <strong>文章日历</strong>
+      <strong>日历</strong>
       <span>{{ monthLabel }}</span>
     </header>
     <div class="calendar-actions" aria-label="切换月份">
@@ -21,7 +21,8 @@
       {{ error }}
       <button type="button" @click="load">重试</button>
     </p>
-    <template v-else>
+    <p class="calendar-legend"><span>文章数量</span><span><i aria-hidden="true"></i> 我的事项</span></p>
+    <p v-if="personalError" class="calendar-message" role="alert">{{ personalError }} <button type="button" @click="refresh">重试</button></p>
       <div class="calendar-week" aria-hidden="true">
         <span v-for="day in weekdays" :key="day">{{ day }}</span>
       </div>
@@ -29,40 +30,47 @@
         <span v-for="blank in firstWeekday" :key="'blank-' + blank" aria-hidden="true"></span>
         <template v-for="day in dayCount" :key="day">
           <button
-            v-if="counts[dateKey(day)]"
             type="button"
-            class="calendar-day has-posts"
-            :class="{ selected: selectedDate === dateKey(day), today: todayKey === dateKey(day) }"
-            :aria-label="dayLabel(day, counts[dateKey(day)])"
-            :aria-pressed="selectedDate === dateKey(day)"
-            :aria-current="todayKey === dateKey(day) ? 'date' : undefined"
-            @click="$emit('select', dateKey(day))"
-          >
-            <span>{{ day }}</span><small>{{ counts[dateKey(day)] }}</small>
-          </button>
-          <span
-            v-else
             class="calendar-day"
-            :class="{ today: todayKey === dateKey(day) }"
-            :aria-label="dayLabel(day, 0)"
+            :class="{ 'has-posts': counts[dateKey(day)], 'has-items': personalCounts[dateKey(day)], selected: (detailDate || selectedDate) === dateKey(day), today: todayKey === dateKey(day) }"
+            :aria-label="dayLabel(day, counts[dateKey(day)])"
+            :aria-pressed="(detailDate || selectedDate) === dateKey(day)"
             :aria-current="todayKey === dateKey(day) ? 'date' : undefined"
-          >{{ day }}</span>
+            @click="detailDate = dateKey(day)"
+          >
+            <span>{{ day }}</span><small v-if="counts[dateKey(day)]">{{ counts[dateKey(day)] }}</small><i v-if="personalCounts[dateKey(day)]" class="personal-dot" aria-hidden="true"></i>
+          </button>
         </template>
       </div>
-      <p v-if="!hasPosts" class="calendar-message">本月暂无公开文章</p>
-    </template>
+      <p v-if="!loading && !error && !hasPosts" class="calendar-message">本月暂无公开文章</p>
+    <CalendarDateDetails
+      v-if="detailDate"
+      :date="detailDate"
+      :entries="entries"
+      :post-count="counts[detailDate] || 0"
+      :loading="personalLoading"
+      :error="personalError"
+      :now="now"
+      @close="detailDate = ''"
+      @retry="refresh"
+      @view-posts="viewPosts"
+    />
   </section>
 </template>
 
 <script setup>
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { getPostPublicationCalendar } from '../../services/blogApi';
+import { useTimePrismCalendar } from '../../composables/useTimePrismCalendar';
+import CalendarDateDetails from '../lightapps/timeprism/CalendarDateDetails.vue';
+import { calendarEntriesForDate } from '../lightapps/timeprism/timePrismCalendarEntries';
 
 const props = defineProps({ selectedDate: { type: String, default: '' } });
-defineEmits(['select', 'clear']);
+const emit = defineEmits(['select', 'clear']);
+const { entries, loading: personalLoading, error: personalError, now, refresh } = useTimePrismCalendar();
+const detailDate = ref('');
 
 const cursor = ref(new Date());
-const today = new Date();
 const counts = ref({});
 const loading = ref(false);
 const error = ref('');
@@ -73,16 +81,25 @@ const monthKey = computed(() => cursor.value.getFullYear() + '-' + String(cursor
 const monthLabel = computed(() => cursor.value.getFullYear() + ' 年 ' + (cursor.value.getMonth() + 1) + ' 月');
 const dayCount = computed(() => new Date(cursor.value.getFullYear(), cursor.value.getMonth() + 1, 0).getDate());
 const firstWeekday = computed(() => new Date(cursor.value.getFullYear(), cursor.value.getMonth(), 1).getDay());
-const todayKey = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0');
+const todayKey = computed(() => now.value.getFullYear() + '-' + String(now.value.getMonth() + 1).padStart(2, '0') + '-' + String(now.value.getDate()).padStart(2, '0'));
 const hasPosts = computed(() => Object.values(counts.value).some((count) => count > 0));
+const personalCounts = computed(() => Object.fromEntries(Array.from({ length: dayCount.value }, (_, index) => {
+  const key = dateKey(index + 1);
+  return [key, calendarEntriesForDate(entries.value, key).length];
+})));
+
+function viewPosts(date) {
+  detailDate.value = '';
+  emit('select', date);
+}
 
 function dateKey(day) {
   return monthKey.value + '-' + String(day).padStart(2, '0');
 }
 
 function dayLabel(day, count) {
-  const prefix = todayKey === dateKey(day) ? '今天，' : '';
-  return prefix + dateKey(day) + '，' + (count ? count + ' 篇公开文章' : '没有公开文章');
+  const prefix = todayKey.value === dateKey(day) ? '今天，' : '';
+  return prefix + dateKey(day) + '，' + (count ? count + ' 篇公开文章' : '没有公开文章') + `，${personalCounts.value[dateKey(day)] || 0} 项个人事项，查看详情`;
 }
 
 async function load() {
@@ -162,6 +179,9 @@ onBeforeUnmount(() => { requestSequence += 1; });
 }
 .calendar-week { color: var(--theme-text-tertiary); font-size: 9px; }
 .calendar-day {
+  position: relative;
+  background: transparent;
+  cursor: pointer;
   min-width: 0;
   min-height: 23px;
   display: grid;
@@ -178,6 +198,11 @@ onBeforeUnmount(() => { requestSequence += 1; });
   background: rgba(var(--accent-rgb), 0.15);
   cursor: pointer;
 }
+.calendar-day.has-items { background: rgba(var(--accent-rgb), 0.12); }
+.personal-dot, .calendar-legend i { width: 4px; height: 4px; border-radius: 50%; background: rgb(var(--accent-readable-rgb)); }
+.personal-dot { position: absolute; left: 2px; bottom: 2px; }
+.calendar-legend { margin: 0; display: flex; justify-content: space-between; gap: 4px; font-size: 9px; }
+.calendar-legend span { display: inline-flex; align-items: center; gap: 3px; }
 .calendar-day.today { box-shadow: inset 0 0 0 1px var(--theme-text-primary); }
 .calendar-day.selected { outline: 2px solid rgb(var(--accent-readable-rgb)); outline-offset: 1px; }
 .calendar-day small { position: absolute; right: 1px; bottom: 0; font-size: 7px; }
