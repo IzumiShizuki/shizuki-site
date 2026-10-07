@@ -72,6 +72,10 @@ function isSectionOpen(sectionKey) {
   align-self: start;
 }
 
+.section-accordion :deep(.section-item[data-section-key='daily-art']) {
+  grid-column: 1 / -1;
+}
+
 .section-accordion :deep(.section-item[data-section-key='overview']),
 .section-accordion :deep(.section-item[data-section-key='recent']),
 .section-accordion :deep(.section-item[data-section-key='avatar']),

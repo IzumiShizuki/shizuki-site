@@ -15,6 +15,10 @@
     </header>
 
     <section class="profile-section m-card">
+      <DailyArtPanel id-prefix="mobile-daily-art" />
+    </section>
+
+    <section class="profile-section m-card">
       <h2 class="section-label">外观</h2>
       <div class="setting-row">
         <div class="row-main">
@@ -89,6 +93,7 @@ import { useUiPreferences } from '../../composables/useUiPreferences';
 import { getApiBaseUrl, getDefaultApiBaseUrl, setApiBaseUrl } from '../../services/apiBase';
 import { writeMobileShellPreference } from '../mobileMode';
 import { useMobileShell } from '../mobileShellContext';
+import DailyArtPanel from '../../components/profile/DailyArtPanel.vue';
 
 const router = useRouter();
 const shell = useMobileShell();

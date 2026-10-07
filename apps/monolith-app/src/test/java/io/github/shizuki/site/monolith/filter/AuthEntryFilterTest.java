@@ -288,6 +288,29 @@ class AuthEntryFilterTest {
         return newFilter(authService, guestPaths, new GuestAuthorTokenService("test-guest-author-secret", 3600L));
     }
 
+    @Test
+    void shouldExposeOnlyDailyArtworkPreviewWithoutAuthentication() throws Exception {
+        AuthService authService = Mockito.mock(AuthService.class);
+        AuthEntryFilter filter = newFilter(authService, configuredGuestPaths(), configuredPublicPaths(),
+            new GuestAuthorTokenService("test-guest-author-secret", 3600L));
+        MockHttpServletResponse previewResponse = new MockHttpServletResponse();
+        AtomicBoolean previewInvoked = new AtomicBoolean(false);
+        filter.doFilter(new MockHttpServletRequest("GET", "/api/v1/daily-art/pixiv/artworks/123/preview"),
+            previewResponse, (request, response) -> previewInvoked.set(true));
+        assertThat(previewInvoked).isTrue();
+        assertThat(previewResponse.getStatus()).isEqualTo(200);
+
+        for (String path : List.of("/api/v1/me/daily-art/settings", "/api/v1/me/daily-art/today",
+                "/api/v1/me/daily-art/pixiv", "/api/v1/me/daily-art/search")) {
+            MockHttpServletResponse privateResponse = new MockHttpServletResponse();
+            AtomicBoolean privateInvoked = new AtomicBoolean(false);
+            filter.doFilter(new MockHttpServletRequest("GET", path), privateResponse,
+                (request, response) -> privateInvoked.set(true));
+            assertThat(privateInvoked).as(path).isFalse();
+            assertThat(privateResponse.getStatus()).as(path).isEqualTo(401);
+        }
+    }
+
     private static AuthEntryFilter newFilter(AuthService authService,
                                              List<String> guestPaths,
                                              GuestAuthorTokenService tokenService) {

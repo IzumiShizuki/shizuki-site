@@ -16,6 +16,7 @@ const TAB_VALUES = Object.freeze([
 
 export const ProfileSectionKey = Object.freeze({
   PROFILE: Object.freeze({
+    DAILY_ART: 'daily-art',
     OVERVIEW: 'overview',
     QUICK_ACTIONS: 'quick-actions',
     RECENT: 'recent'
