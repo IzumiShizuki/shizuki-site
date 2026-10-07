@@ -13,9 +13,7 @@
       <div v-if="loadError" class="status-text" role="alert">{{ loadError }} <button type="button" :disabled="loading" @click="load">重试加载</button></div>
       <div v-if="today" class="daily-layout">
         <div class="gallery-area">
-          <div v-if="today.artworks.length" class="artwork-grid">
-            <DailyArtwork v-for="work in today.artworks" :key="work.id" :artwork="work" />
-          </div>
+          <DailyArtCarousel v-if="today.artworks.length" :artworks="today.artworks" />
           <div v-else class="empty-state gallery-empty">
             <i class="fas fa-palette" aria-hidden="true"></i>
             <p>{{ recommendationHint }}</p>
@@ -101,6 +99,7 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { useAuthSession } from '../../composables/useAuthSession';
 import { createDailyArtApi, normalizeDailySettings, parsePixivUserId, shanghaiDate } from '../../services/dailyArtApi';
 import DailyArtwork from './DailyArtwork.vue';
+import DailyArtCarousel from './DailyArtCarousel.vue';
 
 defineEmits(['login']);
 defineProps({ idPrefix: { type: String, default: 'daily-art' } });
@@ -259,8 +258,9 @@ onBeforeUnmount(() => {
 .daily-caption, time, .status-text, .character-series { color: var(--theme-text-secondary, #8b7885); font-size: 12px; line-height: 1.7; }
 .daily-caption { margin: 0; }
 time { font-variant-numeric: tabular-nums; white-space: nowrap; }
-.daily-layout { display: grid; grid-template-columns: minmax(0, 2.5fr) minmax(180px, 1fr); gap: 22px; }
-.artwork-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.daily-layout { display: grid; grid-template-columns: minmax(0, 2.5fr) minmax(200px, 1fr); align-items: start; gap: 22px; }
+.gallery-area { min-width: 0; }
+.artwork-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: start; gap: 12px; }
 .wife-area { padding: 16px; border-radius: 16px; background: var(--accent-mode-fill-soft, rgba(242,179,157,.12)); border: 1px solid var(--theme-border, rgba(239,160,168,.25)); }
 .wife-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-weight: 600; font-size: 13px; }
 .small-label { font-size: 11px; font-weight: 400; color: var(--theme-text-secondary, #8b7885); }
@@ -303,5 +303,5 @@ label { font-size: 12px; }
 .search-results { margin-top: 18px; grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .error { color: var(--theme-danger, #c35469); }
 @media (max-width: 900px) { .artwork-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .search-results { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
-@media (max-width: 620px) { .daily-header { flex-direction: column; align-items: start; gap: 6px; } .daily-layout, .settings-columns { grid-template-columns: 1fr; } .wife-area { display: block; } .wife-area :deep(.portrait) { max-width: 300px; margin: 0 auto; } .search-results { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 620px) { .daily-header { flex-direction: column; align-items: start; gap: 6px; } .daily-layout, .settings-columns { grid-template-columns: 1fr; } .wife-area { display: block; } .search-results { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 </style>
