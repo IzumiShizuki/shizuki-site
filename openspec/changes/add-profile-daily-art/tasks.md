@@ -33,5 +33,5 @@
 ## 6. Master integration and production release
 
 - [x] 6.1 Advance local master to the existing deployed baseline and apply the two daily-art commits, preserving already deployed music/wallpaper behavior and excluding the user's uncommitted TopMenu edits.
-- [ ] 6.2 Validate the merged release, build artifacts using the installed environment and production frontend settings, and create a verified fresh recovery point.
-- [ ] 6.3 Deploy backend and site artifacts to 111.228.35.186, complete Flyway V1016, verify authenticated daily content and public safe previews, and record runtime/source identity and release evidence.
+- [x] 6.2 Validate the merged release, build artifacts using the installed environment and production frontend settings, and create a verified fresh recovery point.
+- [x] 6.3 Deploy backend and site artifacts to 111.228.35.186, complete Flyway V1016, verify authenticated daily content and public safe previews, and record runtime/source identity and release evidence.
