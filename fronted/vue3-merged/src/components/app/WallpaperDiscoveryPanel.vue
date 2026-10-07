@@ -603,6 +603,7 @@ function normalizeWallhavenItem(raw) {
   const category = String(readField(raw, 'category', 'category', '')).trim();
   const purity = String(readField(raw, 'purity', 'purity', '')).trim();
   const categoryLabel = wallhavenCategoryLabel(category);
+  const title = String(readField(raw, 'title', 'title', '')).trim() || `Wallhaven #${id}`;
   const viewsText = formatCompactCount(readField(raw, 'views', 'views', 0), '浏览');
   const favoritesText = formatCompactCount(readField(raw, 'favorites', 'favorites', 0), '收藏');
   const createdText = formatCreatedDate(readField(raw, 'createdAt', 'created_at', ''));
@@ -610,7 +611,7 @@ function normalizeWallhavenItem(raw) {
   return {
     key: `wallhaven-${id}`,
     wallhavenId: id,
-    title: `${categoryLabel}壁纸 · ${id}`,
+    title,
     thumb,
     fullUrl,
     detailUrl: String(readField(raw, 'detailUrl', 'detail_url', '')).trim(),

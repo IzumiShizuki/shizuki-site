@@ -375,6 +375,7 @@ shizuki:
         workshop-app-id: ${WALLPAPER_WORKSHOP_APP_ID:431960}
         download-root: ${WALLPAPER_WORKSHOP_DOWNLOAD_ROOT:/tmp/steam-workshop}
         command-timeout-seconds: ${WALLPAPER_WORKSHOP_TIMEOUT_SECONDS:180}
+        max-import-asset-bytes: ${WALLPAPER_WORKSHOP_MAX_IMPORT_ASSET_BYTES:536870912}
       discovery:
         enabled: ${WALLPAPER_DISCOVERY_ENABLED:true}
         workshop-browse-base-url: ${WALLPAPER_WORKSHOP_BROWSE_BASE_URL:https://steamcommunity.com}

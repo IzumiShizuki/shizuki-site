@@ -41,12 +41,17 @@
       <RouterLink to="/music-library/music"><i class="fas fa-music" aria-hidden="true"></i> 音乐</RouterLink>
       <RouterLink to="/apps"><i class="fas fa-grip" aria-hidden="true"></i> 轻应用</RouterLink>
     </nav>
+    <PublicPostCalendar
+      v-if="compactProfile"
+      @select="$emit('select-date', $event)"
+    />
   </aside>
 </template>
 
 <script setup>
 import { computed } from 'vue';
 import RouteDotRail from '../common/RouteDotRail.vue';
+import PublicPostCalendar from '../blog/PublicPostCalendar.vue';
 
 const props = defineProps({
   items: {
@@ -95,7 +100,7 @@ const props = defineProps({
   }
 });
 
-defineEmits(['select']);
+defineEmits(['select', 'select-date']);
 
 const profileJson = computed(() => props.profile?.profileJson || {});
 const hero = computed(() => profileJson.value.hero || {});

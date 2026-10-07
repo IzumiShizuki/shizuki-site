@@ -58,7 +58,7 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { getPostPublicationCalendar } from '../../services/blogApi';
 
-defineProps({ selectedDate: { type: String, default: '' } });
+const props = defineProps({ selectedDate: { type: String, default: '' } });
 defineEmits(['select', 'clear']);
 
 const cursor = ref(new Date());
@@ -110,6 +110,13 @@ async function load() {
 function shiftMonth(offset) {
   cursor.value = new Date(cursor.value.getFullYear(), cursor.value.getMonth() + offset, 1);
 }
+
+watch(() => props.selectedDate, (value) => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return;
+  const selected = new Date(`${value}T00:00:00.000Z`);
+  if (Number.isNaN(selected.getTime()) || selected.toISOString().slice(0, 10) !== value) return;
+  cursor.value = new Date(selected.getUTCFullYear(), selected.getUTCMonth(), 1);
+}, { immediate: true });
 
 watch(monthKey, load, { immediate: true });
 onBeforeUnmount(() => { requestSequence += 1; });

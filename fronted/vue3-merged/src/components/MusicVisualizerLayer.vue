@@ -8,13 +8,13 @@
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useAudioAnalyserBus } from '../composables/audioAnalyserBus';
 import { createIdlePulse, createSpectrumProcessor, downsampleWaveform } from '../utils/visualizerSpectrum';
-import { createVisualizerPainter } from '../utils/visualizerPainters';
+import { createVisualizerPainter, VISUALIZER_PAINTER_KEYS } from '../utils/visualizerPainters';
 
 const props = defineProps({
   /** bars = 底部频谱条 | ring = 中央圆环 | vinyl = 唱片光环 */
   variant: { type: String, default: 'bars' },
   /** bars/ring 模式下的风格 key(bars-neon / ring-halo 等) */
-  styleKey: { type: String, default: 'bars-neon' },
+  styleKey: { type: String, default: '' },
   /** 是否应当活跃(通常 = 正在播放 且 路由/guard 允许) */
   active: { type: Boolean, default: false },
   /** vinyl 变体:内圈(唱片)直径 / 画布短边 */
@@ -92,6 +92,7 @@ function refreshColors(timeMs) {
 
 function resolvePainterKey() {
   if (props.variant === 'vinyl') return 'vinyl';
+  if (!props.styleKey && VISUALIZER_PAINTER_KEYS.includes(props.variant)) return props.variant;
   return props.styleKey || (props.variant === 'ring' ? 'ring-halo' : 'bars-neon');
 }
 
@@ -166,7 +167,7 @@ function renderFrame(timestamp) {
   lastFrameAt = timestamp;
   refreshColors(timestamp);
 
-  const needsWave = props.variant !== 'bars';
+  const needsWave = !props.variant.startsWith('bars');
   let frameToDraw = null;
   let wave = null;
   let quiet = false;

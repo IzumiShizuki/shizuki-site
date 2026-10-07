@@ -881,6 +881,30 @@ function normalizeString(value, fallback = '') {
   return typeof value === 'string' ? value : fallback;
 }
 
+function normalizeCalendarDate(value) {
+  const normalized = normalizeString(value).trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(normalized)) return '';
+  const parsed = new Date(`${normalized}T00:00:00.000Z`);
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === normalized
+    ? normalized
+    : '';
+}
+
+function setCalendarDateFilter(dateText) {
+  const normalized = normalizeCalendarDate(dateText);
+  if (!normalized) return false;
+  const from = new Date(`${normalized}T00:00:00.000Z`);
+  const to = new Date(from.getTime() + 24 * 60 * 60 * 1000);
+  filters.archiveMonth = normalized;
+  filters.publishedFrom = from.toISOString();
+  filters.publishedTo = to.toISOString();
+  listState.pageNo = 1;
+  return true;
+}
+
+const initialRouteDate = normalizeCalendarDate(route.query.date);
+if (initialRouteDate) setCalendarDateFilter(initialRouteDate);
+
 function normalizeTags(value) {
   if (!Array.isArray(value)) return [];
   return value
@@ -1349,6 +1373,7 @@ function clearArchiveFilter() {
   filters.publishedFrom = '';
   filters.publishedTo = '';
   listState.pageNo = 1;
+  syncDateQuery('');
   loadPostList();
 }
 
@@ -1366,19 +1391,23 @@ function applyArchiveFilter(monthText) {
   filters.publishedFrom = from.toISOString();
   filters.publishedTo = to.toISOString();
   listState.pageNo = 1;
+  syncDateQuery('');
   loadPostList();
 }
 
 function applyCalendarDateFilter(dateText) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateText)) return;
-  const [year, month, day] = dateText.split('-').map(Number);
-  const from = new Date(Date.UTC(year, month - 1, day));
-  const to = new Date(Date.UTC(year, month - 1, day + 1));
-  filters.archiveMonth = dateText;
-  filters.publishedFrom = from.toISOString();
-  filters.publishedTo = to.toISOString();
-  listState.pageNo = 1;
+  if (!setCalendarDateFilter(dateText)) return;
+  syncDateQuery(normalizeCalendarDate(dateText));
   loadPostList();
+}
+
+function syncDateQuery(dateText) {
+  const nextQuery = { ...route.query };
+  if (dateText) nextQuery.date = dateText;
+  else delete nextQuery.date;
+  const currentDate = normalizeCalendarDate(route.query.date);
+  if (currentDate === dateText && (dateText || !('date' in route.query))) return;
+  void router.replace({ name: 'blog', query: nextQuery });
 }
 
 function openPostDetail(postId, event) {
@@ -1455,6 +1484,25 @@ watch(
     if (canManageCategories.value && !categoryMetaLoaded.value && !categoryMetaLoading.value) {
       void reloadCategoryMetas();
     }
+  }
+);
+
+watch(
+  () => route.query.date,
+  (value, previousValue) => {
+    const nextDate = normalizeCalendarDate(value);
+    if (nextDate) {
+      if (filters.archiveMonth === nextDate && filters.publishedFrom && filters.publishedTo) return;
+      setCalendarDateFilter(nextDate);
+    } else {
+      const previousDate = normalizeCalendarDate(previousValue);
+      if (!previousDate || filters.archiveMonth !== previousDate) return;
+      filters.archiveMonth = '';
+      filters.publishedFrom = '';
+      filters.publishedTo = '';
+      listState.pageNo = 1;
+    }
+    if (authReady.value) void loadPostList();
   }
 );
 

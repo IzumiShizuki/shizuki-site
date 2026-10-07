@@ -17,6 +17,7 @@ public class WallpaperWorkshopProperties {
     private String workshopAppId = "431960";
     private String downloadRoot = "/tmp/steam-workshop";
     private long commandTimeoutSeconds = 180L;
+    private long maxImportAssetBytes = 512L * 1024L * 1024L;
 
     public boolean isEnabled() {
         return enabled;
@@ -72,5 +73,13 @@ public class WallpaperWorkshopProperties {
 
     public void setCommandTimeoutSeconds(long commandTimeoutSeconds) {
         this.commandTimeoutSeconds = commandTimeoutSeconds;
+    }
+
+    public long getMaxImportAssetBytes() {
+        return maxImportAssetBytes;
+    }
+
+    public void setMaxImportAssetBytes(long maxImportAssetBytes) {
+        this.maxImportAssetBytes = maxImportAssetBytes;
     }
 }

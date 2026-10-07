@@ -23,6 +23,22 @@ const ERROR_CORRECTION_LEVELS = Object.freeze(['L', 'M', 'Q', 'H']);
 const HEX_COLOR_PATTERN = /^#[0-9a-fA-F]{6}$/;
 const MAX_DECODE_DIMENSION = 1600;
 
+export function isQrImageFile(file) {
+  if (!file) return false;
+  const type = String(file.type || '').trim().toLowerCase();
+  return type ? type.startsWith('image/') : /\.(png|jpe?g|webp|gif|bmp|avif|svg|ico)$/i.test(file.name || '');
+}
+
+/** Read only local image files supplied by a paste/drop event. */
+export function findQrImageFile(transfer) {
+  for (const item of Array.from(transfer?.items || [])) {
+    if (item.kind !== 'file' || typeof item.getAsFile !== 'function') continue;
+    const file = item.getAsFile();
+    if (isQrImageFile(file)) return file;
+  }
+  return Array.from(transfer?.files || []).find(isQrImageFile) || null;
+}
+
 export function isQrToolMode(value) {
   return QR_TOOL_MODES.includes(String(value || '').trim());
 }

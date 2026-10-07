@@ -274,6 +274,7 @@ public class WallpaperDiscoveryServiceImpl implements WallpaperDiscoveryService 
             }
             items.add(new WallhavenSearchItemResponse(
                     id,
+                    resolveWallhavenTitle(data, id),
                     data.path("thumbs").path("large").asText(data.path("thumbs").path("original").asText("")),
                     data.path("path").asText(""),
                     data.path("url").asText(""),
@@ -328,9 +329,12 @@ public class WallpaperDiscoveryServiceImpl implements WallpaperDiscoveryService 
         byte[] bytes = httpGetBytes(imageUri.toString(), maxBytes);
         String fileType = data.path("file_type").asText("");
         String fileName = "wallhaven-" + wallhavenId.toLowerCase(Locale.ROOT) + "." + resolveImageExtension(fileType, path);
-        String title = readString(request.getTitle(), "").trim();
+        String requestedTitle = readString(request == null ? null : request.getTitle(), "").trim();
+        String title = isLegacyWallhavenTitle(requestedTitle, wallhavenId)
+                ? resolveWallhavenTitle(data, wallhavenId)
+                : requestedTitle;
         if (!StringUtils.hasText(title)) {
-            title = "Wallhaven " + wallhavenId;
+            title = resolveWallhavenTitle(data, wallhavenId);
         }
         RemoteDownloadedMultipartFile file = new RemoteDownloadedMultipartFile(
                 "file", fileName, StringUtils.hasText(fileType) ? fileType : "image/jpeg", bytes);
@@ -353,6 +357,88 @@ public class WallpaperDiscoveryServiceImpl implements WallpaperDiscoveryService 
             throw new BusinessException(ErrorCode.NOT_FOUND, "Wallhaven preview not found");
         }
         return previewUrl;
+    }
+
+    private String resolveWallhavenTitle(JsonNode data, String wallhavenId) {
+        String directTitle = readString(data.path("title").asText(""), "").trim();
+        if (StringUtils.hasText(directTitle)) {
+            return directTitle;
+        }
+
+        String sourceTitle = wallhavenTitleFromSource(data.path("source").asText(""));
+        if (StringUtils.hasText(sourceTitle)) {
+            return sourceTitle;
+        }
+
+        String tagsTitle = wallhavenTitleFromTags(data.path("tags"));
+        return StringUtils.hasText(tagsTitle) ? tagsTitle : "Wallhaven #" + wallhavenId;
+    }
+
+    private String wallhavenTitleFromSource(String source) {
+        if (!StringUtils.hasText(source)) {
+            return "";
+        }
+        try {
+            URI uri = URI.create(source.trim());
+            String scheme = readString(uri.getScheme(), "").toLowerCase(Locale.ROOT);
+            if (!("http".equals(scheme) || "https".equals(scheme))) {
+                return "";
+            }
+            String path = readString(uri.getPath(), "").replaceAll("/+$", "");
+            int slash = path.lastIndexOf('/');
+            String segment = (slash >= 0 ? path.substring(slash + 1) : path).trim();
+            String host = readString(uri.getHost(), "").toLowerCase(Locale.ROOT);
+            boolean artworkId = (host.equals("artstation.com") || host.endsWith(".artstation.com"))
+                    && path.matches("(?i).*/artwork/[a-z0-9]+$");
+            if (artworkId || segment.matches("(?i)^.+\\.(?:jpe?g|png|gif|webp|bmp)$")
+                    || segment.matches("^\\d+$") || segment.matches("(?i)^[0-9a-f-]{32,}$")) {
+                return "";
+            }
+            segment = segment.replaceAll("[_-]+", " ").replaceAll("\\s+", " ").trim();
+            return segment;
+        } catch (IllegalArgumentException exception) {
+            return "";
+        }
+    }
+
+    private String wallhavenTitleFromTags(JsonNode tags) {
+        if (tags == null || !tags.isArray()) {
+            return "";
+        }
+        Set<String> selectedTags = new LinkedHashSet<>();
+        for (JsonNode tag : tags) {
+            String name = readString(tag.path("name").asText(""), "").trim();
+            if (!StringUtils.hasText(name) || isGenericWallhavenTag(name)) {
+                continue;
+            }
+            selectedTags.add(name);
+            if (selectedTags.size() == 3) {
+                break;
+            }
+        }
+        return String.join(" · ", selectedTags);
+    }
+
+    private boolean isGenericWallhavenTag(String tag) {
+        String normalized = tag.trim().toLowerCase(Locale.ROOT);
+        return Set.of(
+                "wallpaper", "wallpapers", "wallhaven", "general", "anime", "people",
+                "artwork", "illustration", "digital art", "landscape", "portrait",
+                "sfw", "sketchy", "nsfw", "hd", "4k", "8k"
+        ).contains(normalized) || normalized.matches("^\\d{3,5}p$");
+    }
+
+    private boolean isLegacyWallhavenTitle(String title, String wallhavenId) {
+        if (!StringUtils.hasText(title)) {
+            return true;
+        }
+        String normalizedTitle = title.trim();
+        if (normalizedTitle.equalsIgnoreCase("Wallhaven " + wallhavenId)
+                || normalizedTitle.equalsIgnoreCase("Wallhaven #" + wallhavenId)) {
+            return true;
+        }
+        String id = Pattern.quote(wallhavenId);
+        return normalizedTitle.matches("(?i)^(?:综合壁纸|动漫壁纸|人物壁纸|壁纸壁纸|壁纸)\\s*[·‐‑–—-]\\s*" + id + "$");
     }
 
     private void requireDiscoveryEnabled() {

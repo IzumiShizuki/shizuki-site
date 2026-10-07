@@ -96,7 +96,7 @@ class SteamCmdProcessRunnerTest {
         SteamCmdProcessRunner.Execution rejected = runner.run(WORKSHOP_COMMAND, 5, ignored -> { }, () -> false);
 
         assertTrue(accepted.succeeded());
-        assertEquals(SteamCmdProcessRunner.Category.UNKNOWN, rejected.failure().category());
+        assertEquals(SteamCmdProcessRunner.Category.CONTENT, rejected.failure().category());
     }
 
     @Test

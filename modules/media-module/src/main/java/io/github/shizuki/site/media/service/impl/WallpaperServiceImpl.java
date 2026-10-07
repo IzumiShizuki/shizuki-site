@@ -546,8 +546,12 @@ public class WallpaperServiceImpl implements WallpaperService {
 
         StorageObjectMetadata metadata = new StorageObjectMetadata();
         metadata.setContentType(detectedAsset.contentType());
-        metadata.setContentLength(detectedAsset.bytes().length);
-        objectStorageClient.putObject(bucket, key, new ByteArrayInputStream(detectedAsset.bytes()), metadata);
+        try (InputStream inputStream = detectedAsset.openStream()) {
+            metadata.setContentLength(detectedAsset.contentLength());
+            objectStorageClient.putObject(bucket, key, inputStream, metadata);
+        } catch (IOException exception) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "读取已下载壁纸文件失败，请重试");
+        }
 
         MediaAssetEntity asset = new MediaAssetEntity();
         asset.setUserId(userId);
@@ -721,10 +725,12 @@ public class WallpaperServiceImpl implements WallpaperService {
         }
 
         try {
-            List<Path> files = Files.walk(dir)
-                .filter(Files::isRegularFile)
-                .sorted(Comparator.comparing(Path::toString))
-                .toList();
+            List<Path> files;
+            try (java.util.stream.Stream<Path> paths = Files.walk(dir)) {
+                files = paths.filter(Files::isRegularFile)
+                    .sorted(Comparator.comparing(Path::toString))
+                    .toList();
+            }
             if (files.isEmpty()) {
                 throw new BusinessException(ErrorCode.BAD_REQUEST, "Workshop package has no files");
             }
@@ -751,6 +757,8 @@ public class WallpaperServiceImpl implements WallpaperService {
             DetectedAsset bgm = null;
             DetectedAsset bgv = null;
             boolean containsNativeWallpaperEngineResource = false;
+            long maxAssetBytes = Math.max(1L, workshopProperties.getMaxImportAssetBytes());
+            long oversizedVisualBytes = 0L;
 
             for (Path path : files) {
                 String extension = extensionByFileName(path.getFileName().toString());
@@ -758,20 +766,31 @@ public class WallpaperServiceImpl implements WallpaperService {
                     continue;
                 }
                 containsNativeWallpaperEngineResource |= isNativeWallpaperEngineResource(path, extension);
-                byte[] bytes = Files.readAllBytes(path);
-                if (bytes.length <= 0 || bytes.length > mediaStorageProperties.getMaxUploadSize()) {
+                if (isWorkshopPresentationAsset(path)) {
                     continue;
                 }
                 AssetKindEnum visualKind = classifyVisualKindByExtension(extension);
-                if (visualKind != null) {
-                    if (isWorkshopPresentationAsset(path)) {
-                        continue;
+                if (visualKind == null && !AUDIO_EXTENSIONS.contains(extension)
+                    && !VIDEO_EXTENSIONS.contains(extension)) {
+                    continue;
+                }
+                long fileSize = Files.size(path);
+                if (fileSize <= 0L) {
+                    continue;
+                }
+                if (fileSize > maxAssetBytes) {
+                    if (visualKind != null) {
+                        oversizedVisualBytes = Math.max(oversizedVisualBytes, fileSize);
                     }
+                    continue;
+                }
+                if (visualKind != null) {
                     DetectedAsset candidate = new DetectedAsset(
                         path.getFileName().toString(),
                         contentTypeByExtension(extension, visualKind),
                         visualKind,
-                        bytes
+                        null,
+                        path
                     );
                     if (shouldReplaceVisual(visual, candidate.assetKind())) {
                         visual = candidate;
@@ -779,15 +798,20 @@ public class WallpaperServiceImpl implements WallpaperService {
                     continue;
                 }
                 if (AUDIO_EXTENSIONS.contains(extension) && bgm == null) {
-                    bgm = new DetectedAsset(path.getFileName().toString(), contentTypeByExtension(extension, AssetKindEnum.AUDIO), AssetKindEnum.AUDIO, bytes);
+                    bgm = new DetectedAsset(path.getFileName().toString(), contentTypeByExtension(extension, AssetKindEnum.AUDIO), AssetKindEnum.AUDIO, null, path);
                     continue;
                 }
                 if (VIDEO_EXTENSIONS.contains(extension) && bgv == null) {
-                    bgv = new DetectedAsset(path.getFileName().toString(), contentTypeByExtension(extension, AssetKindEnum.ANIMATED_IMAGE), AssetKindEnum.ANIMATED_IMAGE, bytes);
+                    bgv = new DetectedAsset(path.getFileName().toString(), contentTypeByExtension(extension, AssetKindEnum.ANIMATED_IMAGE), AssetKindEnum.ANIMATED_IMAGE, null, path);
                 }
             }
 
             if (visual == null) {
+                if (oversizedVisualBytes > 0L) {
+                    throw new BusinessException(ErrorCode.BAD_REQUEST,
+                        "壁纸文件过大（" + formatImportSize(oversizedVisualBytes)
+                            + "），工坊导入上限为 " + formatImportSize(maxAssetBytes));
+                }
                 if (containsNativeWallpaperEngineResource) {
                     throw new BusinessException(
                         ErrorCode.BAD_REQUEST,
@@ -803,6 +827,11 @@ public class WallpaperServiceImpl implements WallpaperService {
         } catch (IOException exception) {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "Read workshop package failed");
         }
+    }
+
+    private String formatImportSize(long bytes) {
+        return bytes < 1024L * 1024L ? bytes + " B"
+            : String.format(Locale.ROOT, "%.1f MiB", bytes / (1024.0 * 1024.0));
     }
 
     private boolean isWorkshopPresentationAsset(Path path) {
@@ -837,7 +866,7 @@ public class WallpaperServiceImpl implements WallpaperService {
             fileName = fileName.substring(separatorIndex + 1);
         }
         fileName = fileName.toLowerCase(Locale.ROOT);
-        return "project.json".equals(fileName) || "pkg".equals(readString(extension, "").toLowerCase(Locale.ROOT));
+        return "scene.json".equals(fileName) || "pkg".equals(readString(extension, "").toLowerCase(Locale.ROOT));
     }
 
     private L2dValidationResult tryValidateL2d(byte[] zipBytes) {
@@ -940,6 +969,7 @@ public class WallpaperServiceImpl implements WallpaperService {
     private DetectedPackage downloadWorkshopBySteamCmd(Long jobId, String workshopItemId) {
         Path downloaded;
         DetectedPackage[] validatedDownloadContent = new DetectedPackage[1];
+        BusinessException[] inspectionFailure = new BusinessException[1];
         try {
             Path root = Paths.get(readString(workshopProperties.getDownloadRoot(), "/tmp/steam-workshop"));
             Files.createDirectories(root);
@@ -978,6 +1008,7 @@ public class WallpaperServiceImpl implements WallpaperService {
                         validatedDownloadContent[0] = detectFromDirectory(downloaded);
                         return true;
                     } catch (BusinessException invalidContent) {
+                        inspectionFailure[0] = invalidContent;
                         return false;
                     }
                 });
@@ -987,6 +1018,10 @@ public class WallpaperServiceImpl implements WallpaperService {
             }
             updateDownloadBytes(jobId, lastObservedBytes[0], null);
             if (!execution.succeeded()) {
+                if (execution.failure().category() == SteamCmdProcessRunner.Category.CONTENT
+                    && inspectionFailure[0] != null) {
+                    throw inspectionFailure[0];
+                }
                 throw new BusinessException(ErrorCode.BAD_REQUEST, execution.failure().safeMessage());
             }
             if (validatedDownloadContent[0] != null) {
@@ -1743,7 +1778,19 @@ public class WallpaperServiceImpl implements WallpaperService {
     record DetectedAsset(String fileName,
                          String contentType,
                          AssetKindEnum assetKind,
-                         byte[] bytes) {
+                         byte[] bytes,
+                         Path sourcePath) {
+        DetectedAsset(String fileName, String contentType, AssetKindEnum assetKind, byte[] bytes) {
+            this(fileName, contentType, assetKind, bytes, null);
+        }
+
+        long contentLength() throws IOException {
+            return sourcePath == null ? bytes.length : Files.size(sourcePath);
+        }
+
+        InputStream openStream() throws IOException {
+            return sourcePath == null ? new ByteArrayInputStream(bytes) : Files.newInputStream(sourcePath);
+        }
     }
 
     record DetectedPackage(WallpaperSceneTypeEnum sceneType,

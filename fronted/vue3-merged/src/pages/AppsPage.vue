@@ -950,8 +950,9 @@ onBeforeUnmount(() => {
 }
 
 .apps-layout {
+  --apps-rail-width: 232px;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 190px;
+  grid-template-columns: minmax(0, 1fr) var(--apps-rail-width);
   gap: 12px;
 }
 
@@ -1312,10 +1313,6 @@ onBeforeUnmount(() => {
 
   .apps-main {
     min-height: 100%;
-  }
-
-  :global(body.apps-rail-mode .global-lyric-bar) {
-    bottom: max(20px, calc(env(safe-area-inset-bottom, 0px) + 12px));
   }
 }
 

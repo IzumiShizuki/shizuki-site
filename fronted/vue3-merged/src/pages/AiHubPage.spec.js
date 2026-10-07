@@ -274,6 +274,77 @@ describe('AiHubPage', () => {
     expect(wrapper.text()).not.toContain('爱莉伴聊');
   });
 
+  it('reports a failed destination without changing selection and recovers on retry', async () => {
+    const wrapper = await mountPage();
+    mocked.getAiTownScene.mockRejectedValueOnce(Object.assign(new Error('Network request failed'), { problemCode: 'NETWORK_ERROR' }));
+
+    await expect(wrapper.vm.handleTownDestinationClick('home_gate')).resolves.toBeUndefined();
+    await flushPromises();
+    expect(wrapper.find('.stage-copy h2').text()).toBe('图书馆');
+    expect(wrapper.find('.scene-chip.active').text()).toContain('图书馆');
+    expect(wrapper.find('.feedback-banner.error').text()).toContain('连接失败');
+
+    await wrapper.vm.handleTownDestinationClick('home_gate');
+    await flushPromises();
+    expect(wrapper.find('.stage-copy h2').text()).toBe('自宅外部');
+    expect(wrapper.find('.feedback-banner.error').exists()).toBe(false);
+    wrapper.unmount();
+  });
+
+  it('keeps the scene list usable when the map request fails', async () => {
+    mocked.getAiTownPublicMap.mockRejectedValueOnce(new Error('地图暂时无法读取'));
+    const wrapper = await mountPage();
+
+    expect(wrapper.find('.stage-copy h2').text()).toBe('图书馆');
+    expect(wrapper.findAll('.scene-chip').some((node) => node.text().includes('自宅外部'))).toBe(true);
+    expect(wrapper.find('.feedback-banner.error').text()).toContain('地图暂时无法读取');
+    await wrapper.vm.refreshTownStage();
+    await flushPromises();
+    expect(wrapper.findAll('.map-node')).toHaveLength(3);
+    expect(wrapper.find('.feedback-banner.error').exists()).toBe(false);
+    wrapper.unmount();
+  });
+
+  it('loads a destination from the map when the scene list fails', async () => {
+    mocked.listAiTownScenes.mockRejectedValueOnce(new Error('场景列表暂时无法读取'));
+    const wrapper = await mountPage();
+
+    expect(wrapper.findAll('.map-node')).toHaveLength(3);
+    expect(wrapper.find('.stage-copy h2').text()).toBe('图书馆');
+    expect(wrapper.find('.feedback-banner.error').text()).toContain('场景列表暂时无法读取');
+    wrapper.unmount();
+  });
+
+  it('ignores a late scene response after a newer selection', async () => {
+    const wrapper = await mountPage();
+    let resolveHome;
+    mocked.getAiTownScene.mockImplementationOnce(() => new Promise((resolve) => { resolveHome = resolve; }));
+    const earlier = wrapper.vm.handleTownDestinationClick('home_gate');
+    await wrapper.vm.handleTownDestinationClick('library');
+    resolveHome(createSceneDetail('home_gate', '自宅外部'));
+    await earlier;
+    await flushPromises();
+
+    expect(wrapper.find('.stage-copy h2').text()).toBe('图书馆');
+    expect(wrapper.find('.scene-chip.active').text()).toContain('图书馆');
+    wrapper.unmount();
+  });
+
+  it('keeps the local finance destination selected when an earlier scene request finishes', async () => {
+    const wrapper = await mountPage();
+    let resolveHome;
+    mocked.getAiTownScene.mockImplementationOnce(() => new Promise((resolve) => { resolveHome = resolve; }));
+    const earlier = wrapper.vm.handleTownDestinationClick('home_gate');
+    await wrapper.vm.handleTownDestinationClick('finance_vault');
+    resolveHome(createSceneDetail('home_gate', '自宅外部'));
+    await earlier;
+    await flushPromises();
+
+    expect(wrapper.find('.stage-copy h2').text()).toBe('账房库');
+    expect(wrapper.find('.finance-drawer').exists()).toBe(true);
+    wrapper.unmount();
+  });
+
   it('keeps the shared conversation workspace visible for guests with a login prompt', async () => {
     mocked.auth = createAuth(['USER']);
     mocked.auth.isAuthenticated.value = false;
@@ -301,7 +372,7 @@ describe('AiHubPage', () => {
 
     const wrapper = await mountPage();
 
-    expect(wrapper.text()).toContain('AI 服务暂时不可达，请稍后重试或确认后端服务已启动。');
+    expect(wrapper.text()).toContain('小镇连接失败，请点击「刷新场景」重试。');
     expect(wrapper.text()).not.toContain('Network request failed');
 
     const refreshButton = findButtonByText(wrapper, '刷新场景');

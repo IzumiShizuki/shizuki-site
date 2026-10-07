@@ -1652,6 +1652,7 @@ const playlistBrowseVisibleCount = ref(PLAYLIST_BROWSE_INITIAL_VISIBLE);
 const currentTrackRevealVersion = ref(0);
 const playlistBrowseAutoLoadLocked = ref(false);
 const playlistBrowseLoading = ref(false);
+let playlistBrowseVersion = 0;
 const playlistBrowseError = ref('');
 const playlistBrowseProfile = ref({
   playlistCode: '',
