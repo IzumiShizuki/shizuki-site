@@ -5,6 +5,7 @@ import io.github.shizuki.common.security.context.LoginUserContext;
 import io.github.shizuki.common.security.model.LoginUser;
 import io.github.shizuki.common.storage.client.ObjectStorageClient;
 import io.github.shizuki.common.storage.config.OssProperties;
+import io.github.shizuki.common.storage.model.StorageObjectMetadata;
 import io.github.shizuki.site.media.config.MediaStorageProperties;
 import io.github.shizuki.site.media.config.WallpaperDiscoveryProperties;
 import io.github.shizuki.site.media.config.WallpaperWorkshopProperties;
@@ -30,16 +31,21 @@ import io.github.shizuki.site.media.service.l2d.L2dZipValidator;
 import java.io.ByteArrayOutputStream;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.ByteBuffer;
 import java.net.http.HttpClient;
 import java.net.http.HttpHeaders;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.TimeUnit;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 import org.junit.jupiter.api.AfterEach;
@@ -49,6 +55,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentMatchers;
 import org.mockito.Mockito;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.AbstractPlatformTransactionManager;
 import org.springframework.transaction.support.DefaultTransactionStatus;
@@ -64,6 +71,8 @@ class WallpaperServiceImplTest {
     private L2dZipValidator l2dZipValidator;
     private WorkshopMetadataProvider workshopMetadataProvider;
     private HttpClient workshopHttpClient;
+    private MediaStorageProperties mediaStorageProperties;
+    private WallpaperWorkshopProperties workshopProperties;
 
     private final Map<Long, MediaAssetEntity> assetStore = new LinkedHashMap<>();
     private final Map<Long, MediaWallpaperProfileEntity> profileStore = new LinkedHashMap<>();
@@ -84,7 +93,7 @@ class WallpaperServiceImplTest {
         l2dZipValidator = Mockito.mock(L2dZipValidator.class);
         WorkshopImportWorker workshopImportWorker = Mockito.mock(WorkshopImportWorker.class);
 
-        MediaStorageProperties mediaStorageProperties = new MediaStorageProperties();
+        mediaStorageProperties = new MediaStorageProperties();
         mediaStorageProperties.setPrivateBucket("shizuki-private");
         mediaStorageProperties.setPublicBucket("shizuki-public");
         mediaStorageProperties.setPublicBaseUrl("https://cdn.example.com");
@@ -94,7 +103,7 @@ class WallpaperServiceImplTest {
         OssProperties ossProperties = new OssProperties();
         ossProperties.setEndpoint("https://oss-cn-hangzhou.aliyuncs.com");
 
-        WallpaperWorkshopProperties workshopProperties = new WallpaperWorkshopProperties();
+        workshopProperties = new WallpaperWorkshopProperties();
         workshopMetadataProvider = Mockito.mock(WorkshopMetadataProvider.class);
         workshopHttpClient = Mockito.mock(HttpClient.class);
         WallpaperOutboundClient outboundClient = new WallpaperOutboundClient(
@@ -449,6 +458,203 @@ class WallpaperServiceImplTest {
             Assertions.assertTrue(exception.getMessage().contains("requires conversion"));
         } finally {
             deleteDirectory(directory);
+        }
+    }
+
+    @Test
+    void shouldImportDownloadedVideoAboveOrdinaryUploadLimit() throws IOException {
+        mediaStorageProperties.setMaxUploadSize(3L);
+        Path directory = Files.createTempDirectory("wallpaper-workshop-large-video-");
+        try {
+            Files.writeString(directory.resolve("project.json"),
+                "{\"type\":\"video\",\"file\":\"wallpaper.mp4\"}", StandardCharsets.UTF_8);
+            Files.write(directory.resolve("wallpaper.mp4"), new byte[] {3, 4, 5, 6});
+
+            WallpaperServiceImpl.DetectedPackage detected = Assertions.assertDoesNotThrow(
+                () -> wallpaperService.detectFromDirectory(directory));
+
+            Assertions.assertEquals(WallpaperSceneTypeEnum.DYNAMIC, detected.sceneType());
+            Assertions.assertEquals("wallpaper.mp4", detected.visual().fileName());
+        } finally {
+            deleteDirectory(directory);
+        }
+    }
+
+    @Test
+    void shouldKeepProductionSizedWorkshopVideoOnDisk() throws IOException {
+        mediaStorageProperties.setMaxUploadSize(50L * 1024L * 1024L);
+        long productionVideoSize = 242_378_122L;
+        Path directory = Files.createTempDirectory("wallpaper-workshop-production-size-");
+        Path video = directory.resolve("可燃冰的和栗熏子.mp4");
+        try {
+            Files.writeString(directory.resolve("project.json"),
+                "{\"type\":\"video\",\"file\":\"可燃冰的和栗熏子.mp4\"}", StandardCharsets.UTF_8);
+            Files.write(directory.resolve("preview.jpg"), new byte[] {1, 2});
+            try (var channel = Files.newByteChannel(video, StandardOpenOption.CREATE, StandardOpenOption.WRITE)) {
+                channel.write(ByteBuffer.wrap(new byte[] {3, 4, 5, 6}));
+                channel.position(productionVideoSize - 1L);
+                channel.write(ByteBuffer.wrap(new byte[] {0}));
+            }
+
+            WallpaperServiceImpl.DetectedPackage detected = wallpaperService.detectFromDirectory(directory);
+
+            Assertions.assertEquals(WallpaperSceneTypeEnum.DYNAMIC, detected.sceneType());
+            Assertions.assertEquals(video, detected.visual().sourcePath());
+            Assertions.assertNull(detected.visual().bytes(), "large cache files must not be copied into heap arrays");
+            Assertions.assertEquals(productionVideoSize, detected.visual().contentLength());
+            try (InputStream stream = detected.visual().openStream()) {
+                Assertions.assertArrayEquals(new byte[] {3, 4, 5, 6}, stream.readNBytes(4));
+            }
+        } finally {
+            deleteDirectory(directory);
+        }
+    }
+
+    @Test
+    void shouldEnforceWorkshopAssetLimitWithoutMisclassifyingVideo() throws IOException {
+        workshopProperties.setMaxImportAssetBytes(4L);
+        Path directory = Files.createTempDirectory("wallpaper-workshop-cap-");
+        Path video = directory.resolve("wallpaper.mp4");
+        try {
+            Files.writeString(directory.resolve("project.json"), "{\"type\":\"video\"}", StandardCharsets.UTF_8);
+            Files.write(directory.resolve("preview.jpg"), new byte[] {1});
+            Files.write(video, new byte[] {1, 2, 3, 4});
+            Assertions.assertEquals(WallpaperSceneTypeEnum.DYNAMIC,
+                wallpaperService.detectFromDirectory(directory).sceneType());
+
+            Files.write(video, new byte[] {1, 2, 3, 4, 5});
+            BusinessException failure = Assertions.assertThrows(BusinessException.class,
+                () -> wallpaperService.detectFromDirectory(directory));
+
+            Assertions.assertTrue(failure.getMessage().contains("5 B"));
+            Assertions.assertTrue(failure.getMessage().contains("4 B"));
+            Assertions.assertFalse(failure.getMessage().contains("native scene"));
+        } finally {
+            deleteDirectory(directory);
+        }
+    }
+
+    @Test
+    void shouldPersistCachedWorkshopVideoThroughClosedStream() throws Exception {
+        mediaStorageProperties.setMaxUploadSize(3L);
+        Path root = Files.createTempDirectory("wallpaper-workshop-stream-");
+        Path directory = Files.createDirectories(root.resolve("steamapps/workshop/content/431960/3813102939"));
+        byte[] runtimeBytes = {3, 4, 5, 6};
+        AtomicReference<InputStream> uploadedStream = new AtomicReference<>();
+        try {
+            Files.writeString(directory.resolve("project.json"), "{\"type\":\"video\"}", StandardCharsets.UTF_8);
+            Files.write(directory.resolve("preview.jpg"), new byte[] {1});
+            Files.write(directory.resolve("wallpaper.mp4"), runtimeBytes);
+            Mockito.doAnswer(invocation -> {
+                InputStream stream = invocation.getArgument(2);
+                StorageObjectMetadata metadata = invocation.getArgument(3);
+                uploadedStream.set(stream);
+                Assertions.assertEquals((long) runtimeBytes.length, metadata.getContentLength());
+                Assertions.assertArrayEquals(runtimeBytes, stream.readAllBytes());
+                return null;
+            }).when(objectStorageClient).putObject(
+                ArgumentMatchers.anyString(), ArgumentMatchers.anyString(),
+                ArgumentMatchers.any(InputStream.class), ArgumentMatchers.any(StorageObjectMetadata.class));
+
+            MediaWallpaperImportJobEntity job = runCachedWorkshopImport(root,
+                "Success. Downloaded item 3813102939 to cache");
+
+            Assertions.assertEquals(WallpaperImportStatusEnum.SUCCEEDED.name(), job.getStatusText());
+            Assertions.assertEquals("COMPLETED", job.getProgressStage());
+            Assertions.assertEquals("Original Video Title", profileStore.get(job.getWallpaperId()).getTitleText());
+            Assertions.assertEquals("DYNAMIC", profileStore.get(job.getWallpaperId()).getSceneType());
+            Assertions.assertEquals(directoryByteCount(directory), job.getDownloadedBytes());
+            Assertions.assertNotNull(uploadedStream.get());
+            Assertions.assertThrows(IOException.class, () -> uploadedStream.get().read());
+        } finally {
+            deleteDirectory(root);
+        }
+    }
+
+    @Test
+    void shouldKeepInspectionReasonAfterSuccessfulSteamDownload() throws Exception {
+        Path root = Files.createTempDirectory("wallpaper-workshop-inspection-");
+        Path directory = Files.createDirectories(root.resolve("steamapps/workshop/content/431960/3813102939"));
+        try {
+            Files.writeString(directory.resolve("project.json"), "{}", StandardCharsets.UTF_8);
+            Files.write(directory.resolve("scene.pkg"), new byte[] {1, 2, 3});
+            Files.write(directory.resolve("preview.jpg"), new byte[] {1});
+
+            MediaWallpaperImportJobEntity job = runCachedWorkshopImport(root,
+                "Success. Downloaded item 3813102939 to cache");
+
+            Assertions.assertEquals(WallpaperImportStatusEnum.FALLBACK_REQUIRED.name(), job.getStatusText());
+            Assertions.assertTrue(job.getErrorMessage().contains("requires conversion"));
+            Mockito.verify(objectStorageClient, Mockito.never()).putObject(
+                ArgumentMatchers.anyString(), ArgumentMatchers.anyString(),
+                ArgumentMatchers.any(InputStream.class), ArgumentMatchers.any(StorageObjectMetadata.class));
+        } finally {
+            deleteDirectory(root);
+        }
+    }
+
+    @Test
+    void shouldKeepSizeReasonAfterSuccessfulSteamDownload() throws Exception {
+        workshopProperties.setMaxImportAssetBytes(3L);
+        Path root = Files.createTempDirectory("wallpaper-workshop-size-reason-");
+        Path directory = Files.createDirectories(root.resolve("steamapps/workshop/content/431960/3813102939"));
+        try {
+            Files.writeString(directory.resolve("project.json"), "{\"type\":\"video\"}", StandardCharsets.UTF_8);
+            Files.write(directory.resolve("wallpaper.mp4"), new byte[] {1, 2, 3, 4});
+
+            MediaWallpaperImportJobEntity job = runCachedWorkshopImport(root,
+                "Success. Downloaded item 3813102939 to cache");
+
+            Assertions.assertEquals(WallpaperImportStatusEnum.FALLBACK_REQUIRED.name(), job.getStatusText());
+            Assertions.assertTrue(job.getErrorMessage().contains("工坊导入上限"));
+            Assertions.assertFalse(job.getErrorMessage().contains("native scene"));
+        } finally {
+            deleteDirectory(root);
+        }
+    }
+
+    private MediaWallpaperImportJobEntity runCachedWorkshopImport(Path root, String processOutput) throws Exception {
+        String itemId = "3813102939";
+        workshopProperties.setEnabled(true);
+        workshopProperties.setDownloadRoot(root.toString());
+        workshopProperties.setSteamcmdPath(Path.of(System.getProperty("java.home"), "bin",
+            System.getProperty("os.name").toLowerCase().contains("win") ? "java.exe" : "java").toString());
+        workshopProperties.setSteamUsername("fixture-account");
+        workshopProperties.setSteamPassword("fixture-password");
+        Process process = Mockito.mock(Process.class);
+        Mockito.when(process.getInputStream()).thenReturn(
+            new ByteArrayInputStream(processOutput.getBytes(StandardCharsets.UTF_8)));
+        Mockito.when(process.waitFor(ArgumentMatchers.anyLong(), ArgumentMatchers.any(TimeUnit.class))).thenReturn(true);
+        Mockito.when(process.exitValue()).thenReturn(0);
+        Mockito.when(process.isAlive()).thenReturn(false);
+        ReflectionTestUtils.setField(wallpaperService, "steamCmdProcessRunner", new SteamCmdProcessRunner(command -> process));
+        Mockito.when(workshopMetadataProvider.resolve(itemId)).thenReturn(
+            new WorkshopMetadataProvider.WorkshopMetadata(itemId, "Original Video Title",
+                "https://cdn.example.test/preview.jpg", "https://steamcommunity.com/sharedfiles/filedetails/?id=" + itemId,
+                "", 0L, 0L, "api"));
+        MediaWallpaperImportJobEntity job = new MediaWallpaperImportJobEntity();
+        job.setId(6010L);
+        job.setOwnerUserId(41L);
+        job.setSourceType(WallpaperImportSourceEnum.WORKSHOP.name());
+        job.setWorkshopItemId(itemId);
+        job.setStatusText(WallpaperImportStatusEnum.PENDING.name());
+        job.setVisibilityCode(AssetVisibilityEnum.PRIVATE.getCode());
+        jobStore.put(job.getId(), job);
+        wallpaperService.handleWorkshopImport(job.getId(), 41L,
+            "https://steamcommunity.com/sharedfiles/filedetails/?id=" + itemId,
+            itemId, AssetVisibilityEnum.PRIVATE, new WorkshopImportCreateRequest());
+        return job;
+    }
+
+    private long directoryByteCount(Path directory) throws IOException {
+        try (var paths = Files.walk(directory)) {
+            return paths.filter(Files::isRegularFile).mapToLong(path -> {
+                try {
+                    return Files.size(path);
+                } catch (IOException exception) {
+                    throw new java.io.UncheckedIOException(exception);
+                }
+            }).sum();
         }
     }
 

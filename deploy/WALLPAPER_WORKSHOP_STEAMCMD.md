@@ -57,6 +57,7 @@ WALLPAPER_STEAM_PASSWORD=你的Steam密码
 WALLPAPER_WORKSHOP_APP_ID=431960
 WALLPAPER_WORKSHOP_DOWNLOAD_ROOT=/data/steam-workshop
 WALLPAPER_WORKSHOP_TIMEOUT_SECONDS=600
+WALLPAPER_WORKSHOP_MAX_IMPORT_ASSET_BYTES=536870912
 
 # 发现服务（均有可直接使用的默认值）
 WALLPAPER_DISCOVERY_ENABLED=true
@@ -145,5 +146,5 @@ docker exec -u app shizuki-site-backend sh -lc '
 - **工坊搜索为空但 Wallhaven 正常**：
   服务器访问 `steamcommunity.com` 受阻。可申请 API Key（走 `api.steampowered.com`），
   或给 `WALLPAPER_WORKSHOP_BROWSE_BASE_URL` 配置可用的反代/镜像地址。
-- **文件超限**：导入沿用媒体上传上限（默认 50MB，`shizuki.media.storage.max-upload-size`）。
-  特大 Workshop 包请调大该配置后再试。
+- **SteamCMD 已下载，但导入失败**：先检查真实运行资源。`project.json` 是项目元数据，不能据此判断为原生场景；其中 `type: video` 的 MP4 可直接作为动态壁纸。仅包含 `scene.pkg` / `scene.json` 的原生场景需要先转换为浏览器支持的媒体。
+- **文件超限**：SteamCMD 下载目录中的运行媒体使用独立上限，默认 512 MiB，可通过 `WALLPAPER_WORKSHOP_MAX_IMPORT_ASSET_BYTES` 调整；选中的文件以流的方式上传对象存储，不整份载入内存。超过该上限会显示实际大小和允许上限。普通本地上传、直链读取和压缩包解压仍使用原有媒体上传限制；大包直链可回退到已配置的 SteamCMD。

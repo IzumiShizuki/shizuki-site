@@ -55,8 +55,12 @@ final class SteamCmdProcessRunner {
             }
             String expectedItemId = requestedWorkshopItemId(command);
             boolean successMarker = SteamCmdFailureClassifier.hasSuccessfulDownloadMarker(last.output(), expectedItemId);
-            if (successMarker && validateDownloadedContent.getAsBoolean()) {
-                return last.withFailure(Failure.NONE);
+            if (successMarker) {
+                if (validateDownloadedContent.getAsBoolean()) {
+                    return last.withFailure(Failure.NONE);
+                }
+                return last.withFailure(new Failure(Category.CONTENT,
+                        "SteamCMD 已完成下载，但壁纸内容未通过导入检查", false, true));
             }
             if (failure.retryable()) {
                 if (attempt < MAX_ATTEMPTS) {
