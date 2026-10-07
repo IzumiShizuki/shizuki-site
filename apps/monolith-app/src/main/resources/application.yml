@@ -477,6 +477,7 @@ shizuki:
       - /api/v1/site/weather/**
       - /api/v1/site/quote/**
       - /api/v1/site/login-appearance
+      - /api/v1/daily-art/pixiv/artworks/*/preview
       - /api/v1/moments/**
       - /api/v1/life/featured
       - /api/v1/home-wallpapers/public

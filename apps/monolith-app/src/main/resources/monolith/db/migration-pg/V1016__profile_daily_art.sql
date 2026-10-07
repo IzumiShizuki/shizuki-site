@@ -1,0 +1,6 @@
+CREATE TABLE IF NOT EXISTS USR_DAILY_ART (
+    user_id BIGINT PRIMARY KEY,
+    config_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+    daily_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);

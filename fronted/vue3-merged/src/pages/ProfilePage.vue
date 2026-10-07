@@ -88,6 +88,10 @@
               </div>
             </template>
 
+            <template #section-daily-art>
+              <DailyArtPanel @login="goToLogin" />
+            </template>
+
             <template #section-recent>
               <div class="recent-grid">
                 <div v-for="row in profileRecentRows" :key="row.key" class="recent-item">
@@ -644,6 +648,7 @@ import ProfileAvatarActionSheet from '../components/profile/ProfileAvatarActionS
 import ProfileAvatarCropDialog from '../components/profile/ProfileAvatarCropDialog.vue';
 import ProfileAvatarPreviewDialog from '../components/profile/ProfileAvatarPreviewDialog.vue';
 import ProfileHeroCard from '../components/profile/ProfileHeroCard.vue';
+import DailyArtPanel from '../components/profile/DailyArtPanel.vue';
 import ProfileSectionAccordion from '../components/profile/ProfileSectionAccordion.vue';
 import { useUiPreferences } from '../composables/useUiPreferences';
 import { listMyPosts } from '../services/blogApi';
@@ -2003,6 +2008,13 @@ const profileRecentRows = computed(() => [
 ]);
 
 const profileSections = computed(() => [
+  {
+    key: ProfileSectionKey.PROFILE.DAILY_ART,
+    title: '每日一图与每日老婆',
+    icon: 'fas fa-palette',
+    summary: '喜欢的画师、今日插画与妹系角色',
+    statusText: '每日'
+  },
   {
     key: ProfileSectionKey.PROFILE.OVERVIEW,
     title: '概览面板',
