@@ -47,6 +47,10 @@ The system SHALL allow keyword search inside the personal daily content interfac
 - **WHEN** a user searches a character or artwork keyword
 - **THEN** matching all-ages works are shown with image, title, artist and original links; unsafe, masked or non-Pixiv destinations are rejected
 
+#### Scenario: Adult or unverified artwork
+- **WHEN** artwork has R-18 or R-18G classification or tags, or its age classification is missing or malformed
+- **THEN** artist recommendations, character images and search results exclude it, and direct preview requests reject it before downloading image bytes
+
 ### Requirement: Personal interface availability
 The system SHALL expose these functions in both desktop and mobile personal interfaces with loading, empty, error, image-failure and logged-out states, accessible controls, and responsive layout.
 

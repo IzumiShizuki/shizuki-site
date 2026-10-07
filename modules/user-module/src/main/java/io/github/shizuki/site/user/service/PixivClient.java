@@ -125,10 +125,25 @@ public class PixivClient {
     }
 
     public static boolean safe(JsonNode work) {
-        return work.has("xRestrict") && work.path("xRestrict").asInt(-1) == 0
-                && work.path("restrict").asInt(0) == 0 && !work.path("isMasked").asBoolean()
-                && !work.path("isUnlisted").asBoolean() && work.path("sl").asInt(0) <= 4
-                && ID.matcher(work.path("id").asText()).matches();
+        if (!zero(work.path("xRestrict")) || (work.has("restrict") && !zero(work.path("restrict")))
+                || work.path("isMasked").asBoolean() || work.path("isUnlisted").asBoolean()
+                || !ID.matcher(work.path("id").asText()).matches()) return false;
+        JsonNode sensitivity = work.path("sl");
+        if (work.has("sl") && (!sensitivity.isIntegralNumber() || !sensitivity.canConvertToInt()
+                || sensitivity.intValue() < 0 || sensitivity.intValue() > 4)) return false;
+        JsonNode tags = work.path("tags");
+        if (tags.isObject()) tags = tags.path("tags");
+        for (JsonNode tag : tags) {
+            String value = tag.isObject() ? tag.path("tag").asText() : tag.asText();
+            String normalized = java.text.Normalizer.normalize(value, java.text.Normalizer.Form.NFKC)
+                    .replaceAll("[-_\\s]", "");
+            if ("R18".equalsIgnoreCase(normalized) || "R18G".equalsIgnoreCase(normalized)) return false;
+        }
+        return true;
+    }
+
+    private static boolean zero(JsonNode value) {
+        return value.isIntegralNumber() && value.canConvertToInt() && value.intValue() == 0;
     }
 
     public record Preview(byte[] bytes, String contentType) { }

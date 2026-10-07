@@ -1,7 +1,7 @@
 <template>
   <section class="daily-panel" aria-label="每日一图与每日老婆">
     <header class="daily-header">
-      <div><p class="daily-caption">把喜欢的画师，留在每天的日常里</p><h3>每日一图</h3></div>
+      <div><p class="daily-caption">把喜欢的画师，留在每天的日常里 · 仅全年龄作品</p><h3>每日一图</h3></div>
       <time :datetime="today?.date || currentDate">{{ today?.date || currentDate }} · 北京时间</time>
     </header>
     <div v-if="!auth.isAuthenticated.value" class="empty-state">
@@ -56,7 +56,7 @@
                 <input :id="`${idPrefix}-session`" v-model="sessionInput" type="password" autocomplete="new-password" placeholder="粘贴 PHPSESSID 的完整值" required :disabled="busy" />
                 <button type="submit" :disabled="busy || !settingsReady">{{ settings.connected ? '更新登录会话' : '关联账号' }}</button>
               </form>
-              <p class="status-text">登录会话只在服务器加密保存。Pixiv 关注同步需要登录，不支持只填账号 ID。</p>
+              <p class="status-text">登录会话只在服务器加密保存，不会自动续期。失效后请重新获取 PHPSESSID，再点击「更新登录会话」。</p>
               <details class="session-help"><summary>如何获取 PHPSESSID？</summary><p>在浏览器登录 pixiv.net，按 F12，打开「应用程序 → Cookie → https://www.pixiv.net」，复制 PHPSESSID 的值。这里关联的是网站读取会话；会话失效后可重新粘贴更新。</p><a href="https://www.pixiv.net/" target="_blank" rel="noopener noreferrer">打开 Pixiv 登录</a></details>
               <div v-if="settings.connected" class="sync-actions">
                 <label class="checkbox-label"><input v-model="includePrivate" type="checkbox" :disabled="busy" />也同步私密关注</label>

@@ -22,4 +22,10 @@
 
 ## Operational follow-up
 
-真实账号/私密关注同步需要用户在界面填写有效 PHPSESSID；生产 Flyway 迁移随后端部署执行。本次未部署或推送。验证与交接详见 verification.md 和 docs/profile-daily-art.md。
+2026-10-07 用户提供会话并授权填写后，已验证真实公开关注并为线上 UI 确认的网站账号 ID 1 加密保存关联与 17 位公开关注。独立表已用 V1016 中的幂等 SQL 创建，Flyway 历史未改，正式迁移随后端部署执行。应用尚未部署或推送，生产界面提交及私密关注仍未验证。详见 verification.md 和 docs/profile-daily-art.md。
+
+## 5. Account setup and explicit all-ages policy
+
+- [x] 5.1 Reject R-18/R-18G tags, invalid or missing age classifications, and verify listing/search/preview filtering before image transport.
+- [x] 5.2 Validate the user-supplied session and save only encrypted association data for the website account confirmed in the logged-in UI; document actual storage and deployment status without credentials.
+- [x] 5.3 Explain manual session renewal and implementation provenance, run relevant regressions and strict validation, and commit the scoped changes locally.
