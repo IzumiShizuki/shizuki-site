@@ -32,3 +32,5 @@ Live checks on 2026-10-07 confirmed public artwork metadata, latest artist works
 ## Migration Plan
 
 Add PostgreSQL-compatible V1016 for the supported monolith runtime. The historical user-module migrations are MySQL scripts, so do not add a PostgreSQL migration into that legacy root. Deploy backend before frontend; Flyway creates the independent table. Rollback code leaves dormant data; remove the table only through an explicitly requested data cleanup. No deployment or push is included in this local implementation.
+
+The subsequent user-requested deployment uses the existing deployed commit a3f9225d as the local master baseline and applies only the two daily-art commits. Build from that master tree and publish verified immutable artifacts using the existing artifact-release approach; keep production private configuration, old hashed frontend assets and rollback images. Create a fresh database/config/source/volume restore point before changes, use the existing host-key validation, and check API health, migration, account isolation, safe previews and authenticated browser results. Git push is a separate action and is not part of this deployment request.
