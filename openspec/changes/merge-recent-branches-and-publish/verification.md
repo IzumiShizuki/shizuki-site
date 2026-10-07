@@ -4,7 +4,7 @@
 
 | Dimension | Result |
 | --- | --- |
-| Completeness | All 16 audited commit IDs are reachable from master; publish and combined production delivery remain the final operational steps |
+| Completeness | All 16 audited commit IDs are reachable from master; all seven integration/publication/deployment tasks complete |
 | Correctness | 258 Vue test files / 1,624 tests passed; 148 selected backend tests passed; Vite production build and ten-module Maven packaging passed |
 | Coherence | Production music guards and usePlayerEngine/queue regressions preserved; ordinary merges; private settings and user TopMenu edit excluded |
 
@@ -20,4 +20,6 @@
 
 ## Assessment
 
-No code or contract defects found by the applicable checks. Vite retains its existing chunk-size advisory. Combined deployment and push are tracked explicitly in tasks.md; completion evidence will be appended after those actions succeed.
+No code or contract defects found by the applicable checks. Vite retains its existing chunk-size advisory. Normal master push succeeded and the fetched local/remote refs agreed. The post-merge recent-commit audit is empty. Combined production deployment succeeded at b524add8; runtime labels, JAR and all 229 static file hashes match. Backend health is UP and the logged-in personal page retains six recommendations, 17 followed artists and the daily character, with all seven images fully loaded. Deployment evidence and the fresh recovery point are in deployment-report.md.
+
+The final documentation-only handoff commit is committed and pushed after validation. No source changes occurred after the successful tests/build/package, so those expensive checks are not repeated solely for delivery notes. Final status and recent-commit audit are rechecked after the documentation push.
