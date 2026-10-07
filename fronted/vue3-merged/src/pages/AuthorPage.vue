@@ -24,6 +24,7 @@
           :aria-label="isPublicExperienceTab ? '关于网站内容导航' : '关于网站导航'"
           workspace
           @select="handleAuthorRailSelect"
+          @select-date="openBlogDate"
         />
       </template>
 
@@ -747,6 +748,7 @@
           :description="isPublicExperienceTab ? '同页快速跳转' : ''"
           :aria-label="isPublicExperienceTab ? '关于网站内容导航' : '关于网站导航'"
           @select="selectFromAuthorDrawer"
+          @select-date="openBlogDate"
         />
         <AuthorLifeWidgetRail sticky-top="0px" />
       </div>
@@ -1159,6 +1161,13 @@ function handleAuthorRailSelect(tabKey) {
 function selectFromAuthorDrawer(tabKey) {
   authorAuxiliaryDrawerOpen.value = false;
   handleAuthorRailSelect(tabKey);
+}
+
+function openBlogDate(dateText) {
+  const normalized = String(dateText || '').trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(normalized)) return;
+  authorAuxiliaryDrawerOpen.value = false;
+  void router.push({ name: 'blog', query: { date: normalized } });
 }
 
 function openHomepagePortal(item) {
