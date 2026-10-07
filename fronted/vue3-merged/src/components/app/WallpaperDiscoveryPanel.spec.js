@@ -56,6 +56,7 @@ beforeEach(() => {
     items: [
       {
         id: 'x8gxgz',
+        title: 'Robot Dave',
         thumb_url: 'https://th.example/x8gxgz.jpg',
         full_url: 'https://w.example/full.jpg',
         detail_url: 'https://wallhaven.cc/w/x8gxgz',
@@ -173,7 +174,8 @@ describe('WallpaperDiscoveryPanel', () => {
       authorizedFetch,
       { forceRefresh: false }
     );
-    expect(wrapper.text()).toContain('动漫壁纸 · x8gxgz');
+    expect(wrapper.text()).toContain('Robot Dave');
+    expect(wrapper.text()).not.toContain('动漫壁纸 · x8gxgz');
     expect(wrapper.text()).toContain('3840x2160');
     expect(wrapper.text()).toContain('动漫');
     expect(wrapper.text()).toContain('4.2万浏览');
@@ -184,7 +186,11 @@ describe('WallpaperDiscoveryPanel', () => {
 
     const emitted = wrapper.emitted('import-wallhaven');
     expect(emitted).toHaveLength(1);
-    expect(emitted[0][0]).toMatchObject({ wallhavenId: 'x8gxgz', visibility: 'PRIVATE' });
+    expect(emitted[0][0]).toMatchObject({ wallhavenId: 'x8gxgz', title: 'Robot Dave', visibility: 'PRIVATE' });
+
+    await wrapper.find('.import-controls input').setValue('我的自定义标题');
+    await importButton.trigger('click');
+    expect(wrapper.emitted('import-wallhaven')[1][0].title).toBe('我的自定义标题');
   });
 
   it('submits Workshop tags and complete Wallhaven filters', async () => {

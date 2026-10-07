@@ -4,6 +4,7 @@ import java.util.List;
 
 public record WallhavenSearchItemResponse(
         String id,
+        String title,
         String thumbUrl,
         String fullUrl,
         String detailUrl,
