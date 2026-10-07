@@ -1,5 +1,6 @@
 <template>
   <section class="widget-studio" data-studio-workspace="site-widgets">
+    <fieldset class="studio-fields" :disabled="busy">
     <header class="widget-studio__hero">
       <div><p>SITE APPEARANCE · WIDGETS</p><h2>站点组件控制台</h2><span>地点、天气来源和推荐音乐共享一套可审计的站点配置边界。</span></div>
       <button class="studio-button studio-button--ghost" type="button" :disabled="busy" @click="loadWorkspace">
@@ -7,6 +8,7 @@
       </button>
     </header>
 
+    <p v-if="dirty" class="studio-alert" role="status">有未保存的修改，切换或重新读取前请先保存。</p>
     <p v-if="errorMessage" class="studio-alert studio-alert--error" role="alert">{{ errorMessage }}</p>
     <p v-if="notice" class="studio-alert" role="status">{{ notice }}</p>
 
@@ -45,7 +47,7 @@
         <ul v-if="configValidation.errors.length" class="validation-list" aria-label="配置校验结果">
           <li v-for="item in configValidation.errors" :key="item">{{ item }}</li>
         </ul>
-        <button class="studio-button save-button" type="submit" :disabled="busy || !configValidation.valid"><i class="fas fa-floppy-disk"></i> 保存站点配置</button>
+        <button class="studio-button save-button" type="submit" :disabled="busy || !ready.site || !configValidation.valid"><i class="fas fa-floppy-disk"></i> 保存站点配置</button>
       </form>
 
       <section class="weather-panel glass-panel" aria-label="天气刷新状态">
@@ -99,7 +101,7 @@
           <p v-if="!musicTracks.length">默认推荐歌单当前没有曲目；这里不会生成示例音乐。</p>
         </div>
 
-        <button class="studio-button save-button" type="submit" :disabled="busy || !musicProfileValid"><i class="fas fa-compact-disc"></i> 保存推荐歌单资料</button>
+        <button class="studio-button save-button" type="submit" :disabled="busy || !ready.music || !musicProfileValid"><i class="fas fa-compact-disc"></i> 保存推荐歌单资料</button>
       </form>
 
       <form class="login-panel glass-panel" @submit.prevent="saveLoginAppearance">
@@ -135,15 +137,18 @@
         </div>
         <p v-if="!loginAppearanceValid" class="inline-error">图片地址必须为空、HTTPS 链接或站点内部 / 路径；背景地址也支持 data:image。</p>
 
-        <button class="studio-button save-button" type="submit" :disabled="busy || !loginAppearanceValid"><i class="fas fa-floppy-disk"></i> 保存登录页外观</button>
+        <button class="studio-button save-button" type="submit" :disabled="busy || !ready.login || !loginAppearanceValid"><i class="fas fa-floppy-disk"></i> 保存登录页外观</button>
       </form>
     </div>
+    </fieldset>
   </section>
 </template>
 
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue';
 import { useAuthSession } from '../../composables/useAuthSession';
+import { useDraftGuard } from '../../composables/useDraftGuard';
+import { useStudioDraft } from '../../composables/useStudioDraft';
 import { getAdminDefaultPlaylistBundle, updateAdminDefaultPlaylistProfile } from '../../services/musicApi';
 import { getAdminSiteWeather, getAdminWidgetConfiguration, saveAdminWidgetConfiguration } from '../../services/adminSiteWidgetsApi';
 import { fetchAdminLoginAppearance, saveAdminLoginAppearance } from '../../services/siteLoginAppearanceApi';
@@ -160,6 +165,12 @@ const busy = ref(false);
 const notice = ref('');
 const errorMessage = ref('');
 const coverFailed = ref(false);
+const siteDraft = useStudioDraft(siteForm);
+const musicDraft = useStudioDraft(musicForm);
+const loginDraft = useStudioDraft(loginForm);
+const dirty = computed(() => siteDraft.dirty.value || musicDraft.dirty.value || loginDraft.dirty.value);
+const ready = reactive({ site: false, music: false, login: false });
+const { confirmDiscard } = useDraftGuard({ isDirty: () => dirty.value, isBusy: () => busy.value });
 const timezoneOptions = Object.freeze(['Asia/Shanghai', 'Asia/Tokyo', 'Asia/Hong_Kong', 'Asia/Singapore', 'UTC', 'Europe/London', 'America/New_York']);
 
 const configValidation = computed(() => validateSiteWidgetForm(siteForm));
@@ -196,48 +207,50 @@ const weatherIcon = computed(() => weather.value?.available ? (weather.value.fre
 
 function messageOf(error) { return String(error?.detail || error?.message || '操作失败，请稍后重试'); }
 function feedback(message = '', error = '') { notice.value = message; errorMessage.value = error; }
-function applyConfiguration(value) { Object.assign(siteForm, createSiteWidgetForm(value || {})); }
+function applyConfiguration(value) { siteDraft.apply(createSiteWidgetForm(value || {})); ready.site = true; }
 function applyMusic(value) {
   const bundle = normalizeMusicBundle(value);
-  Object.assign(musicForm, bundle.profile);
+  musicDraft.apply(bundle.profile); ready.music = true;
   musicTracks.value = bundle.tracks;
   coverFailed.value = false;
 }
 function applyLoginAppearance(value) {
   if (!value || typeof value !== 'object') return;
-  loginForm.version = Number(value.version) || 0;
-  if (value.themePreset) loginForm.themePreset = value.themePreset;
-  loginForm.bgImageUrl = value.bgImageUrl || '';
-  loginForm.mascotImageUrl = value.mascotImageUrl || '';
+  loginDraft.apply({ version: Number(value.version) || 0, themePreset: value.themePreset || 'milkshake', bgImageUrl: value.bgImageUrl || '', mascotImageUrl: value.mascotImageUrl || '' });
+  ready.login = true;
   loginPreviewFailed.value = false;
 }
 function syncQuoteProvider() { if (siteForm.quoteSourceMode === 'HITOKOTO') siteForm.hitokotoEnabled = true; }
 
 async function loadWorkspace() {
+  if (!confirmDiscard()) return;
+  Object.assign(ready, { site: false, music: false, login: false });
   busy.value = true; feedback();
-  await auth.ensureReady();
-  if (!auth.isAuthenticated.value) { errorMessage.value = '需要管理员登录后才能读取站点组件配置。'; busy.value = false; return; }
-  const results = await Promise.allSettled([
-    getAdminWidgetConfiguration(auth.authorizedFetch),
-    getAdminSiteWeather(auth.authorizedFetch),
-    getAdminDefaultPlaylistBundle(auth.authorizedFetch),
-    fetchAdminLoginAppearance(auth.authorizedFetch)
-  ]);
-  if (results[0].status === 'fulfilled') applyConfiguration(results[0].value);
-  if (results[1].status === 'fulfilled') weather.value = results[1].value;
-  if (results[2].status === 'fulfilled') applyMusic(results[2].value);
-  if (results[3].status === 'fulfilled') applyLoginAppearance(results[3].value);
-  const failures = [];
-  if (results[0].status === 'rejected') failures.push(messageOf(results[0].reason));
-  if (results[1].status === 'rejected') failures.push('天气状态读取失败，请稍后重试。');
-  if (results[2].status === 'rejected') failures.push('推荐音乐资料读取失败，请稍后重试。');
-  if (results[3].status === 'rejected') failures.push('登录页外观读取失败，请稍后重试。');
-  if (failures.length) errorMessage.value = failures.join('；');
-  busy.value = false;
+  try {
+    await auth.ensureReady();
+    if (!auth.isAuthenticated.value) { errorMessage.value = '需要管理员登录后才能读取站点组件配置。'; busy.value = false; return; }
+    const results = await Promise.allSettled([
+      getAdminWidgetConfiguration(auth.authorizedFetch),
+      getAdminSiteWeather(auth.authorizedFetch),
+      getAdminDefaultPlaylistBundle(auth.authorizedFetch),
+      fetchAdminLoginAppearance(auth.authorizedFetch)
+    ]);
+    if (results[0].status === 'fulfilled') applyConfiguration(results[0].value);
+    if (results[1].status === 'fulfilled') weather.value = results[1].value;
+    if (results[2].status === 'fulfilled') applyMusic(results[2].value);
+    if (results[3].status === 'fulfilled') applyLoginAppearance(results[3].value);
+    const failures = [];
+    if (results[0].status === 'rejected') failures.push(messageOf(results[0].reason));
+    if (results[1].status === 'rejected') failures.push('天气状态读取失败，请稍后重试。');
+    if (results[2].status === 'rejected') failures.push('推荐音乐资料读取失败，请稍后重试。');
+    if (results[3].status === 'rejected') failures.push('登录页外观读取失败，请稍后重试。');
+    if (failures.length) errorMessage.value = failures.join('；');
+  } catch (error) { errorMessage.value = messageOf(error); }
+  finally { busy.value = false; }
 }
 
 async function saveConfiguration() {
-  if (!configValidation.value.valid) return;
+  if (busy.value || !ready.site || !configValidation.value.valid) return;
   busy.value = true; feedback();
   try {
     const saved = await saveAdminWidgetConfiguration(siteForm, auth.authorizedFetch);
@@ -245,15 +258,12 @@ async function saveConfiguration() {
     weather.value = await getAdminSiteWeather(auth.authorizedFetch).catch(() => weather.value);
     notice.value = '站点地点、时区与 provider 策略已保存，相关缓存已按服务端规则失效。';
   } catch (error) {
-    errorMessage.value = Number(error?.status) === 409 ? '配置已被另一会话修改，已重新读取服务器版本，请核对后再保存。' : messageOf(error);
-    if (Number(error?.status) === 409) {
-      const latest = await getAdminWidgetConfiguration(auth.authorizedFetch).catch(() => null);
-      if (latest) applyConfiguration(latest);
-    }
+    errorMessage.value = Number(error?.status) === 409 ? '配置已被另一会话修改，本地草稿已保留。请复制草稿后重新读取，再核对保存。' : messageOf(error);
   } finally { busy.value = false; }
 }
 
 async function refreshWeather() {
+  if (busy.value) return;
   busy.value = true; feedback();
   try {
     weather.value = await getAdminSiteWeather(auth.authorizedFetch);
@@ -267,18 +277,18 @@ async function refreshWeather() {
 }
 
 async function saveMusicProfile() {
-  if (!musicProfileValid.value) return;
+  if (busy.value || !ready.music || !musicProfileValid.value) return;
   busy.value = true; feedback();
   try {
     const saved = await updateAdminDefaultPlaylistProfile({ ...musicForm, playlistCode: 'default_public' }, auth.authorizedFetch);
-    Object.assign(musicForm, normalizeMusicBundle({ profile: saved }).profile);
+    musicDraft.apply(normalizeMusicBundle({ profile: saved }).profile);
     notice.value = `推荐歌单资料已保存，${musicTracks.value.length} 首现有曲目保持不变。`;
   } catch { errorMessage.value = '推荐歌单资料保存失败，请核对名称和 HTTPS 封面地址后重试。'; }
   finally { busy.value = false; }
 }
 
 async function saveLoginAppearance() {
-  if (!loginAppearanceValid.value) return;
+  if (busy.value || !ready.login || !loginAppearanceValid.value) return;
   busy.value = true; feedback();
   try {
     const saved = await saveAdminLoginAppearance(auth.authorizedFetch, {
@@ -290,11 +300,7 @@ async function saveLoginAppearance() {
     applyLoginAppearance(saved);
     notice.value = '登录页外观已保存，全站访客登录页将使用这份主题与图片配置。';
   } catch (error) {
-    errorMessage.value = Number(error?.status) === 409 ? '配置已被另一会话修改，请重新读取后保存。' : messageOf(error);
-    if (Number(error?.status) === 409) {
-      const latest = await fetchAdminLoginAppearance(auth.authorizedFetch).catch(() => null);
-      if (latest) applyLoginAppearance(latest);
-    }
+    errorMessage.value = Number(error?.status) === 409 ? '配置已被另一会话修改，本地草稿已保留。请复制草稿后重新读取，再核对保存。' : messageOf(error);
   } finally { busy.value = false; }
 }
 
@@ -302,6 +308,7 @@ onMounted(loadWorkspace);
 </script>
 
 <style scoped>
+.studio-fields { display: grid; gap: 18px; min-width: 0; margin: 0; padding: 0; border: 0; }
 .widget-studio { display: grid; gap: 18px; min-height: 640px; padding: clamp(16px,2.5vw,28px); color: var(--theme-text-primary); }
 .glass-panel { border: 1px solid var(--theme-border,rgba(255,255,255,.14)); border-radius: 20px; background: linear-gradient(145deg,rgba(var(--accent-rgb),.075),transparent 44%),var(--theme-panel-surface,rgba(12,18,28,.78)); box-shadow: 0 18px 48px rgba(0,0,0,.13); backdrop-filter: blur(20px) saturate(138%); }
 .widget-studio__hero,.panel-heading,.section-heading,.switch-row { display:flex; align-items:center; justify-content:space-between; gap:12px; }

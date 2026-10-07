@@ -6,6 +6,8 @@ describe('adminSiteWidgetState', () => {
     const valid = createSiteWidgetForm({ displayName: '上海', latitude: 31.23, longitude: 121.47 });
     expect(validateSiteWidgetForm(valid)).toEqual({ valid: true, errors: [] });
     expect(validateSiteWidgetForm({ ...valid, latitude: 91, timezone: 'Shanghai', weatherMaxStaleMinutes: 1 }).errors).toHaveLength(3);
+    expect(validateSiteWidgetForm({ ...valid, latitude: '', longitude: ' ' }).errors).toHaveLength(2);
+    expect(validateSiteWidgetForm({ ...valid, latitude: 0, longitude: 0 }).valid).toBe(true);
   });
 
   it('requires provider enablement when Hitokoto is the active source', () => {

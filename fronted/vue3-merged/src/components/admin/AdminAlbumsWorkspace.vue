@@ -1,5 +1,6 @@
 <template>
   <section class="album-studio" data-studio-workspace="albums">
+    <fieldset class="studio-fields" :disabled="pending">
     <header class="album-studio__hero">
       <div>
         <p>Content Studio · Albums</p>
@@ -69,12 +70,14 @@
           <header class="editor-heading">
             <div><p>{{ lifecycleLabel(detail.lifecycle) }} · ETag {{ detail.audit?.etag || '—' }}</p><h3>{{ detail.title }}</h3></div>
             <div class="editor-heading__actions">
-              <button class="studio-button studio-button--ghost" type="button" :disabled="busy" @click="openPreview">预览</button>
+              <button class="studio-button studio-button--ghost" type="button" :disabled="pending || dirty" @click="openPreview">预览</button>
               <button class="studio-button studio-button--ghost" type="button" :disabled="busy" @click="saveAlbum">保存</button>
-              <button v-if="detail.lifecycle === 'PUBLISHED'" class="studio-button studio-button--warn" type="button" :disabled="busy" @click="archiveAlbum">归档</button>
-              <button v-else class="studio-button" type="button" :disabled="busy || !publishReadiness.ready" @click="publishAlbum">发布</button>
+              <button v-if="detail.lifecycle === 'PUBLISHED'" class="studio-button studio-button--warn" type="button" :disabled="pending || dirty" @click="archiveAlbum">归档</button>
+              <button v-else class="studio-button" type="button" :disabled="pending || dirty || !publishReadiness.ready" @click="publishAlbum">发布</button>
             </div>
           </header>
+
+          <p v-if="dirty" class="studio-alert" role="status">有未保存的修改，请先保存后再预览或发布。</p>
 
           <section class="editor-section editor-section--fields">
             <label>标题<input v-model.trim="albumForm.title" maxlength="256" /></label>
@@ -111,7 +114,7 @@
           </section>
 
           <section class="editor-section">
-            <div class="section-heading"><div><small>02 · REUSE</small><h4>照片库复用</h4></div><button class="text-button" type="button" @click="loadPhotoLibrary">刷新照片库</button></div>
+            <div class="section-heading"><div><small>02 · REUSE</small><h4>照片库复用</h4></div><button class="text-button" type="button" @click="refreshPhotoLibrary">刷新照片库</button></div>
             <div class="photo-library">
               <article v-for="photo in libraryPhotos" :key="photo.id" class="library-photo" :class="{ 'library-photo--selected': selectedLibraryIds.has(photo.id) }">
                 <label class="library-photo__select"><input type="checkbox" :checked="selectedLibraryIds.has(photo.id)" :disabled="attachedPhotoIds.has(photo.id)" @change="toggleLibraryPhoto(photo.id)" /> #{{ photo.id }}</label>
@@ -163,6 +166,8 @@
       </main>
     </div>
 
+    </fieldset>
+
     <div v-if="preview" class="preview-overlay" role="dialog" aria-modal="true" aria-label="相册发布预览" @click.self="preview = null">
       <section class="preview-sheet glass-panel">
         <header><div><small>PROTECTED PREVIEW</small><h3>{{ preview.title }}</h3><p>{{ preview.summary }}</p></div><button class="text-button" type="button" @click="preview = null">关闭</button></header>
@@ -177,6 +182,8 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue';
 import { useAuthSession } from '../../composables/useAuthSession';
+import { useDraftGuard } from '../../composables/useDraftGuard';
+import { useStudioDraft } from '../../composables/useStudioDraft';
 import {
   archiveAdminAlbum, attachAdminAlbumPhotos, createAdminAlbum, detachAdminAlbumPhotos,
   getAdminAlbum, getAdminAlbumPreview, listAdminAlbums, listAdminManagedPhotos,
@@ -211,9 +218,23 @@ const downloadDrafts = reactive({});
 const albumForm = reactive(albumEditorForm());
 const newAlbum = reactive({ title: '', summary: '', visibility: 'PRIVATE' });
 let dragIndex = -1;
+const draft = useStudioDraft(albumForm);
+const captionBaseline = ref({});
+const downloadBaseline = ref({});
+const libraryBaseline = ref({});
+const dirty = computed(() => draft.dirty.value
+  || (detail.value?.photos || []).some((photo) => (photo.caption || '') !== captionBaseline.value[photo.photoId]
+    || downloadDrafts[photo.photoId]?.mode !== downloadBaseline.value[photo.photoId])
+  || JSON.stringify(libraryEdits) !== JSON.stringify(libraryBaseline.value));
+const pending = computed(() => busy.value || uploading.value || loadingAlbums.value);
+const { confirmDiscard } = useDraftGuard({
+  isDirty: () => dirty.value || (creating.value && Boolean(newAlbum.title || newAlbum.summary))
+    || retryableUploadItems(uploadQueue.value).length > 0,
+  isBusy: () => pending.value
+});
 
 const attachedPhotoIds = computed(() => new Set((detail.value?.photos || []).map((photo) => photo.photoId)));
-const publishReadiness = computed(() => albumPublishReadiness(detail.value || {}));
+const publishReadiness = computed(() => albumPublishReadiness({ ...detail.value, ...albumForm }));
 
 function messageOf(error) { return String(error?.detail || error?.message || '操作失败，请稍后重试'); }
 function isVersionConflict(error) { return Number(error?.status) === 409 || String(error?.problemCode || '').toUpperCase() === 'CONFLICT'; }
@@ -245,13 +266,14 @@ async function presentConflict(error, intent = null) {
 }
 
 function acceptServerVersion() {
-  if (!conflict.value?.server) return;
-  applyDetail(conflict.value.server);
+  if (!conflict.value?.server || !confirmDiscard()) return;
+  applyDetail(conflict.value.server, true);
   conflict.value = null;
   setFeedback('已采用服务器当前版本；未自动重新提交本地操作。');
 }
 
 async function reapplyConflict() {
+  if (pending.value) return;
   const current = conflict.value;
   if (!current?.reapplyAllowed || !current.intent?.reapply) return;
   busy.value = true;
@@ -270,20 +292,45 @@ async function reapplyConflict() {
   }
 }
 
-function applyDetail(payload) {
-  detail.value = payload;
-  Object.assign(albumForm, albumEditorForm(payload));
-  (payload?.photos || []).forEach((photo) => { downloadDrafts[photo.photoId] = { mode: photo.downloadMode || 'NONE', acknowledged: false }; });
+function applyDetail(payload, discard = false) {
+  const preserve = !discard && detail.value?.id === payload.id;
+  const captions = Object.fromEntries((detail.value?.photos || []).map((photo) => [photo.photoId, photo.caption || '']));
+  draft.apply(albumEditorForm(payload), preserve);
+  const nextCaptions = {};
+  const nextDownloads = {};
+  const photos = (payload?.photos || []).map((photo) => {
+    const id = photo.photoId;
+    nextCaptions[id] = photo.caption || '';
+    nextDownloads[id] = photo.downloadMode || 'NONE';
+    if (!preserve || downloadDrafts[id]?.mode === downloadBaseline.value[id]) {
+      downloadDrafts[id] = { mode: nextDownloads[id], acknowledged: false };
+    }
+    return preserve && captions[id] !== undefined && captions[id] !== captionBaseline.value[id]
+      ? { ...photo, caption: captions[id] } : photo;
+  });
+  captionBaseline.value = nextCaptions;
+  downloadBaseline.value = nextDownloads;
+  detail.value = { ...payload, photos };
 }
 
-function applyPhotoLibrary(payload) {
+function applyPhotoLibrary(payload, discard = false) {
   libraryPhotos.value = payload;
+  const nextBaseline = {};
   payload.forEach((photo) => {
-    libraryEdits[photo.id] = {
+    const next = {
       title: photo.title || '', altText: photo.altText || '', location: photo.publishedLocationLabel || '',
       locationReviewed: Boolean(photo.publishedLocationLabel), capturedAtDraft: photo.capturedAtDraft || null
     };
+    const previous = libraryBaseline.value[photo.id];
+    const edit = libraryEdits[photo.id];
+    nextBaseline[photo.id] = { ...next };
+    if (!discard && previous && edit) {
+      for (const key of Object.keys(next)) if (edit[key] !== previous[key]) next[key] = edit[key];
+    }
+    libraryEdits[photo.id] = next;
   });
+  Object.keys(libraryEdits).forEach((id) => { if (!nextBaseline[id]) delete libraryEdits[id]; });
+  libraryBaseline.value = nextBaseline;
 }
 
 async function loadAlbumList() {
@@ -291,26 +338,36 @@ async function loadAlbumList() {
   try { albums.value = await listAdminAlbums({}, auth.authorizedFetch); } finally { loadingAlbums.value = false; }
 }
 async function loadPhotoLibrary() { applyPhotoLibrary(await listAdminManagedPhotos({}, auth.authorizedFetch)); }
+async function refreshPhotoLibrary() {
+  if (pending.value) return;
+  busy.value = true;
+  try { await loadPhotoLibrary(); }
+  catch (error) { errorMessage.value = messageOf(error); }
+  finally { busy.value = false; }
+}
 
 async function loadWorkspace() {
+  if (!confirmDiscard()) return;
   setFeedback();
-  await auth.ensureReady();
-  if (!auth.isAuthenticated.value) { errorMessage.value = '需要管理员登录后才能读取相册工作台。'; return; }
   busy.value = true;
   try {
-    await Promise.all([loadAlbumList(), loadPhotoLibrary()]);
-    if (detail.value?.id) applyDetail(await getAdminAlbum(detail.value.id, auth.authorizedFetch));
+    await auth.ensureReady();
+    if (!auth.isAuthenticated.value) { errorMessage.value = '需要管理员登录后才能读取相册工作台。'; return; }
+    await Promise.all([loadAlbumList(), listAdminManagedPhotos({}, auth.authorizedFetch).then((photos) => applyPhotoLibrary(photos, true))]);
+    if (detail.value?.id) applyDetail(await getAdminAlbum(detail.value.id, auth.authorizedFetch), true);
   } catch (error) { errorMessage.value = messageOf(error); } finally { busy.value = false; }
 }
 
 async function selectAlbum(id) {
+  if (detail.value?.id === id || !confirmDiscard()) return;
   setFeedback(); busy.value = true;
-  try { applyDetail(await getAdminAlbum(id, auth.authorizedFetch)); conflict.value = null; }
+  try { applyDetail(await getAdminAlbum(id, auth.authorizedFetch), true); conflict.value = null; }
   catch (error) { errorMessage.value = messageOf(error); }
   finally { busy.value = false; }
 }
 
 async function createAlbum() {
+  if (pending.value || (dirty.value && !confirmDiscard())) return;
   busy.value = true; setFeedback();
   try {
     applyDetail(await createAdminAlbum(newAlbum, auth.authorizedFetch));
@@ -320,14 +377,15 @@ async function createAlbum() {
 }
 
 async function runAlbumMutation(action, success, intent = null) {
-  if (!detail.value) return;
+  if (!detail.value || pending.value) return false;
   busy.value = true; setFeedback();
-  try { applyDetail(await action(detail.value.audit?.etag)); conflict.value = null; await loadAlbumList(); notice.value = success; }
+  try { applyDetail(await action(detail.value.audit?.etag)); conflict.value = null; await loadAlbumList(); notice.value = success; return true; }
   catch (error) {
     if (isVersionConflict(error)) await presentConflict(error, intent);
     else errorMessage.value = messageOf(error);
   }
   finally { busy.value = false; }
+  return false;
 }
 
 function saveAlbum() {
@@ -342,11 +400,12 @@ function saveAlbum() {
     }
   );
 }
-function publishAlbum() { return runAlbumMutation((etag) => publishAdminAlbum(detail.value.id, etag, auth.authorizedFetch), '相册已发布。'); }
-function archiveAlbum() { return runAlbumMutation((etag) => archiveAdminAlbum(detail.value.id, etag, auth.authorizedFetch), '相册已归档并撤回访客交付。'); }
+function publishAlbum() { if (dirty.value || !publishReadiness.value.ready) return; return runAlbumMutation((etag) => publishAdminAlbum(detail.value.id, etag, auth.authorizedFetch), '相册已发布。'); }
+function archiveAlbum() { if (dirty.value) return; return runAlbumMutation((etag) => archiveAdminAlbum(detail.value.id, etag, auth.authorizedFetch), '相册已归档并撤回访客交付。'); }
 function selectCover(photoId) { return runAlbumMutation((etag) => selectAdminAlbumCover(detail.value.id, photoId, etag, auth.authorizedFetch), '封面已更新。'); }
 
 async function openPreview() {
+  if (!detail.value || pending.value || dirty.value) return;
   busy.value = true; setFeedback();
   try { preview.value = await getAdminAlbumPreview(detail.value.id, auth.authorizedFetch); }
   catch (error) { errorMessage.value = messageOf(error); }
@@ -362,14 +421,17 @@ function patchUploadItem(itemId, patch) {
   uploadQueue.value = updateUploadQueueItem(uploadQueue.value, itemId, patch);
 }
 
-async function uploadOne(item) {
+async function uploadOne(item, inBatch = false) {
+  if (!inBatch && pending.value) return false;
+  if (!inBatch) uploading.value = true;
   patchUploadItem(item.id, { status: 'queued', error: '' });
   try {
-    const photo = await uploadAdminManagedPhoto(item.file, {
+    const photo = item.uploadedPhotoId ? { id: item.uploadedPhotoId } : await uploadAdminManagedPhoto(item.file, {
       title: item.title, altText: item.altText,
       publishedLocationLabel: item.locationReviewed ? item.location : '',
       locationReviewAcknowledged: item.locationReviewed
     }, auth.authorizedFetch, (status) => { patchUploadItem(item.id, { status }); });
+    patchUploadItem(item.id, { uploadedPhotoId: photo.id });
     if (detail.value) {
       applyDetail(await attachAdminAlbumPhotos(detail.value.id, [{ photoId: photo.id, caption: '', downloadMode: 'NONE' }], detail.value.audit?.etag, auth.authorizedFetch));
       patchUploadItem(item.id, { status: 'attached' });
@@ -377,15 +439,18 @@ async function uploadOne(item) {
     await loadPhotoLibrary();
     return true;
   } catch (error) { patchUploadItem(item.id, { status: 'failed', error: messageOf(error) }); return false; }
+  finally { if (!inBatch) uploading.value = false; }
 }
 
 async function uploadBatch() {
+  if (pending.value) return;
   const items = retryableUploadItems(uploadQueue.value);
   uploading.value = true; setFeedback(); let completed = 0;
   try {
-    for (const item of items) if (await uploadOne(item)) completed += 1;
+    for (const item of items) if (await uploadOne(item, true)) completed += 1;
     await loadAlbumList(); notice.value = uploadBatchCompletionMessage(completed, items.length);
-  } finally { uploading.value = false; }
+  } catch (error) { errorMessage.value = messageOf(error); }
+  finally { uploading.value = false; }
 }
 
 function toggleLibraryPhoto(photoId) {
@@ -395,6 +460,7 @@ function toggleLibraryPhoto(photoId) {
 }
 
 async function saveLibraryPhoto(photo) {
+  if (pending.value) return;
   const edit = libraryEdits[photo.id]; busy.value = true; setFeedback();
   try {
     await updateAdminManagedPhoto(photo.id, {
@@ -411,13 +477,14 @@ async function saveLibraryPhoto(photo) {
 async function attachSelectedPhotos() {
   const photos = [...selectedLibraryIds.value].filter((id) => !attachedPhotoIds.value.has(id)).map((photoId) => ({ photoId, caption: '', downloadMode: 'NONE' }));
   if (!photos.length) return;
-  await runAlbumMutation((etag) => attachAdminAlbumPhotos(detail.value.id, photos, etag, auth.authorizedFetch), `已复用 ${photos.length} 张照片。`);
-  selectedLibraryIds.value = new Set();
+  const saved = await runAlbumMutation((etag) => attachAdminAlbumPhotos(detail.value.id, photos, etag, auth.authorizedFetch), `已复用 ${photos.length} 张照片。`);
+  if (saved) selectedLibraryIds.value = new Set();
 }
 
 function detachPhoto(photoId) { return runAlbumMutation((etag) => detachAdminAlbumPhotos(detail.value.id, [photoId], etag, auth.authorizedFetch), '照片已从相册移除，照片库原件仍然保留。'); }
 
 async function persistOrder(nextPhotos) {
+  if (!detail.value || pending.value) return;
   const previous = detail.value.photos;
   const intendedPhotoIds = nextPhotos.map((photo) => photo.photoId);
   detail.value = { ...detail.value, photos: nextPhotos }; busy.value = true; setFeedback();
@@ -445,6 +512,7 @@ function dropPhoto(index) { if (dragIndex < 0 || dragIndex === index) return; co
 function saveCaption(photo) { return runAlbumMutation((etag) => attachAdminAlbumPhotos(detail.value.id, [{ photoId: photo.photoId, caption: photo.caption || '', downloadMode: photo.downloadMode || 'NONE' }], etag, auth.authorizedFetch), '照片说明已保存。'); }
 
 async function saveDownloadPolicy(photo) {
+  if (pending.value) return;
   const draft = downloadDrafts[photo.photoId]; busy.value = true; setFeedback();
   try { await updateAdminPhotoDownloadPolicy(photo, draft.mode, draft.acknowledged, auth.authorizedFetch); applyDetail(await getAdminAlbum(detail.value.id, auth.authorizedFetch)); notice.value = '下载策略已保存。'; }
   catch (error) { errorMessage.value = messageOf(error); }
@@ -452,6 +520,7 @@ async function saveDownloadPolicy(photo) {
 }
 
 async function retryVariant(variant) {
+  if (pending.value) return;
   busy.value = true; setFeedback();
   try { await retryAdminMediaDerivative(variant.retryRoute, variant.etag, auth.authorizedFetch); applyDetail(await getAdminAlbum(detail.value.id, auth.authorizedFetch)); notice.value = `${variant.variant} 已重新进入处理队列。`; }
   catch (error) { errorMessage.value = messageOf(error); }
@@ -462,6 +531,7 @@ onMounted(loadWorkspace);
 </script>
 
 <style scoped>
+.studio-fields { display: grid; gap: 18px; min-width: 0; margin: 0; padding: 0; border: 0; }
 .album-studio { --studio-radius: 18px; display: grid; gap: 18px; min-height: 640px; padding: clamp(16px, 2.5vw, 28px); color: var(--theme-text-primary); }
 .glass-panel { border: 1px solid var(--theme-border, rgba(255,255,255,.14)); border-radius: var(--studio-radius); background: linear-gradient(145deg, rgba(var(--accent-rgb), .07), transparent 42%), var(--theme-panel-surface, rgba(12,18,28,.76)); box-shadow: 0 18px 46px rgba(0,0,0,.12); backdrop-filter: blur(18px) saturate(135%); }
 .album-studio__hero, .editor-heading, .section-heading, .panel-heading, .preview-sheet header, .upload-item__top, .album-photo__title { display: flex; align-items: center; justify-content: space-between; gap: 14px; }

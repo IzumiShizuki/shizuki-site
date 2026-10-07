@@ -15,12 +15,13 @@
           :items="authorRailItems"
           :active-key="authorRailActiveKey"
           :admin-user="isAdminUser"
+          :studio-key="preferredStudioKey"
           :profile="authorProfile"
           :public-mode="!isAdminConsoleTab"
           :show-profile="!isPublicExperienceTab"
           :compact-profile="isPublicExperienceTab"
           :heading="isPublicExperienceTab ? '内容导航' : '站点导航'"
-          :description="isPublicExperienceTab ? '同页快速跳转' : ''"
+          :description="isAdminUser ? '浏览内容与管理工作台' : (isPublicExperienceTab ? '同页快速跳转' : '')"
           :aria-label="isPublicExperienceTab ? '关于网站内容导航' : '关于网站导航'"
           workspace
           @select="handleAuthorRailSelect"
@@ -43,8 +44,8 @@
         @pointerleave="resetParallax"
         @scroll.passive="handleContentScroll"
       >
-        <p v-if="loading" class="state-tip">正在同步关于网站资料...</p>
-        <div v-else-if="loadError" class="load-error-row">
+        <p v-if="loading && !isAdminConsoleTab && activeTab !== AuthorTabKey.SITE_SETTINGS" class="state-tip">正在同步关于网站资料...</p>
+        <div v-else-if="loadError && !isAdminConsoleTab && activeTab !== AuthorTabKey.SITE_SETTINGS" class="load-error-row">
           <p class="error-text">{{ loadError }}</p>
           <button class="mini-btn ripple-trigger" type="button" @click="copyErrorText(loadError)">
             {{ errorCopyFeedback || '复制错误信息' }}
@@ -142,7 +143,7 @@
                       v-model.trim="editForm.site.browserTitle"
                       type="text"
                       maxlength="80"
-                      :disabled="editState.loading"
+                      :disabled="editorBusy || !editState.ready"
                       placeholder="例如：Shizuki Site"
                     />
                   </label>
@@ -151,7 +152,7 @@
                     <input
                       v-model.trim="editForm.site.faviconUrl"
                       type="text"
-                      :disabled="editState.loading || editState.uploadingAvatar"
+                      :disabled="editorBusy || !editState.ready"
                       placeholder="https://..."
                     />
                   </label>
@@ -160,7 +161,7 @@
                     <input
                       v-model.trim="editForm.site.loaderIconUrl"
                       type="text"
-                      :disabled="editState.loading || editState.uploadingAvatar"
+                      :disabled="editorBusy || !editState.ready"
                       placeholder="https://... / gif"
                     />
                   </label>
@@ -170,7 +171,7 @@
                   <button
                     class="mini-btn ripple-trigger"
                     type="button"
-                    :disabled="editState.loading || editState.uploadingAvatar"
+                    :disabled="editorBusy || !editState.ready"
                     @click="triggerSectionImageUpload('site.faviconUrl')"
                   >
                     {{ editState.uploadingAvatar ? '上传中...' : '上传网站图标并回填' }}
@@ -178,7 +179,7 @@
                   <button
                     class="mini-btn ripple-trigger"
                     type="button"
-                    :disabled="editState.loading || editState.uploadingAvatar"
+                    :disabled="editorBusy || !editState.ready"
                     @click="triggerSectionImageUpload('site.loaderIconUrl')"
                   >
                     {{ editState.uploadingAvatar ? '上传中...' : '上传 Loader 图标并回填' }}
@@ -209,17 +210,17 @@
 
                 <footer class="site-settings-actions">
                   <div class="inline-actions compact">
-                    <button class="mini-btn ripple-trigger" type="button" :disabled="editState.loading" @click="refreshSectionEditor">
+                    <button class="mini-btn ripple-trigger" type="button" :disabled="editorBusy" @click="refreshSectionEditor()">
                       {{ editState.loading ? '同步中...' : '刷新后台值' }}
                     </button>
-                    <button class="mini-btn ripple-trigger" type="button" :disabled="editState.loading" @click="resetEditProfile">
+                    <button class="mini-btn ripple-trigger" type="button" :disabled="editorBusy || !editState.ready" @click="resetEditProfile">
                       重置
                     </button>
-                    <button class="mini-btn ripple-trigger primary" type="button" :disabled="editState.loading" @click="saveAdminProfile">
+                    <button class="mini-btn ripple-trigger primary" type="button" :disabled="editorBusy || !editState.ready" @click="saveAdminProfile">
                       {{ editState.loading ? '保存中...' : '保存站点设置' }}
                     </button>
                   </div>
-                  <p v-if="editState.dirty" class="state-tip">你有未保存的修改。</p>
+                  <p v-if="editDirty" class="state-tip">你有未保存的修改。</p>
                   <p v-if="editState.error" class="error-text">
                     {{ editState.error }}
                     <button class="error-copy-btn" type="button" title="复制错误信息" @click="copyErrorText(editState.error)">
@@ -245,6 +246,7 @@
             :about="about"
             :journey="journeyTimelineItems"
             :can-edit="canEditCurrentTab"
+            :can-manage-life-content="canManageLifeContent"
             :albums="featuredAlbums.data.value || []"
             :albums-loading="featuredAlbums.loading.value"
             :albums-error="featuredAlbums.error.value"
@@ -265,9 +267,10 @@
           class="hidden-file-input"
           type="file"
           accept="image/png,image/jpeg,image/webp,image/gif"
-          :disabled="editState.loading || editState.uploadingAvatar"
+          :disabled="editorBusy || !editState.ready"
           @change="handleSectionImageFileChange"
         />
+        <Teleport to="body">
         <ImageCropDialog
           :visible="sectionImageCropVisible"
           :source-url="sectionImageCropSourceUrl"
@@ -288,10 +291,10 @@
 
         <transition name="editor-fade">
           <div v-if="sectionEditorOpen && isAdminUser" class="section-editor-mask" @click.self="closeSectionEditor">
-            <section class="section-editor liquid-material">
+            <section ref="sectionEditorDialog" class="section-editor liquid-material" role="dialog" aria-modal="true" aria-labelledby="author-section-editor-title" tabindex="-1" @keydown="handleEditorKeydown">
               <header class="section-editor-header">
-                <h2>{{ sectionEditorTitle }}</h2>
-                <button class="icon-close-btn ripple-trigger" type="button" :disabled="editState.loading" @click="closeSectionEditor">
+                <h2 id="author-section-editor-title">{{ sectionEditorTitle }}</h2>
+                <button class="icon-close-btn ripple-trigger" type="button" :disabled="editorBusy" aria-label="关闭编辑窗口" @click="closeSectionEditor()">
                   <i class="fas fa-xmark"></i>
                 </button>
               </header>
@@ -302,7 +305,7 @@
                 <section class="form-section">
                   <h3>基础设置</h3>
                   <label class="editor-switch">
-                    <input v-model="editForm.enabled" type="checkbox" :disabled="editState.loading" />
+                    <input v-model="editForm.enabled" type="checkbox" :disabled="editorBusy || !editState.ready" />
                     <span>启用关于网站公开展示</span>
                   </label>
                 </section>
@@ -312,26 +315,26 @@
                   <div class="field-grid two-col">
                     <label class="field-block">
                       <span>问候语</span>
-                      <input v-model.trim="editForm.hero.greeting" type="text" :disabled="editState.loading" />
+                      <input v-model.trim="editForm.hero.greeting" type="text" :disabled="editorBusy || !editState.ready" />
                     </label>
                     <label class="field-block">
                       <span>名字</span>
-                      <input v-model.trim="editForm.hero.name" type="text" :disabled="editState.loading" />
+                      <input v-model.trim="editForm.hero.name" type="text" :disabled="editorBusy || !editState.ready" />
                     </label>
                   </div>
                   <label class="field-block">
                     <span>签名</span>
-                    <textarea v-model.trim="editForm.hero.quote" rows="2" :disabled="editState.loading"></textarea>
+                    <textarea v-model.trim="editForm.hero.quote" rows="2" :disabled="editorBusy || !editState.ready"></textarea>
                   </label>
                   <label class="field-block">
                     <span>头像 URL</span>
-                    <input v-model.trim="editForm.hero.avatarUrl" type="text" :disabled="editState.loading || editState.uploadingAvatar" />
+                    <input v-model.trim="editForm.hero.avatarUrl" type="text" :disabled="editorBusy || !editState.ready" />
                   </label>
                   <div class="inline-actions compact">
                     <button
                       class="mini-btn ripple-trigger"
                       type="button"
-                      :disabled="editState.loading || editState.uploadingAvatar"
+                      :disabled="editorBusy || !editState.ready"
                       @click="triggerSectionImageUpload('hero.avatarUrl')"
                     >
                       {{ editState.uploadingAvatar ? '上传中...' : '上传头像并回填' }}
@@ -345,13 +348,13 @@
                   />
                   <label class="field-block">
                     <span>主视觉背景图 URL</span>
-                    <input v-model.trim="editForm.hero.coverImageUrl" type="text" :disabled="editState.loading || editState.uploadingAvatar" />
+                    <input v-model.trim="editForm.hero.coverImageUrl" type="text" :disabled="editorBusy || !editState.ready" />
                   </label>
                   <div class="inline-actions compact">
                     <button
                       class="mini-btn ripple-trigger"
                       type="button"
-                      :disabled="editState.loading || editState.uploadingAvatar"
+                      :disabled="editorBusy || !editState.ready"
                       @click="triggerSectionImageUpload('hero.coverImageUrl')"
                     >
                       {{ editState.uploadingAvatar ? '上传中...' : '上传背景图并回填' }}
@@ -370,23 +373,23 @@
                   <div class="field-grid two-col">
                     <label class="field-block">
                       <span>出生年份</span>
-                      <input v-model.trim="editForm.identity.birthYear" type="text" :disabled="editState.loading" />
+                      <input v-model.trim="editForm.identity.birthYear" type="text" :disabled="editorBusy || !editState.ready" />
                     </label>
                     <label class="field-block">
                       <span>学校</span>
-                      <input v-model.trim="editForm.identity.school" type="text" :disabled="editState.loading" />
+                      <input v-model.trim="editForm.identity.school" type="text" :disabled="editorBusy || !editState.ready" />
                     </label>
                     <label class="field-block">
                       <span>专业</span>
-                      <input v-model.trim="editForm.identity.major" type="text" :disabled="editState.loading" />
+                      <input v-model.trim="editForm.identity.major" type="text" :disabled="editorBusy || !editState.ready" />
                     </label>
                     <label class="field-block">
                       <span>当前角色</span>
-                      <input v-model.trim="editForm.identity.role" type="text" :disabled="editState.loading" />
+                      <input v-model.trim="editForm.identity.role" type="text" :disabled="editorBusy || !editState.ready" />
                     </label>
                     <label class="field-block">
                       <span>我的状态</span>
-                      <input v-model.trim="editForm.identity.activityStatus" type="text" :disabled="editState.loading" placeholder="例如：上班ing" />
+                      <input v-model.trim="editForm.identity.activityStatus" type="text" :disabled="editorBusy || !editState.ready" placeholder="例如：上班ing" />
                     </label>
                   </div>
                   <div class="field-block">
@@ -398,7 +401,7 @@
                           :key="`identity-label-${item}-${index}`"
                           type="button"
                           class="chip removable-chip ripple-trigger"
-                          :disabled="editState.loading"
+                          :disabled="editorBusy || !editState.ready"
                           @click="removeTag(editForm.identity.labels, index)"
                         >
                           {{ item }} ×
@@ -407,7 +410,7 @@
                       <input
                         v-model="tagInputs.identityLabels"
                         type="text"
-                        :disabled="editState.loading"
+                        :disabled="editorBusy || !editState.ready"
                         placeholder="输入标签，回车添加"
                         @keydown.enter.prevent="commitTagInput('identityLabels', editForm.identity.labels)"
                       />
@@ -426,7 +429,7 @@
                           :key="`skill-${item}-${index}`"
                           type="button"
                           class="chip removable-chip ripple-trigger"
-                          :disabled="editState.loading"
+                          :disabled="editorBusy || !editState.ready"
                           @click="removeTag(editForm.skills, index)"
                         >
                           {{ item }} ×
@@ -435,7 +438,7 @@
                       <input
                         v-model="tagInputs.skills"
                         type="text"
-                        :disabled="editState.loading"
+                        :disabled="editorBusy || !editState.ready"
                         placeholder="输入技能，回车添加"
                         @keydown.enter.prevent="commitTagInput('skills', editForm.skills)"
                       />
@@ -451,26 +454,26 @@
                     <div class="field-grid two-col">
                       <label class="field-block">
                         <span>时间（支持 YYYY-MM-DD）</span>
-                        <input v-model.trim="item.year" type="text" :disabled="editState.loading" placeholder="例如 2026-03-12" />
+                        <input v-model.trim="item.year" type="text" :disabled="editorBusy || !editState.ready" placeholder="例如 2026-03-12" />
                       </label>
                       <label class="field-block">
                         <span>标题</span>
-                        <input v-model.trim="item.title" type="text" :disabled="editState.loading" />
+                        <input v-model.trim="item.title" type="text" :disabled="editorBusy || !editState.ready" />
                       </label>
                     </div>
                     <label class="field-block">
                       <span>描述</span>
-                      <textarea v-model.trim="item.description" rows="3" :disabled="editState.loading"></textarea>
+                      <textarea v-model.trim="item.description" rows="3" :disabled="editorBusy || !editState.ready"></textarea>
                     </label>
                     <label class="field-block">
                       <span>卡片图片 URL</span>
-                      <input v-model.trim="item.imageUrl" type="text" :disabled="editState.loading || editState.uploadingAvatar" />
+                      <input v-model.trim="item.imageUrl" type="text" :disabled="editorBusy || !editState.ready" />
                     </label>
                     <div class="inline-actions compact">
                       <button
                         class="mini-btn ripple-trigger"
                         type="button"
-                        :disabled="editState.loading || editState.uploadingAvatar"
+                        :disabled="editorBusy || !editState.ready"
                         @click="triggerSectionImageUpload(`journey.${index}.imageUrl`)"
                       >
                         {{ editState.uploadingAvatar ? '上传中...' : '上传图片并回填' }}
@@ -492,7 +495,7 @@
                             :key="`journey-stack-${index}-${stackItem}-${stackIndex}`"
                             type="button"
                             class="chip removable-chip ripple-trigger"
-                            :disabled="editState.loading"
+                            :disabled="editorBusy || !editState.ready"
                             @click="removeTag(item.stack, stackIndex)"
                           >
                             {{ stackItem }} ×
@@ -501,29 +504,29 @@
                         <input
                           v-model="item.stackInput"
                           type="text"
-                          :disabled="editState.loading"
+                          :disabled="editorBusy || !editState.ready"
                           placeholder="输入技术栈，回车添加"
                           @keydown.enter.prevent="commitJourneyStackInput(item)"
                         />
                       </div>
                     </div>
                     <div class="inline-actions compact">
-                      <button class="mini-btn ripple-trigger" type="button" :disabled="editState.loading || index === 0" @click="moveJourneyRow(index, -1)">
+                      <button class="mini-btn ripple-trigger" type="button" :disabled="editorBusy || !editState.ready || index === 0" @click="moveJourneyRow(index, -1)">
                         上移
                       </button>
                       <button
                         class="mini-btn ripple-trigger"
                         type="button"
-                        :disabled="editState.loading || index === editForm.journey.length - 1"
+                        :disabled="editorBusy || !editState.ready || index === editForm.journey.length - 1"
                         @click="moveJourneyRow(index, 1)"
                       >
                         下移
                       </button>
-                      <button class="mini-btn ripple-trigger" type="button" :disabled="editState.loading" @click="removeJourneyRow(index)">删除</button>
+                      <button class="mini-btn ripple-trigger" type="button" :disabled="editorBusy || !editState.ready" @click="removeJourneyRow(index)">删除</button>
                     </div>
                   </article>
                   <div class="inline-actions compact">
-                    <button class="mini-btn ripple-trigger" type="button" :disabled="editState.loading" @click="addJourneyRow">新增经历</button>
+                    <button class="mini-btn ripple-trigger" type="button" :disabled="editorBusy || !editState.ready" @click="addJourneyRow">新增经历</button>
                   </div>
                 </section>
               </div>
@@ -534,22 +537,22 @@
                   <div class="field-grid two-col">
                     <label class="field-block">
                       <span>简介卡片图片 URL</span>
-                      <input v-model.trim="editForm.about.introImageUrl" type="text" :disabled="editState.loading || editState.uploadingAvatar" />
+                      <input v-model.trim="editForm.about.introImageUrl" type="text" :disabled="editorBusy || !editState.ready" />
                     </label>
                     <label class="field-block">
                       <span>目标卡片图片 URL</span>
-                      <input v-model.trim="editForm.about.missionImageUrl" type="text" :disabled="editState.loading || editState.uploadingAvatar" />
+                      <input v-model.trim="editForm.about.missionImageUrl" type="text" :disabled="editorBusy || !editState.ready" />
                     </label>
                     <label class="field-block">
                       <span>外链卡片图片 URL</span>
-                      <input v-model.trim="editForm.about.linksImageUrl" type="text" :disabled="editState.loading || editState.uploadingAvatar" />
+                      <input v-model.trim="editForm.about.linksImageUrl" type="text" :disabled="editorBusy || !editState.ready" />
                     </label>
                   </div>
                   <div class="inline-actions compact">
                     <button
                       class="mini-btn ripple-trigger"
                       type="button"
-                      :disabled="editState.loading || editState.uploadingAvatar"
+                      :disabled="editorBusy || !editState.ready"
                       @click="triggerSectionImageUpload('about.introImageUrl')"
                     >
                       {{ editState.uploadingAvatar ? '上传中...' : '上传简介图' }}
@@ -557,7 +560,7 @@
                     <button
                       class="mini-btn ripple-trigger"
                       type="button"
-                      :disabled="editState.loading || editState.uploadingAvatar"
+                      :disabled="editorBusy || !editState.ready"
                       @click="triggerSectionImageUpload('about.missionImageUrl')"
                     >
                       {{ editState.uploadingAvatar ? '上传中...' : '上传目标图' }}
@@ -565,7 +568,7 @@
                     <button
                       class="mini-btn ripple-trigger"
                       type="button"
-                      :disabled="editState.loading || editState.uploadingAvatar"
+                      :disabled="editorBusy || !editState.ready"
                       @click="triggerSectionImageUpload('about.linksImageUrl')"
                     >
                       {{ editState.uploadingAvatar ? '上传中...' : '上传外链图' }}
@@ -596,11 +599,11 @@
                   </div>
                   <div class="field-block">
                     <span>碎碎念（每行一条）</span>
-                    <textarea v-model="editForm.about.introText" rows="4" :disabled="editState.loading"></textarea>
+                    <textarea v-model="editForm.about.introText" rows="4" :disabled="editorBusy || !editState.ready"></textarea>
                   </div>
                   <label class="field-block">
                     <span>目标</span>
-                    <textarea v-model.trim="editForm.about.mission" rows="2" :disabled="editState.loading"></textarea>
+                    <textarea v-model.trim="editForm.about.mission" rows="2" :disabled="editorBusy || !editState.ready"></textarea>
                   </label>
                   <div class="field-grid two-col">
                     <div class="field-block">
@@ -612,7 +615,7 @@
                             :key="`focus-${item}-${index}`"
                             type="button"
                             class="chip removable-chip ripple-trigger"
-                            :disabled="editState.loading"
+                            :disabled="editorBusy || !editState.ready"
                             @click="removeTag(editForm.about.focus, index)"
                           >
                             {{ item }} ×
@@ -621,7 +624,7 @@
                         <input
                           v-model="tagInputs.aboutFocus"
                           type="text"
-                          :disabled="editState.loading"
+                          :disabled="editorBusy || !editState.ready"
                           placeholder="输入关注方向，回车添加"
                           @keydown.enter.prevent="commitTagInput('aboutFocus', editForm.about.focus)"
                         />
@@ -636,7 +639,7 @@
                             :key="`music-${item}-${index}`"
                             type="button"
                             class="chip removable-chip ripple-trigger"
-                            :disabled="editState.loading"
+                            :disabled="editorBusy || !editState.ready"
                             @click="removeTag(editForm.about.music, index)"
                           >
                             {{ item }} ×
@@ -645,7 +648,7 @@
                         <input
                           v-model="tagInputs.aboutMusic"
                           type="text"
-                          :disabled="editState.loading"
+                          :disabled="editorBusy || !editState.ready"
                           placeholder="输入音乐偏好，回车添加"
                           @keydown.enter.prevent="commitTagInput('aboutMusic', editForm.about.music)"
                         />
@@ -660,47 +663,47 @@
                     <div class="field-grid two-col">
                       <label class="field-block">
                         <span>名称</span>
-                        <input v-model.trim="item.label" type="text" :disabled="editState.loading" />
+                        <input v-model.trim="item.label" type="text" :disabled="editorBusy || !editState.ready" />
                       </label>
                       <label class="field-block">
                         <span>URL</span>
-                        <input v-model.trim="item.url" type="text" :disabled="editState.loading" />
+                        <input v-model.trim="item.url" type="text" :disabled="editorBusy || !editState.ready" />
                       </label>
                     </div>
                     <div class="inline-actions compact">
-                      <button class="mini-btn ripple-trigger" type="button" :disabled="editState.loading || index === 0" @click="moveLinkRow(index, -1)">
+                      <button class="mini-btn ripple-trigger" type="button" :disabled="editorBusy || !editState.ready || index === 0" @click="moveLinkRow(index, -1)">
                         上移
                       </button>
                       <button
                         class="mini-btn ripple-trigger"
                         type="button"
-                        :disabled="editState.loading || index === editForm.about.links.length - 1"
+                        :disabled="editorBusy || !editState.ready || index === editForm.about.links.length - 1"
                         @click="moveLinkRow(index, 1)"
                       >
                         下移
                       </button>
-                      <button class="mini-btn ripple-trigger" type="button" :disabled="editState.loading" @click="removeLinkRow(index)">删除</button>
+                      <button class="mini-btn ripple-trigger" type="button" :disabled="editorBusy || !editState.ready" @click="removeLinkRow(index)">删除</button>
                     </div>
                   </article>
                   <div class="inline-actions compact">
-                    <button class="mini-btn ripple-trigger" type="button" :disabled="editState.loading" @click="addLinkRow">新增外链</button>
+                    <button class="mini-btn ripple-trigger" type="button" :disabled="editorBusy || !editState.ready" @click="addLinkRow">新增外链</button>
                   </div>
                 </section>
               </div>
 
               <footer class="section-editor-footer">
                 <div class="inline-actions compact">
-                  <button class="mini-btn ripple-trigger" type="button" :disabled="editState.loading" @click="refreshSectionEditor">
+                  <button class="mini-btn ripple-trigger" type="button" :disabled="editorBusy" @click="refreshSectionEditor()">
                     {{ editState.loading ? '同步中...' : '刷新后台值' }}
                   </button>
-                  <button class="mini-btn ripple-trigger" type="button" :disabled="editState.loading" @click="resetEditProfile">
+                  <button class="mini-btn ripple-trigger" type="button" :disabled="editorBusy || !editState.ready" @click="resetEditProfile">
                     重置
                   </button>
-                  <button class="mini-btn ripple-trigger primary" type="button" :disabled="editState.loading" @click="saveAdminProfile">
+                  <button class="mini-btn ripple-trigger primary" type="button" :disabled="editorBusy || !editState.ready" @click="saveAdminProfile">
                     {{ editState.loading ? '保存中...' : '保存资料' }}
                   </button>
                 </div>
-                <p v-if="editState.dirty" class="state-tip">你有未保存的修改。</p>
+                <p v-if="editDirty" class="state-tip">你有未保存的修改。</p>
                 <p v-if="editState.error" class="error-text">
                   {{ editState.error }}
                   <button class="error-copy-btn" type="button" title="复制错误信息" @click="copyErrorText(editState.error)">
@@ -712,6 +715,7 @@
             </section>
           </div>
         </transition>
+        </Teleport>
       </SubtleScrollArea>
       <template #right>
         <AuthorLifeWidgetRail sticky-top="0px" />
@@ -740,12 +744,13 @@
           :items="authorRailItems"
           :active-key="authorRailActiveKey"
           :admin-user="isAdminUser"
+          :studio-key="preferredStudioKey"
           :profile="authorProfile"
           :public-mode="!isAdminConsoleTab"
           :show-profile="!isPublicExperienceTab"
           :compact-profile="isPublicExperienceTab"
           :heading="isPublicExperienceTab ? '内容导航' : '站点导航'"
-          :description="isPublicExperienceTab ? '同页快速跳转' : ''"
+          :description="isAdminUser ? '浏览内容与管理工作台' : (isPublicExperienceTab ? '同页快速跳转' : '')"
           :aria-label="isPublicExperienceTab ? '关于网站内容导航' : '关于网站导航'"
           @select="selectFromAuthorDrawer"
           @select-date="openBlogDate"
@@ -759,6 +764,7 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import { useDraftGuard } from '../composables/useDraftGuard';
 import { useAuthSession } from '../composables/useAuthSession';
 import { useAppScrollRoot } from '../composables/useAppScrollRoot';
 import { useAsyncResource } from '../composables/useAsyncResource';
@@ -788,7 +794,7 @@ import {
   createEmptyLinkRow
 } from './authorEditFormState';
 import { AdminTabKey } from './adminUiState';
-import { AdminNavigationGroup, buildAdminNavigationItems, isAdminPrincipal } from './adminNavigation';
+import { AdminNavigationGroup, AdminScopedPermission, buildAdminNavigationItems, hasAdminScopedPermission, isAdminPrincipal } from './adminNavigation';
 import { createAuthorMotionState, mapPointerToParallax, setupRevealObserver } from './authorMotionState';
 import { readAuthorProfileCache, writeAuthorProfileCache } from './authorProfileCache';
 
@@ -910,6 +916,8 @@ const sectionImageUploadInputRef = ref(null);
 const contentPanelRef = ref(null);
 const journeyTimelineRef = ref(null);
 const sectionEditorOpen = ref(false);
+const sectionEditorDialog = ref(null);
+let editorReturnFocus = null;
 const sectionEditorSection = ref(AuthorTabKey.ABOUT);
 const pendingSectionImagePath = ref('');
 const sectionImageCropVisible = ref(false);
@@ -927,7 +935,7 @@ const editState = reactive({
   error: '',
   success: '',
   uploadingAvatar: false,
-  dirty: false
+  ready: false
 });
 
 const tagInputs = reactive({
@@ -937,7 +945,18 @@ const tagInputs = reactive({
   aboutMusic: ''
 });
 
-let suppressDirtyTracking = false;
+const savedEditSnapshot = ref('');
+const editDirty = computed(() => editState.ready && (
+  JSON.stringify(editForm.value) !== savedEditSnapshot.value ||
+  Object.values(tagInputs).some((value) => value.trim())
+));
+const editorBusy = computed(() => editState.loading || editState.uploadingAvatar || sectionImageCropVisible.value);
+const { confirmDiscard: confirmEditDiscard } = useDraftGuard({
+  isDirty: () => editDirty.value,
+  isBusy: () => editorBusy.value,
+  shouldGuardUpdate: (to, from) => to.query.tab !== from.query.tab
+});
+let profileRevision = 0;
 let revealController = null;
 let journeyObserver = null;
 const journeyRatioMap = new Map();
@@ -947,6 +966,8 @@ const isAdminUser = computed(() => {
 });
 
 const eligibleAdminTabs = computed(() => buildAdminNavigationItems(auth.user.value));
+const canManageLifeContent = computed(() => hasAdminScopedPermission(auth.user.value, AdminScopedPermission.LIFE_CONTENT));
+const preferredStudioKey = computed(() => canManageLifeContent.value ? `${AUTHOR_ADMIN_ROUTE_PREFIX}${AdminTabKey.ALBUMS}` : AuthorTabKey.SITE_SETTINGS);
 const eligibleAdminTabKeys = computed(() => new Set(eligibleAdminTabs.value.map((item) => item.key)));
 
 const tabs = computed(() => {
@@ -986,7 +1007,7 @@ const activeAdminTab = computed(() => {
 const isAdminConsoleTab = computed(() => Boolean(activeAdminTab.value));
 const isPublicAboutTab = computed(() => activeTab.value === AuthorTabKey.ABOUT && !isAdminConsoleTab.value);
 const isPublicExperienceTab = computed(() => !isAdminConsoleTab.value && activeTab.value === AuthorTabKey.ABOUT);
-const authorRailItems = computed(() => isPublicExperienceTab.value ? baseTabs : tabs.value);
+const authorRailItems = computed(() => tabs.value);
 const authorRailActiveKey = computed(() => isPublicExperienceTab.value ? activePublicSection.value : activeTab.value);
 // 管理台的所有子标签共用同一个 key：在 Users / Groups / Quota 之间切换时
 // 滚动容器与玻璃面板不再销毁重建，避免整块内容闪烁和重复请求。
@@ -1223,7 +1244,9 @@ function createSafeSectionKey(sectionKey) {
 }
 
 async function refreshSectionEditor() {
-  if (!isAdminUser.value) return;
+  if (!isAdminUser.value || !confirmEditDiscard()) return;
+  profileRevision += 1;
+  editState.ready = false;
   editState.loading = true;
   editState.error = '';
   editState.success = '';
@@ -1231,6 +1254,7 @@ async function refreshSectionEditor() {
     const payload = await getAdminAuthorProfile(auth.authorizedFetch);
     authorProfile.value = normalizeAuthorProfilePayload(payload);
     applyEditFormFromProfile(authorProfile.value);
+    editState.ready = true;
     writeAuthorProfileCache(authorProfile.value);
     refreshActiveTabMotion();
   } catch (error) {
@@ -1241,19 +1265,48 @@ async function refreshSectionEditor() {
 }
 
 async function openSectionEditor(sectionKey) {
-  if (!isAdminUser.value) return;
+  if (!isAdminUser.value || !confirmEditDiscard()) return;
+  editState.ready = false;
   sectionEditorSection.value = createSafeSectionKey(sectionKey);
   sectionEditorOpen.value = true;
   await refreshSectionEditor();
 }
 
-function closeSectionEditor() {
+function closeSectionEditor(force = false) {
+  if (force !== true && !confirmEditDiscard()) return;
   sectionEditorOpen.value = false;
+  editState.ready = false;
+  applyEditFormFromProfile(authorProfile.value);
   closeSectionImageCropDialog();
   pendingSectionImagePath.value = '';
   editState.error = '';
   editState.success = '';
 }
+
+function handleEditorKeydown(event) {
+  if (event.key === 'Escape') {
+    event.preventDefault();
+    closeSectionEditor();
+  }
+  if (event.key !== 'Tab') return;
+  const elements = [...(sectionEditorDialog.value?.querySelectorAll('button:not(:disabled), input:not(:disabled), textarea:not(:disabled), select:not(:disabled), a[href]') || [])];
+  if (!elements.length) { event.preventDefault(); sectionEditorDialog.value?.focus(); return; }
+  const first = elements[0];
+  const last = elements.at(-1);
+  if (event.shiftKey && (document.activeElement === first || document.activeElement === sectionEditorDialog.value)) {
+    event.preventDefault(); last.focus();
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault(); first.focus();
+  }
+}
+
+watch(sectionEditorOpen, async (open) => {
+  if (open) {
+    editorReturnFocus = document.activeElement;
+    await nextTick();
+    sectionEditorDialog.value?.focus();
+  } else if (editorReturnFocus?.isConnected) editorReturnFocus.focus();
+});
 
 function updateFormFieldByPath(path, value) {
   const source = String(path || '').trim();
@@ -1280,7 +1333,7 @@ function updateFormFieldByPath(path, value) {
 }
 
 function triggerSectionImageUpload(path) {
-  if (editState.loading || editState.uploadingAvatar) return;
+  if (!editState.ready || editorBusy.value) return;
   const normalizedPath = String(path || '').trim();
   if (!normalizedPath) return;
   pendingSectionImagePath.value = normalizedPath;
@@ -1288,6 +1341,7 @@ function triggerSectionImageUpload(path) {
 }
 
 async function handleSectionImageFileChange(event) {
+  if (!editState.ready || editorBusy.value) return;
   const inputEl = event?.target;
   const file = inputEl?.files?.[0];
   const targetPath = pendingSectionImagePath.value;
@@ -1338,6 +1392,7 @@ function closeSectionImageCropDialog() {
 }
 
 async function uploadSectionImageFile(file, targetPath, successMessage = '图片上传成功，已自动回填 URL') {
+  if (!editState.ready || editState.loading || editState.uploadingAvatar) return;
   editState.uploadingAvatar = true;
   editState.error = '';
   editState.success = '';
@@ -1775,7 +1830,7 @@ function buildEditFormState(profilePayload) {
       labels: Array.isArray(source.identity?.labels) ? [...source.identity.labels] : []
     },
     skills: Array.isArray(source.skills) ? [...source.skills] : [],
-    journey: Array.isArray(source.journey) && source.journey.length ? source.journey.map(normalizeJourneyRow) : [createJourneyRow()],
+    journey: Array.isArray(source.journey) ? source.journey.map(normalizeJourneyRow) : [createJourneyRow()],
     about: {
       introText: String(source.about?.introText || ''),
       mission: String(source.about?.mission || '').trim(),
@@ -1785,7 +1840,7 @@ function buildEditFormState(profilePayload) {
       missionImageUrl: String(source.about?.missionImageUrl || '').trim(),
       linksImageUrl: String(source.about?.linksImageUrl || '').trim(),
       links:
-        Array.isArray(source.about?.links) && source.about.links.length
+        Array.isArray(source.about?.links)
           ? source.about.links.map(normalizeLinkRow)
           : [createLinkRow()]
     },
@@ -1798,15 +1853,11 @@ function buildEditFormState(profilePayload) {
 }
 
 function applyEditFormFromProfile(profilePayload) {
-  suppressDirtyTracking = true;
   editForm.value = buildEditFormState(profilePayload);
+  savedEditSnapshot.value = JSON.stringify(editForm.value);
   resetTagInputs();
   editState.error = '';
   editState.success = '';
-  editState.dirty = false;
-  Promise.resolve().then(() => {
-    suppressDirtyTracking = false;
-  });
 }
 
 function syncEditStateFromProfile() {
@@ -1814,6 +1865,7 @@ function syncEditStateFromProfile() {
 }
 
 function resetEditProfile() {
+  if (!confirmEditDiscard()) return;
   syncEditStateFromProfile();
 }
 
@@ -1828,6 +1880,7 @@ function applyCachedPublicProfile() {
 }
 
 async function loadPublicProfile() {
+  const revision = profileRevision;
   loading.value = true;
   loadError.value = '';
   cacheNotice.value = '';
@@ -1838,12 +1891,14 @@ async function loadPublicProfile() {
   try {
     await auth.ensureReady();
     const payload = await getAuthorProfile(auth.isAuthenticated.value ? auth.authorizedFetch : undefined);
+    if (revision !== profileRevision || editState.ready || editState.loading) return;
     authorProfile.value = normalizeAuthorProfilePayload(payload);
     applyEditFormFromProfile(authorProfile.value);
     writeAuthorProfileCache(authorProfile.value);
     cacheNotice.value = '';
     refreshActiveTabMotion();
   } catch (error) {
+    if (revision !== profileRevision || editState.ready || editState.loading) return;
     if (hadCache) {
       loadError.value = '';
       cacheNotice.value = `已显示缓存，后台刷新失败：${readErrorMessage(error, '加载关于网站资料失败')}`;
@@ -1884,7 +1939,12 @@ function validateEditForm(form) {
 }
 
 async function saveAdminProfile() {
-  if (!isAdminUser.value) return;
+  if (!isAdminUser.value || !editState.ready || editorBusy.value) return;
+  commitTagInput('identityLabels', editForm.value.identity.labels);
+  commitTagInput('skills', editForm.value.skills);
+  commitTagInput('aboutFocus', editForm.value.about.focus);
+  commitTagInput('aboutMusic', editForm.value.about.music);
+  editForm.value.journey.forEach(commitJourneyStackInput);
 
   const validationError = validateEditForm(editForm.value);
   if (validationError) {
@@ -1894,6 +1954,7 @@ async function saveAdminProfile() {
   }
 
   editState.loading = true;
+  profileRevision += 1;
   editState.error = '';
   editState.success = '';
   try {
@@ -1948,9 +2009,6 @@ function removeJourneyRow(index) {
   const list = editForm.value.journey;
   if (index < 0 || index >= list.length) return;
   list.splice(index, 1);
-  if (!list.length) {
-    list.push(createJourneyRow());
-  }
 }
 
 function moveJourneyRow(index, direction) {
@@ -1970,9 +2028,6 @@ function removeLinkRow(index) {
   const list = editForm.value.about.links;
   if (index < 0 || index >= list.length) return;
   list.splice(index, 1);
-  if (!list.length) {
-    list.push(createLinkRow());
-  }
 }
 
 function moveLinkRow(index, direction) {
@@ -2087,12 +2142,9 @@ watch(
 
 watch(
   activeTab,
-  (nextTab, previousTab) => {
+  () => {
     if (!canEditCurrentTab.value && sectionEditorOpen.value) {
-      closeSectionEditor();
-    }
-    if (nextTab === AuthorTabKey.SITE_SETTINGS && isAdminUser.value && previousTab !== AuthorTabKey.SITE_SETTINGS) {
-      void refreshSectionEditor();
+      closeSectionEditor(true);
     }
     if (appScrollRoot.isActive.value) {
       void nextTick(() => {
@@ -2126,18 +2178,12 @@ watch(
   { immediate: true }
 );
 
-watch(
-  () => editForm.value,
-  () => {
-    if (suppressDirtyTracking) return;
-    if (!sectionEditorOpen.value) return;
-    editState.dirty = true;
-    if (editState.success) {
-      editState.success = '';
-    }
-  },
-  { deep: true }
-);
+watch(editDirty, (dirty) => { if (dirty) editState.success = ''; });
+watch([activeTab, isAdminUser], ([tab, admin]) => {
+  if (!admin && sectionEditorOpen.value) closeSectionEditor(true);
+  if (tab === AuthorTabKey.SITE_SETTINGS && admin) void refreshSectionEditor();
+  else if (!sectionEditorOpen.value) editState.ready = false;
+}, { immediate: true });
 
 onMounted(() => {
   loadPublicProfile();
@@ -2145,6 +2191,7 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
+  resetSectionImageCropSource();
   disconnectRevealController();
   disconnectJourneyObserver();
   if (errorCopyFeedbackTimer) {
@@ -3444,7 +3491,7 @@ onBeforeUnmount(() => {
 .section-editor-mask {
   position: fixed;
   inset: 0;
-  z-index: 120;
+  z-index: 900;
   background: var(--theme-scrim, rgba(24, 14, 12, 0.64));
   backdrop-filter: blur(6px);
   display: grid;
@@ -3453,20 +3500,26 @@ onBeforeUnmount(() => {
 }
 
 .section-editor {
-  width: min(980px, 96vw);
-  max-height: min(88vh, 980px);
+  --section-editor-base: #241e27;
+  width: min(980px, 100%);
+  max-height: min(88dvh, 980px);
   overflow: auto;
   border-radius: 16px;
   padding: 14px;
   display: grid;
   gap: 10px;
   color: var(--theme-text-primary, rgba(255, 242, 233, 0.96));
-  --liquid-bg: var(--theme-panel-surface, rgba(16, 24, 38, 0.84));
+  --liquid-bg: var(--theme-panel-surface, rgba(16, 24, 38, 0.84)), var(--section-editor-base);
   --liquid-border: var(--theme-border-strong, rgba(255, 255, 255, 0.24));
   --liquid-shadow: 0 24px 46px rgba(18, 9, 8, 0.32);
 }
 
 .section-editor-header {
+  position: sticky;
+  z-index: 1;
+  top: -14px;
+  padding-block: 10px;
+  background: var(--liquid-bg);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -3492,12 +3545,17 @@ onBeforeUnmount(() => {
 
 .section-editor-footer {
   position: sticky;
+  z-index: 1;
   bottom: 0;
   background:
     linear-gradient(180deg, rgba(var(--accent-rgb), 0), rgba(var(--accent-rgb), 0.08) 42%),
-    var(--theme-panel-surface, rgba(16, 24, 38, 0.92));
+    var(--theme-panel-surface, rgba(16, 24, 38, 0.92)), var(--section-editor-base);
   border-top: 1px solid var(--theme-divider-soft, rgba(255, 255, 255, 0.11));
   padding-top: 10px;
+}
+
+:root[data-theme-mode='day'] .section-editor {
+  --section-editor-base: #fffaf7;
 }
 
 .section-image-preview {
@@ -3915,8 +3973,8 @@ onBeforeUnmount(() => {
   }
 
   .section-editor {
-    width: min(98vw, 980px);
-    max-height: 92vh;
+    width: min(100%, 980px);
+    max-height: 92dvh;
   }
 }
 

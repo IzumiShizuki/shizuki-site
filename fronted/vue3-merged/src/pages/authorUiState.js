@@ -156,7 +156,7 @@ function normalizeAuthorProfileJson(raw, fallback) {
 }
 
 function normalizeJourneyList(raw, fallback) {
-  if (!Array.isArray(raw) || !raw.length) return fallback;
+  if (!Array.isArray(raw)) return fallback;
   const normalized = raw
     .map((item, index) => {
       const row = toPlainObject(item);
@@ -167,18 +167,18 @@ function normalizeJourneyList(raw, fallback) {
       return {
         year: normalizeString(row.year, '未定'),
         title: title || '持续迭代',
-        description: description || '继续完善作者主页与站点表达。',
+        description,
         imageUrl: normalizeImageUrl(row.imageUrl ?? row.image_url, normalizeString(fallbackRow.imageUrl)),
         stack: normalizeStringList(row.stack, ['Shizuki Site'])
       };
     })
     .filter(Boolean);
 
-  return normalized.length ? normalized : fallback;
+  return normalized;
 }
 
 function normalizeLinkList(raw, fallback) {
-  if (!Array.isArray(raw) || !raw.length) return fallback;
+  if (!Array.isArray(raw)) return fallback;
   const normalized = raw
     .map((item) => {
       const row = toPlainObject(item);
@@ -189,21 +189,21 @@ function normalizeLinkList(raw, fallback) {
     })
     .filter(Boolean);
 
-  return normalized.length ? normalized : fallback;
+  return normalized;
 }
 
 function normalizeStringList(raw, fallback = []) {
-  if (!Array.isArray(raw) || !raw.length) return fallback;
+  if (!Array.isArray(raw)) return fallback;
   const normalized = raw
     .map((item) => normalizeString(item))
     .filter(Boolean)
     .filter((item, index, arr) => arr.indexOf(item) === index);
 
-  return normalized.length ? normalized : fallback;
+  return normalized;
 }
 
 function normalizeString(value, fallback = '') {
-  return typeof value === 'string' && value.trim() ? value.trim() : fallback;
+  return typeof value === 'string' ? value.trim() : fallback;
 }
 
 function normalizeImageUrl(value, fallback = '') {

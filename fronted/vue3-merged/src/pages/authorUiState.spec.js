@@ -7,6 +7,26 @@ import {
 } from './authorUiState';
 
 describe('authorUiState', () => {
+  it('preserves intentionally cleared optional content after save and reload', () => {
+    const normalized = normalizeAuthorProfilePayload({ profileJson: {
+      hero: { name: 'Author', quote: '', avatar_url: '', cover_image_url: '' },
+      identity: { labels: [] }, skills: [], journey: [],
+      about: { intro: [], mission: '', focus: [], music: [], intro_image_url: '', links: [] }
+    } });
+    expect(normalized.profileJson.hero.quote).toBe('');
+    expect(normalized.profileJson.hero.avatarUrl).toBe('');
+    expect(normalized.profileJson.identity.labels).toEqual([]);
+    expect(normalized.profileJson.skills).toEqual([]);
+    expect(normalized.profileJson.journey).toEqual([]);
+    expect(normalized.profileJson.about.links).toEqual([]);
+    expect(normalized.profileJson.about.mission).toBe('');
+    const journey = normalizeAuthorProfilePayload({ profileJson: {
+      journey: [{ year: '2026', title: 'A milestone', description: '', image_url: '', stack: [] }]
+    } }).profileJson.journey;
+    expect(journey[0].description).toBe('');
+    expect(journey[0].imageUrl).toBe('');
+    expect(journey[0].stack).toEqual([]);
+  });
   it('normalizes unknown tab to overview', () => {
     expect(normalizeAuthorTabKey('unknown')).toBe(AuthorTabKey.ABOUT);
     expect(normalizeAuthorTabKey(AuthorTabKey.ABOUT)).toBe(AuthorTabKey.ABOUT);

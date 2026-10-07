@@ -101,7 +101,7 @@ export function buildEditFormFromProfile(profilePayload) {
       labels: normalizeStringList(identity.labels)
     },
     skills: normalizeStringList(profileJson.skills),
-    journey: journey.length ? journey : defaultForm.journey,
+    journey: Array.isArray(profileJson.journey) ? journey : defaultForm.journey,
     about: {
       introText: normalizeStringList(about.intro).join('\n'),
       mission: normalizeString(about.mission),
@@ -110,7 +110,7 @@ export function buildEditFormFromProfile(profilePayload) {
       introImageUrl: normalizeImageUrl(about.introImageUrl ?? about.intro_image_url),
       missionImageUrl: normalizeImageUrl(about.missionImageUrl ?? about.mission_image_url),
       linksImageUrl: normalizeImageUrl(about.linksImageUrl ?? about.links_image_url),
-      links: links.length ? links : defaultForm.about.links
+      links: Array.isArray(about.links) ? links : defaultForm.about.links
     },
     site: {
       browserTitle: normalizeString(site.browserTitle ?? site.browser_title),
@@ -245,8 +245,7 @@ function normalizeStringList(raw) {
 
 function normalizeString(value, fallback = '') {
   if (value == null) return fallback;
-  const normalized = String(value).trim();
-  return normalized || fallback;
+  return String(value).trim();
 }
 
 function normalizeImageUrl(value, fallback = '') {

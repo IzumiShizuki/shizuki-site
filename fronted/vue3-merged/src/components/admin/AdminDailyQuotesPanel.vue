@@ -1,5 +1,6 @@
 <template>
   <section class="quote-studio" data-studio-workspace="daily-quotes">
+    <fieldset class="studio-fields" :disabled="pending">
     <header class="quote-studio__hero">
       <div>
         <p>CONTENT STUDIO · DAILY QUOTES</p>
@@ -16,6 +17,7 @@
       </div>
     </header>
 
+    <p v-if="dirty" class="studio-alert" role="status">有未保存的修改，切换或重新读取前请先保存。</p>
     <p v-if="errorMessage" class="studio-alert studio-alert--error" role="alert">{{ errorMessage }}</p>
     <p v-if="notice" class="studio-alert" role="status">{{ notice }}</p>
 
@@ -142,23 +144,26 @@
           <div class="section-heading"><div><small>REVIEW GATE</small><h4>审核状态</h4></div><em :data-status="editor.approvalStatus">{{ approvalLabel(editor.approvalStatus) }}</em></div>
           <p>先明确审核结论，再单独决定是否进入本地精选池；历史每日快照不会随库内容变化。</p>
           <div class="review-actions">
-            <button class="review-button" type="button" :disabled="busy" @click="reviewQuote('APPROVED')"><i class="fas fa-check"></i> 批准</button>
-            <button class="review-button" type="button" :disabled="busy" @click="reviewQuote('DRAFT')"><i class="fas fa-clock"></i> 待审</button>
-            <button class="review-button review-button--reject" type="button" :disabled="busy" @click="reviewQuote('REJECTED')"><i class="fas fa-xmark"></i> 拒绝</button>
+            <button class="review-button" type="button" :disabled="pending || dirty" @click="reviewQuote('APPROVED')"><i class="fas fa-check"></i> 批准</button>
+            <button class="review-button" type="button" :disabled="pending || dirty" @click="reviewQuote('DRAFT')"><i class="fas fa-clock"></i> 待审</button>
+            <button class="review-button review-button--reject" type="button" :disabled="pending || dirty" @click="reviewQuote('REJECTED')"><i class="fas fa-xmark"></i> 拒绝</button>
           </div>
           <label class="featured-switch" :class="{ 'featured-switch--disabled': editor.approvalStatus !== 'APPROVED' }">
             <span><i class="fas fa-star" aria-hidden="true"></i><strong>本地精选</strong><small>仅批准内容可参与每日本地回退与“换一句”</small></span>
-            <input :checked="editor.enabled" type="checkbox" role="switch" :disabled="busy || editor.approvalStatus !== 'APPROVED'" @change="toggleFeatured" />
+            <input :checked="editor.enabled" type="checkbox" role="switch" :disabled="pending || dirty || editor.approvalStatus !== 'APPROVED'" @change="toggleFeatured" />
           </label>
         </section>
       </aside>
     </div>
+    </fieldset>
   </section>
 </template>
 
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue';
 import { useAuthSession } from '../../composables/useAuthSession';
+import { useDraftGuard } from '../../composables/useDraftGuard';
+import { useStudioDraft } from '../../composables/useStudioDraft';
 import {
   createAdminQuote,
   deleteAdminQuote,
@@ -181,6 +186,10 @@ const busy = ref(false);
 const notice = ref('');
 const errorMessage = ref('');
 const editor = reactive(createQuoteEditor());
+const draft = useStudioDraft(editor);
+const dirty = draft.dirty;
+const pending = computed(() => busy.value || loading.value);
+const { confirmDiscard } = useDraftGuard({ isDirty: () => dirty.value, isBusy: () => pending.value });
 
 const filters = Object.freeze([
   { value: 'ALL', label: '全部' },
@@ -214,9 +223,9 @@ function approvalLabel(value) { return ({ DRAFT: '待审核', APPROVED: '已批�
 function providerLabel(value) { return String(value || '').toUpperCase() === 'HITOKOTO' ? 'Hitokoto' : String(value || 'LOCAL').toUpperCase() === 'LOCAL' ? '本地' : String(value || '未知'); }
 function filterCount(value) { return filterAdminQuotes(quotes.value, value).length; }
 function normalizeProvider() { editor.providerCode = String(editor.providerCode || 'LOCAL').trim().toUpperCase() || 'LOCAL'; }
-function applyEditor(value) { Object.assign(editor, createQuoteEditor(value)); }
-function startNewQuote() { applyEditor(); feedback(); }
-function selectQuote(value) { applyEditor(value); feedback(); }
+function applyEditor(value) { draft.apply(createQuoteEditor(value)); }
+function startNewQuote() { if (!confirmDiscard()) return; applyEditor(); feedback(); }
+function selectQuote(value) { if (editor.id === value.id || !confirmDiscard()) return; applyEditor(value); feedback(); }
 
 async function loadQuotes(preferredId = editor.id) {
   quotes.value = await listAdminQuotes({}, auth.authorizedFetch);
@@ -225,28 +234,32 @@ async function loadQuotes(preferredId = editor.id) {
 }
 
 async function loadWorkspace() {
+  if (!confirmDiscard()) return;
   loading.value = true; feedback();
-  await auth.ensureReady();
-  if (!auth.isAuthenticated.value) {
-    errorMessage.value = '需要管理员登录后才能读取今日一言工作台。';
-    loading.value = false;
-    return;
-  }
-  const results = await Promise.allSettled([
-    listAdminQuotes({}, auth.authorizedFetch),
-    getAdminWidgetConfiguration(auth.authorizedFetch),
-    getAdminTodayQuote(auth.authorizedFetch)
-  ]);
-  if (results[0].status === 'fulfilled') quotes.value = results[0].value;
-  if (results[1].status === 'fulfilled') configuration.value = results[1].value;
-  if (results[2].status === 'fulfilled') todayQuote.value = results[2].value;
-  const failures = results.filter((result) => result.status === 'rejected');
-  if (failures.length) errorMessage.value = failures.map((result) => messageOf(result.reason)).join('；');
-  loading.value = false;
+  try {
+    await auth.ensureReady();
+    if (!auth.isAuthenticated.value) {
+      errorMessage.value = '需要管理员登录后才能读取今日一言工作台。';
+      loading.value = false;
+      return;
+    }
+    const results = await Promise.allSettled([
+      listAdminQuotes({}, auth.authorizedFetch),
+      getAdminWidgetConfiguration(auth.authorizedFetch),
+      getAdminTodayQuote(auth.authorizedFetch)
+    ]);
+    if (results[0].status === 'fulfilled') quotes.value = results[0].value;
+    if (results[0].status === 'fulfilled') applyEditor(quotes.value.find((quote) => quote.id === editor.id));
+    if (results[1].status === 'fulfilled') configuration.value = results[1].value;
+    if (results[2].status === 'fulfilled') todayQuote.value = results[2].value;
+    const failures = results.filter((result) => result.status === 'rejected');
+    if (failures.length) errorMessage.value = failures.map((result) => messageOf(result.reason)).join('；');
+  } catch (error) { errorMessage.value = messageOf(error); }
+  finally { loading.value = false; }
 }
 
 async function saveQuote() {
-  if (!canSave.value) return;
+  if (pending.value || !canSave.value) return;
   busy.value = true; feedback(); normalizeProvider();
   try {
     const wasExisting = Boolean(editor.id);
@@ -256,13 +269,14 @@ async function saveQuote() {
     await loadQuotes(saved.id);
     notice.value = wasExisting ? '语录已保存，并回到待审核状态。' : '语录草稿已创建。';
   } catch (error) {
-    errorMessage.value = messageOf(error);
-    if (Number(error?.status) === 409 && editor.id) await loadQuotes(editor.id).catch(() => {});
+    errorMessage.value = Number(error?.status) === 409
+      ? '语录已被另一会话修改，本地草稿已保留。请复制草稿后重新读取服务器版本，再核对保存。'
+      : messageOf(error);
   } finally { busy.value = false; }
 }
 
 async function reviewQuote(status) {
-  if (!editor.id) return;
+  if (!editor.id || pending.value || dirty.value) return;
   busy.value = true; feedback();
   try {
     const reviewed = await reviewAdminQuote(editor.id, editor.version, status, false, auth.authorizedFetch);
@@ -273,7 +287,7 @@ async function reviewQuote(status) {
 }
 
 async function toggleFeatured(event) {
-  if (!editor.id || editor.approvalStatus !== 'APPROVED') return;
+  if (!editor.id || pending.value || dirty.value || editor.approvalStatus !== 'APPROVED') return;
   const enabled = Boolean(event.target?.checked);
   busy.value = true; feedback();
   try {
@@ -287,6 +301,7 @@ async function toggleFeatured(event) {
 }
 
 async function removeQuote() {
+  if (pending.value || !confirmDiscard()) return;
   if (!editor.id || (typeof window !== 'undefined' && !window.confirm('确认删除这条语录？历史每日快照不会被删除。'))) return;
   busy.value = true; feedback();
   try {
@@ -297,6 +312,7 @@ async function removeQuote() {
 }
 
 async function refreshSnapshot() {
+  if (pending.value) return;
   busy.value = true; feedback();
   const beforeId = todayQuote.value?.snapshotId;
   try {
@@ -315,6 +331,7 @@ onMounted(loadWorkspace);
 </script>
 
 <style scoped>
+.studio-fields { display: grid; gap: 18px; min-width: 0; margin: 0; padding: 0; border: 0; }
 .quote-studio { display: grid; gap: 18px; min-height: 640px; padding: clamp(16px, 2.5vw, 28px); color: var(--theme-text-primary); }
 .glass-panel { border: 1px solid var(--theme-border, rgba(255,255,255,.14)); border-radius: 20px; background: linear-gradient(145deg, rgba(var(--accent-rgb),.075), transparent 42%), var(--theme-panel-surface, rgba(12,18,28,.78)); box-shadow: 0 18px 48px rgba(0,0,0,.13); backdrop-filter: blur(20px) saturate(138%); }
 .quote-studio__hero, .panel-heading, .section-heading, .hero-actions, .editor-actions, .review-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; }

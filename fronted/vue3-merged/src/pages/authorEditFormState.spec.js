@@ -7,6 +7,19 @@ import {
 } from './authorEditFormState';
 
 describe('authorEditFormState', () => {
+  it('keeps cleared collections and the loader icon empty through the editable round trip', () => {
+    const form = buildEditFormFromProfile({ profileJson: {
+      journey: [], about: { links: [] }, site: { faviconUrl: '/favicon.png', loaderIconUrl: '' }
+    } });
+    expect(form.journey).toEqual([]);
+    expect(form.about.links).toEqual([]);
+    expect(form.site.loaderIconUrl).toBe('');
+    const reloaded = buildEditFormFromProfile({ profileJson: buildProfileJsonFromEditForm(form) });
+    expect(reloaded.journey).toEqual([]);
+    expect(reloaded.about.links).toEqual([]);
+    expect(reloaded.site.loaderIconUrl).toBe('');
+  });
+
   it('maps profile payload into editable form state', () => {
     const form = buildEditFormFromProfile({
       enabled: false,

@@ -28,6 +28,16 @@
       </span>
     </header>
 
+    <button
+      v-if="adminUser && studioKey"
+      class="author-studio-entry ripple-trigger"
+      type="button"
+      @click="$emit('select', publicMode ? studioKey : 'about')"
+    >
+      <i :class="publicMode ? 'fas fa-pen-ruler' : 'fas fa-arrow-left'" aria-hidden="true"></i>
+      {{ publicMode ? '内容工作台' : '返回作者主页' }}
+      <i v-if="publicMode" class="fas fa-arrow-right" aria-hidden="true"></i>
+    </button>
     <RouteDotRail
       class="sidebar-route-menu"
       :items="items"
@@ -66,6 +76,7 @@ const props = defineProps({
     type: Boolean,
     default: false
   },
+  studioKey: { type: String, default: '' },
   publicMode: {
     type: Boolean,
     default: false
@@ -302,6 +313,26 @@ const profileStats = computed(() => [
   scrollbar-width: thin;
   scrollbar-color: var(--theme-border-strong) transparent;
 }
+
+.author-studio-entry {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex-shrink: 0;
+  min-height: 40px;
+  padding: 9px 12px;
+  border: 1px solid var(--theme-border-strong);
+  border-radius: 11px;
+  color: var(--theme-text-primary);
+  background: var(--theme-panel-surface-elevated);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+}
+.author-studio-entry .fa-arrow-right { margin-left: auto; }
+.author-studio-entry:hover { background: rgba(var(--accent-rgb), 0.16); }
+.author-studio-entry:focus-visible { outline: 2px solid rgb(var(--accent-rgb)); outline-offset: 3px; }
 
 .is-public .sidebar-route-menu {
   height: auto;

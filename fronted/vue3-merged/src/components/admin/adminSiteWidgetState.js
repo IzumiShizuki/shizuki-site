@@ -17,8 +17,8 @@ export function validateSiteWidgetForm(value = {}) {
   const latitude = Number(value.latitude);
   const longitude = Number(value.longitude);
   if (!String(value.displayName || '').trim()) errors.push('请填写站点地点显示名');
-  if (!Number.isFinite(latitude) || latitude < -90 || latitude > 90) errors.push('纬度必须在 -90 到 90 之间');
-  if (!Number.isFinite(longitude) || longitude < -180 || longitude > 180) errors.push('经度必须在 -180 到 180 之间');
+  if (value.latitude == null || !String(value.latitude).trim() || !Number.isFinite(latitude) || latitude < -90 || latitude > 90) errors.push('纬度必须在 -90 到 90 之间');
+  if (value.longitude == null || !String(value.longitude).trim() || !Number.isFinite(longitude) || longitude < -180 || longitude > 180) errors.push('经度必须在 -180 到 180 之间');
   const timezone = String(value.timezone || '').trim();
   try { new Intl.DateTimeFormat('zh-CN', { timeZone: timezone }).format(); }
   catch { errors.push('请输入有效的 IANA 时区'); }

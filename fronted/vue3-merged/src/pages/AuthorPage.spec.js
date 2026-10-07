@@ -1,6 +1,6 @@
 import { flushPromises, mount } from '@vue/test-utils';
 import { defineComponent, h, ref } from 'vue';
-import { createMemoryHistory, createRouter } from 'vue-router';
+import { createMemoryHistory, createRouter, RouterView } from 'vue-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import AuthorPage from './AuthorPage.vue';
 import RouteDotRail from '../components/common/RouteDotRail.vue';
@@ -106,7 +106,7 @@ async function mountPage(initialPath, groups = ['USER'], permissions = []) {
   const router = createRouter({
     history: createMemoryHistory(),
     routes: [
-      { path: '/author', name: 'author', component: { template: '<div />' } },
+      { path: '/author', name: 'author', component: AuthorPage },
       { path: '/blog', name: 'blog', component: { template: '<div />' } },
       { path: '/blog/:postId', name: 'blog-detail', component: { template: '<div />' } },
       { path: '/albums', name: 'albums', component: { template: '<div />' } },
@@ -120,13 +120,14 @@ async function mountPage(initialPath, groups = ['USER'], permissions = []) {
   await router.push(initialPath);
   await router.isReady();
 
-  const wrapper = mount(AuthorPage, {
+  const wrapper = mount(RouterView, {
     global: {
       plugins: [router],
       stubs: {
         AdminPage: AdminPageStub,
         SubtleScrollArea: SubtleScrollAreaStub,
-        ImageCropDialog: true
+        ImageCropDialog: true,
+        Teleport: true
       },
       components: {
         RouteDotRail
@@ -254,7 +255,7 @@ describe('AuthorPage admin tab handling', () => {
 
     expect(wrapper.find('.content-shell__left .author-profile-summary').exists()).toBe(true);
     expect(wrapper.get('.content-shell__left .author-route-sidebar strong').text()).toBe('内容导航');
-    expect(rail.props('items').map((item) => item.key)).toEqual(['about', 'journey', 'posts']);
+    expect(rail.props('items').map((item) => item.key)).toEqual(expect.arrayContaining(['about', 'journey', 'posts']));
 
     await rail.vm.$emit('select', 'journey');
     await flushPromises();
@@ -343,6 +344,172 @@ describe('AuthorPage admin tab handling', () => {
     expect(router.currentRoute.value.query.tab).toBe('about');
     expect(wrapper.findComponent(AdminPageStub).exists()).toBe(false);
     expect(mocked.getAuthorProfile).toHaveBeenCalledTimes(1);
+  });
+
+  it('opens authorized studios directly from the public author rail', async () => {
+    const { wrapper, router } = await mountPage('/author', ['ADMIN'], ['life.content.manage']);
+    const rail = wrapper.getComponent(RouteDotRail);
+    expect(rail.props('items').map((item) => item.key)).toContain('admin:albums');
+    await wrapper.get('.content-shell__left .author-studio-entry').trigger('click');
+    await flushPromises();
+    expect(router.currentRoute.value.query.tab).toBe('admin:albums');
+    expect(wrapper.getComponent(AdminPageStub).props('forcedTab')).toBe('albums');
+    await wrapper.get('.content-shell__left .author-studio-entry').trigger('click');
+    await flushPromises();
+    expect(wrapper.get('.about-overview').exists()).toBe(true);
+    wrapper.unmount();
+  });
+
+  it('loads administrator values on direct site-settings entry and tracks edits', async () => {
+    const payload = createDefaultAuthorProfilePayload();
+    payload.profileJson.site.browserTitle = 'Administrator title';
+    mocked.getAdminAuthorProfile.mockResolvedValueOnce(payload);
+    const { wrapper } = await mountPage('/author?tab=site-settings', ['ADMIN']);
+    expect(mocked.getAdminAuthorProfile).toHaveBeenCalledTimes(1);
+    const title = wrapper.get('.site-settings-root input[type="text"]');
+    expect(title.element.value).toBe('Administrator title');
+    await title.setValue('Edited title');
+    expect(wrapper.text()).toContain('你有未保存的修改');
+    wrapper.unmount();
+  });
+
+  it('retains an unsaved about draft when close is declined', async () => {
+    const { wrapper } = await mountPage('/author', ['ADMIN']);
+    await wrapper.get('[title="编辑关于网站"]').trigger('click');
+    await flushPromises();
+    const field = wrapper.get('.section-editor input[type="text"]');
+    await field.setValue('My unsaved greeting');
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    await wrapper.get('.section-editor-header button').trigger('click');
+    expect(confirm).toHaveBeenCalled();
+    expect(wrapper.get('.section-editor input[type="text"]').element.value).toBe('My unsaved greeting');
+    confirm.mockRestore();
+    wrapper.unmount();
+  });
+
+  it('retains the administrator draft when an earlier public refresh completes', async () => {
+    let finishPublic;
+    mocked.readAuthorProfileCache.mockReturnValueOnce(createDefaultAuthorProfilePayload());
+    mocked.getAuthorProfile.mockReturnValueOnce(new Promise((resolve) => { finishPublic = resolve; }));
+    const { wrapper } = await mountPage('/author', ['ADMIN']);
+    await wrapper.get('[title="编辑关于网站"]').trigger('click');
+    await flushPromises();
+    await wrapper.get('.section-editor input[type="text"]').setValue('Edited greeting');
+    finishPublic(createDefaultAuthorProfilePayload());
+    await flushPromises();
+    expect(wrapper.get('.section-editor input[type="text"]').element.value).toBe('Edited greeting');
+    wrapper.unmount();
+  });
+
+  it('includes pending tags in a save and protects a dirty route change', async () => {
+    const { wrapper, router } = await mountPage('/author', ['ADMIN']);
+    await wrapper.get('[title="编辑关于网站"]').trigger('click');
+    await flushPromises();
+    const tags = wrapper.findAll('.section-editor .tag-editor input');
+    expect(tags.length).toBeGreaterThan(0);
+    await tags[0].setValue('New label');
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    await router.push('/author?tab=site-settings');
+    expect(router.currentRoute.value.query.tab).toBe('about');
+    const save = wrapper.findAll('.section-editor-footer button').find((button) => button.text() === '保存资料');
+    await save.trigger('click');
+    await flushPromises();
+    expect(mocked.updateAdminAuthorProfile.mock.calls[0][0].profileJson.identity.labels).toContain('New label');
+    confirm.mockRestore();
+    wrapper.unmount();
+  });
+
+  it('blocks saving after an administrator profile read fails and permits retry', async () => {
+    mocked.getAdminAuthorProfile.mockRejectedValueOnce(new Error('Admin read failed'));
+    const { wrapper } = await mountPage('/author?tab=site-settings', ['ADMIN']);
+    const buttons = wrapper.findAll('.site-settings-actions button');
+    expect(buttons.find((button) => button.text() === '保存站点设置').attributes('disabled')).toBeDefined();
+    const retry = buttons.find((button) => button.text() === '刷新后台值');
+    expect(retry.attributes('disabled')).toBeUndefined();
+    await retry.trigger('click');
+    await flushPromises();
+    expect(mocked.getAdminAuthorProfile).toHaveBeenCalledTimes(2);
+    wrapper.unmount();
+  });
+
+  it('blocks save and draft replacement while a GIF icon upload is pending', async () => {
+    let finishUpload;
+    mocked.uploadAuthorAvatar.mockReturnValueOnce(new Promise((resolve) => { finishUpload = resolve; }));
+    const { wrapper } = await mountPage('/author?tab=site-settings', ['ADMIN']);
+    await wrapper.findAll('button').find((button) => button.text() === '上传 Loader 图标并回填').trigger('click');
+    const input = wrapper.get('input[type="file"]');
+    Object.defineProperty(input.element, 'files', { configurable: true, value: [new File(['gif'], 'icon.gif', { type: 'image/gif' })] });
+    await input.trigger('change');
+    await flushPromises();
+    expect(wrapper.get('.site-settings-actions .primary').attributes('disabled')).toBeDefined();
+    finishUpload({ url: 'https://example.com/new-icon.gif' });
+    await flushPromises();
+    expect(wrapper.get('.site-settings-actions .primary').attributes('disabled')).toBeUndefined();
+    expect(wrapper.findAll('.site-settings-root input[type="text"]')[2].element.value).toBe('https://example.com/new-icon.gif');
+    wrapper.unmount();
+  });
+
+  it('holds journey row order during image upload and fills the original row', async () => {
+    const nativeURL = window.URL;
+    vi.stubGlobal('URL', class extends nativeURL {
+      static createObjectURL() { return 'blob:journey-test'; }
+      static revokeObjectURL() {}
+    });
+    let finishUpload;
+    mocked.uploadAuthorAvatar.mockReturnValueOnce(new Promise((resolve) => { finishUpload = resolve; }));
+    const { wrapper } = await mountPage('/author', ['ADMIN']);
+    try {
+      await wrapper.findAll('button').find((button) => button.text() === '编辑经历').trigger('click');
+      await flushPromises();
+      const first = () => wrapper.findAll('.section-editor .nested-card')[0];
+      const title = first().findAll('input')[1].element.value;
+      await first().findAll('button').find((button) => button.text() === '上传图片并回填').trigger('click');
+      const input = wrapper.get('input.hidden-file-input');
+      Object.defineProperty(input.element, 'files', { configurable: true, value: [new File(['png'], 'journey.png', { type: 'image/png' })] });
+      await input.trigger('change');
+      await flushPromises();
+      expect(wrapper.findComponent({ name: 'ImageCropDialog' }).props('visible'), wrapper.findAll('.error-text').map((node) => node.text()).join('\n')).toBe(true);
+      const moveDown = () => first().findAll('button').find((button) => button.text() === '下移');
+      expect(moveDown().attributes('disabled')).toBeDefined();
+      wrapper.findComponent({ name: 'ImageCropDialog' }).vm.$emit('confirm', { blob: new Blob(['png'], { type: 'image/png' }), mimeType: 'image/png' });
+      await flushPromises();
+      expect(moveDown().attributes('disabled')).toBeDefined();
+      finishUpload({ url: 'https://example.com/journey-upload.png' });
+      await flushPromises();
+      expect(first().findAll('input')[1].element.value).toBe(title);
+      expect(first().findAll('input')[2].element.value).toBe('https://example.com/journey-upload.png');
+      expect(moveDown().attributes('disabled')).toBeUndefined();
+    } finally {
+      wrapper.unmount();
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it.each(['journey', 'links'])('allows deleting and saving every %s row without restoring a placeholder', async (collection) => {
+    mocked.updateAdminAuthorProfile.mockImplementationOnce(async (payload) => {
+      mocked.getAdminAuthorProfile.mockResolvedValue(payload);
+      return payload;
+    });
+    const { wrapper } = await mountPage('/author', ['ADMIN']);
+    const edit = () => collection === 'journey'
+      ? wrapper.findAll('button').find((button) => button.text() === '编辑经历')
+      : wrapper.get('[title="编辑关于网站"]');
+    await edit().trigger('click');
+    await flushPromises();
+    for (const row of wrapper.findAll('.section-editor .nested-card').reverse()) {
+      await row.findAll('button').find((button) => button.text() === '删除').trigger('click');
+    }
+    expect(wrapper.findAll('.section-editor .nested-card')).toHaveLength(0);
+    await wrapper.findAll('.section-editor-footer button').find((button) => button.text() === '保存资料').trigger('click');
+    await flushPromises();
+    const saved = mocked.updateAdminAuthorProfile.mock.calls[0][0].profileJson;
+    expect(collection === 'journey' ? saved.journey : saved.about.links).toEqual([]);
+    expect(wrapper.findAll('.section-editor .nested-card')).toHaveLength(0);
+    await wrapper.get('.section-editor-header button').trigger('click');
+    await edit().trigger('click');
+    await flushPromises();
+    expect(wrapper.findAll('.section-editor .nested-card')).toHaveLength(0);
+    wrapper.unmount();
   });
 
   it('renders the embedded admin console and visibly groups existing tools', async () => {

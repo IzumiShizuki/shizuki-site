@@ -1,5 +1,6 @@
 <template>
   <section class="moment-studio" data-studio-workspace="moments">
+    <fieldset class="studio-fields" :disabled="pending">
     <header class="moment-studio__hero">
       <div><p>Content Studio · Moments</p><h2>动态工作台</h2><span>正文、照片编排与访客交付保持同一版本边界</span></div>
       <div class="hero-actions">
@@ -43,12 +44,14 @@
           <header class="editor-heading">
             <div><p>{{ lifecycleLabel(detail.lifecycle) }} · {{ detail.etag }}</p><h3>{{ detail.body.slice(0, 42) }}{{ detail.body.length > 42 ? '…' : '' }}</h3></div>
             <div class="hero-actions">
-              <button class="studio-button studio-button--ghost" type="button" :disabled="busy" @click="openPreview">预览</button>
+              <button class="studio-button studio-button--ghost" type="button" :disabled="pending || dirty" @click="openPreview">预览</button>
               <button class="studio-button studio-button--ghost" type="button" :disabled="busy" @click="saveMoment">保存</button>
-              <button v-if="detail.lifecycle === 'PUBLISHED'" class="studio-button studio-button--warn" type="button" :disabled="busy" @click="archiveMoment">撤回并归档</button>
-              <button v-else class="studio-button" type="button" :disabled="busy || !publishReadiness.ready" @click="publishMoment">发布</button>
+              <button v-if="detail.lifecycle === 'PUBLISHED'" class="studio-button studio-button--warn" type="button" :disabled="pending || dirty" @click="archiveMoment">撤回并归档</button>
+              <button v-else class="studio-button" type="button" :disabled="pending || dirty || !publishReadiness.ready" @click="publishMoment">发布</button>
             </div>
           </header>
+
+          <p v-if="dirty" class="studio-alert" role="status">有未保存的修改，请先保存后再预览或发布。</p>
 
           <section class="editor-section moment-copy-editor">
             <label>正文<textarea v-model="momentForm.body" rows="8" maxlength="20000"></textarea><span>{{ momentForm.body.length }} / 20000</span></label>
@@ -62,7 +65,7 @@
           <section v-if="!publishReadiness.ready" class="publish-gate"><strong><i class="fas fa-shield-halved"></i> 发布门槛</strong><span v-for="item in publishReadiness.blockers" :key="item">{{ item }}</span></section>
 
           <section class="editor-section">
-            <div class="section-heading"><div><small>01 · REUSE</small><h4>复用照片库</h4></div><button class="text-button" type="button" @click="loadPhotoLibrary">刷新照片库</button></div>
+            <div class="section-heading"><div><small>01 · REUSE</small><h4>复用照片库</h4></div><button class="text-button" type="button" @click="refreshPhotoLibrary">刷新照片库</button></div>
             <div class="photo-library">
               <label v-for="photo in libraryPhotos" :key="photo.id" class="library-photo" :class="{ 'library-photo--selected': selectedIds.has(photo.id) }">
                 <input type="checkbox" :checked="selectedIds.has(photo.id)" :disabled="attachedIds.has(photo.id)" @change="togglePhoto(photo.id)" />
@@ -98,6 +101,8 @@
       </main>
     </div>
 
+    </fieldset>
+
     <div v-if="preview" class="preview-overlay" role="dialog" aria-modal="true" aria-label="动态预览" @click.self="preview = null">
       <article class="moment-preview glass-panel">
         <header><span><small>PROTECTED PREVIEW</small><strong>{{ visibilityLabel(preview.visibility) }}</strong></span><button class="text-button" type="button" @click="preview = null">关闭</button></header>
@@ -111,6 +116,8 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue';
 import { useAuthSession } from '../../composables/useAuthSession';
+import { useDraftGuard } from '../../composables/useDraftGuard';
+import { useStudioDraft } from '../../composables/useStudioDraft';
 import {
   archiveAdminMoment, attachAdminMomentPhotos, createAdminMoment, detachAdminMomentPhotos,
   getAdminMoment, getAdminMomentPreview, listAdminManagedPhotos, listAdminMoments,
@@ -135,6 +142,13 @@ const errorMessage = ref('');
 const momentForm = reactive(momentEditorForm());
 const newMoment = reactive({ body: '', visibility: 'PRIVATE' });
 let dragIndex = -1;
+const draft = useStudioDraft(momentForm);
+const dirty = draft.dirty;
+const pending = computed(() => busy.value || loading.value);
+const { confirmDiscard } = useDraftGuard({
+  isDirty: () => dirty.value || (creating.value && Boolean(newMoment.body)),
+  isBusy: () => pending.value
+});
 
 const attachedIds = computed(() => new Set((detail.value?.photos || []).map((photo) => photo.photoId)));
 const publishReadiness = computed(() => momentPublishReadiness({ ...detail.value, ...momentForm }));
@@ -145,21 +159,33 @@ function lifecycleLabel(value) { return ({ DRAFT: '草稿', PUBLISHED: '已发�
 function visibilityLabel(value) { return ({ PRIVATE: '私密', UNLISTED: '不公开列出', PUBLIC: '公开' })[value] || value; }
 function previewPath(photo, preferred) { return momentPreviewPath(photo, preferred); }
 
-function applyDetail(value) { detail.value = value; Object.assign(momentForm, momentEditorForm(value)); }
+function applyDetail(value, discard = false) {
+  draft.apply(momentEditorForm(value), !discard && detail.value?.id === value.id);
+  detail.value = value;
+}
 async function loadMomentList() { moments.value = await listAdminMoments({}, auth.authorizedFetch); }
 async function loadPhotoLibrary() { libraryPhotos.value = await listAdminManagedPhotos({}, auth.authorizedFetch); }
+async function refreshPhotoLibrary() {
+  if (pending.value) return;
+  busy.value = true;
+  try { await loadPhotoLibrary(); }
+  catch (error) { errorMessage.value = messageOf(error); }
+  finally { busy.value = false; }
+}
 
 async function loadWorkspace() {
+  if (!confirmDiscard()) return;
   loading.value = true; feedback();
-  await auth.ensureReady();
-  if (!auth.isAuthenticated.value) { errorMessage.value = '需要管理员登录后才能读取动态工作台。'; loading.value = false; return; }
   try {
+    await auth.ensureReady();
+    if (!auth.isAuthenticated.value) { errorMessage.value = '需要管理员登录后才能读取动态工作台。'; return; }
     await Promise.all([loadMomentList(), loadPhotoLibrary()]);
-    if (detail.value?.id) applyDetail(await getAdminMoment(detail.value.id, auth.authorizedFetch));
+    if (detail.value?.id) applyDetail(await getAdminMoment(detail.value.id, auth.authorizedFetch), true);
   } catch (error) { errorMessage.value = messageOf(error); } finally { loading.value = false; }
 }
 
 async function selectMoment(id) {
+  if (detail.value?.id === id || !confirmDiscard()) return;
   busy.value = true; feedback();
   try { applyDetail(await getAdminMoment(id, auth.authorizedFetch)); }
   catch (error) { errorMessage.value = messageOf(error); }
@@ -167,6 +193,7 @@ async function selectMoment(id) {
 }
 
 async function createMoment() {
+  if (pending.value || (dirty.value && !confirmDiscard())) return;
   busy.value = true; feedback();
   try {
     const created = await createAdminMoment(newMoment, auth.authorizedFetch);
@@ -177,21 +204,24 @@ async function createMoment() {
 }
 
 async function mutate(request, success) {
-  if (!detail.value) return;
+  if (!detail.value || pending.value) return false;
   busy.value = true; feedback();
   try {
     await request(detail.value.etag);
     applyDetail(await getAdminMoment(detail.value.id, auth.authorizedFetch));
     await loadMomentList(); notice.value = success;
+    return true;
   } catch (error) { errorMessage.value = messageOf(error); }
   finally { busy.value = false; }
+  return false;
 }
 
 function saveMoment() { const payload = { ...momentForm }; return mutate((etag) => updateAdminMoment(detail.value.id, payload, etag, auth.authorizedFetch), '动态内容已保存。'); }
-function publishMoment() { return mutate((etag) => publishAdminMoment(detail.value.id, etag, auth.authorizedFetch), '动态已发布。'); }
-function archiveMoment() { return mutate((etag) => archiveAdminMoment(detail.value.id, etag, auth.authorizedFetch), '动态已撤回并归档。'); }
+function publishMoment() { if (dirty.value || !publishReadiness.value.ready) return; return mutate((etag) => publishAdminMoment(detail.value.id, etag, auth.authorizedFetch), '动态已发布。'); }
+function archiveMoment() { if (dirty.value) return; return mutate((etag) => archiveAdminMoment(detail.value.id, etag, auth.authorizedFetch), '动态已撤回并归档。'); }
 
 async function openPreview() {
+  if (!detail.value || pending.value || dirty.value) return;
   busy.value = true; feedback();
   try { preview.value = await getAdminMomentPreview(detail.value.id, auth.authorizedFetch); }
   catch (error) { errorMessage.value = messageOf(error); }
@@ -207,8 +237,8 @@ function togglePhoto(photoId) {
 async function attachSelected() {
   const ids = [...selectedIds.value].filter((id) => !attachedIds.value.has(id));
   if (!ids.length) return;
-  await mutate((etag) => attachAdminMomentPhotos(detail.value.id, ids, etag, auth.authorizedFetch), `已复用 ${ids.length} 张照片。`);
-  selectedIds.value = new Set();
+  const saved = await mutate((etag) => attachAdminMomentPhotos(detail.value.id, ids, etag, auth.authorizedFetch), `已复用 ${ids.length} 张照片。`);
+  if (saved) selectedIds.value = new Set();
 }
 
 function detachPhoto(photoId) { return mutate((etag) => detachAdminMomentPhotos(detail.value.id, [photoId], etag, auth.authorizedFetch), '照片已从动态移除，照片库原件仍保留。'); }
@@ -220,7 +250,7 @@ function movePhoto(index, delta) { return persistOrder(moveMomentPhoto(detail.va
 function dropPhoto(index) { if (dragIndex < 0 || dragIndex === index) return; const next = moveMomentPhoto(detail.value.photos, dragIndex, index); dragIndex = -1; persistOrder(next); }
 
 async function retryVariant(variant) {
-  if (!variant?.retryRoute || !variant?.etag) return;
+  if (pending.value || !variant?.retryRoute || !variant?.etag) return;
   busy.value = true; feedback();
   try { await retryAdminMediaDerivative(variant.retryRoute, variant.etag, auth.authorizedFetch); applyDetail(await getAdminMoment(detail.value.id, auth.authorizedFetch)); notice.value = `${variant.variant} 已重新进入处理队列。`; }
   catch (error) { errorMessage.value = messageOf(error); }
@@ -231,6 +261,7 @@ onMounted(loadWorkspace);
 </script>
 
 <style scoped>
+.studio-fields { display: grid; gap: 18px; min-width: 0; margin: 0; padding: 0; border: 0; }
 .moment-studio { --radius: 18px; display: grid; gap: 18px; min-height: 620px; padding: clamp(16px,2.5vw,28px); color: var(--theme-text-primary); }
 .glass-panel { border: 1px solid var(--theme-border, rgba(255,255,255,.14)); border-radius: var(--radius); background: linear-gradient(145deg,rgba(var(--accent-rgb),.07),transparent 45%),var(--theme-panel-surface,rgba(12,18,28,.78)); box-shadow: 0 18px 46px rgba(0,0,0,.12); backdrop-filter: blur(18px) saturate(135%); }
 .moment-studio__hero,.editor-heading,.section-heading,.panel-heading,.moment-preview header,.hero-actions,.photo-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
