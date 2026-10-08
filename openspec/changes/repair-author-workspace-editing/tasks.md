@@ -21,3 +21,9 @@
 - [x] 4.2 Verify requirements against implementation, run strict OpenSpec validation and record any limitations.
 - [x] 4.3 Review the diff and commit only this change locally.
 - [ ] 4.4 Remove generated verification logs, browser script and screenshots. Cleanup is blocked by automatic approval review (`blocked by policy`); the test server has been stopped. The retained files are listed in verification.md.
+
+## 5. Authorized Production Deployment
+
+- [x] 5.1 Build a release from commit 090fff45, excluding uncommitted workspace changes, and inspect the personal site's current runtime.
+- [x] 5.2 Create a verified frontend/source checkpoint and publish the frontend with an automatic image rollback gate.
+- [x] 5.3 Verify runtime checksums, site/API health and deployed author navigation; record the release evidence and commit the deployment report locally.

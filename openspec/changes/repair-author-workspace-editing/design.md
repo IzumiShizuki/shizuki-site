@@ -25,4 +25,4 @@ See proposal.md for motivation. The author page already embeds AdminPage and has
 
 ## Migration Plan
 
-No schema or dependency migration. Deploy the usual frontend artifact; revert this commit to roll back. No server publishing is part of this request.
+No schema or dependency migration. Deploy the usual frontend artifact; revert this commit to roll back. Initial implementation was delivered locally. On 2026-10-08 the user explicitly requested production deployment; the follow-up release uses committed source and a verified previous-image/source checkpoint, updates only the site container, and records post-deployment checks without Git push.

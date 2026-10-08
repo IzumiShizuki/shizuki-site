@@ -6,7 +6,7 @@ Verified on 2026-10-08 against proposal, design, delta spec and implementation t
 
 | Dimension | Result |
 | --- | --- |
-| Completeness | 11/12 tasks complete; all 5 requirements and 12 scenarios implemented; temporary-file cleanup blocked by automatic approval review |
+| Completeness | 14/15 tasks complete, including authorized production deployment; all 5 requirements and 12 scenarios implemented; initial temporary-file cleanup blocked by automatic approval review |
 | Correctness | All 5 requirements covered by observable component tests; browser navigation and author save/reopen flow verified |
 | Coherence | Shared author shell, existing route/permission catalog and API contracts retained; reusable draft composables match the design |
 
@@ -47,9 +47,9 @@ Delivery warning: automatic approval review rejected the temporary-file deletion
 - `C:/Users/IzumiShizuki/AppData/Local/Temp/shizuki-author-phone.png`
 
 - The build retains the existing warning about chunks larger than 500 kB. Bundle splitting is outside this editing repair.
-- Browser writes were made to isolated fixtures. Production content, remote services and deployment were not changed.
+- Initial browser writes were made to isolated fixtures. After explicit deployment authorization, the frontend was published and smoke-tested with the actual authenticated Edge session; production author content was not edited. See deployment-report.md.
 - Author profiles still use whole-profile writes without an ETag contract. This change prevents local overlap and stale background replacement; cross-session author write conflicts remain the API limitation documented in design.md.
 
 ## Delivery
 
-Only this change's frontend code, tests and OpenSpec artifacts belong in its local commit. The pre-existing `TopMenu.vue` edit is excluded. No push, deployment or OpenSpec archive is part of this delivery. No outstanding implementation work remains; future author ETag support would require a separate backend/API change.
+Implementation was committed locally as `090fff454f5ab686cb97afbf39571471e76359fc`. The pre-existing `TopMenu.vue` edit is excluded from the implementation commit and production artifact. The user then explicitly requested deployment on 2026-10-08; the pinned frontend release is live, with evidence and recovery details in [deployment-report.md](deployment-report.md). No Git push or OpenSpec archive was performed. The deployment report is committed separately and does not change the runtime revision. No outstanding implementation work remains; task 4.4 retains the previously documented cleanup block, and future author ETag support would require a separate backend/API change.
