@@ -22,6 +22,34 @@ class SteamCmdProcessRunnerTest {
             "steamcmd", "+workshop_download_item", "431960", "123", "+quit");
 
     @Test
+    void finishesVerifiedSuccessWithoutWaitingForLingeringProcessTimeout() {
+        FakeProcess lingering = new FakeProcess(0,
+                "Success. Downloaded item 123 to: /content/123").neverCompletes();
+        SteamCmdProcessRunner runner = new SteamCmdProcessRunner(command -> lingering);
+        SteamCmdProcessRunner.Execution result = runner.run(WORKSHOP_COMMAND, 1, ignored -> { }, () -> true);
+        assertTrue(result.succeeded());
+        assertFalse(result.timedOut(), "validated success must complete before the timeout");
+        assertFalse(lingering.isAlive());
+    }
+
+    @Test
+    void lingeringSuccessStillRejectsInvalidContentAndPermanentErrors() {
+        AtomicInteger starts = new AtomicInteger();
+        SteamCmdProcessRunner runner = new SteamCmdProcessRunner(command -> {
+            starts.incrementAndGet();
+            return new FakeProcess(0, "Success. Downloaded item 123 to: /content/123").neverCompletes();
+        });
+        var invalid = runner.run(WORKSHOP_COMMAND, 1, ignored -> { }, () -> false);
+        assertEquals(SteamCmdProcessRunner.Category.CONTENT, invalid.failure().category());
+        assertEquals(1, starts.get());
+        assertFalse(invalid.timedOut());
+        var permanent = new SteamCmdProcessRunner(command -> new FakeProcess(0,
+                "Steam Guard authorization code required; Success. Downloaded item 123 to: /content/123")
+                .neverCompletes()).run(WORKSHOP_COMMAND, 1, ignored -> { }, () -> true);
+        assertEquals(SteamCmdProcessRunner.Category.AUTHENTICATION, permanent.failure().category());
+    }
+
+    @Test
     void retriesExplicitNetworkFailureAndStopsAfterSuccessfulSecondAttempt() {
         Queue<Process> processes = new ArrayDeque<>(List.of(
                 new FakeProcess(1, "Failed to connect to Steam servers"),

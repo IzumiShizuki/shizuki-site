@@ -37,7 +37,7 @@ public class WallpaperDiscoveryProperties {
     private long requestTimeoutSeconds = 15;
 
     /** 搜索每页条数。 */
-    private int pageSize = 24;
+    private int pageSize = 72;
 
     public boolean isEnabled() {
         return enabled;

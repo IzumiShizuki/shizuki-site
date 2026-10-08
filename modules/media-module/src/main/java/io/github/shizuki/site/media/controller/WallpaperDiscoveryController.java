@@ -5,6 +5,7 @@ import io.github.shizuki.common.core.response.ApiResponse;
 import io.github.shizuki.common.ratelimit.annotation.RateLimit;
 import io.github.shizuki.site.media.request.WallhavenImportCreateRequest;
 import io.github.shizuki.site.media.response.WallhavenSearchResponse;
+import io.github.shizuki.site.media.response.WallhavenItemDetailResponse;
 import io.github.shizuki.site.media.response.WallpaperImportJobResponse;
 import io.github.shizuki.site.media.response.WorkshopItemDetailResponse;
 import io.github.shizuki.site.media.response.WorkshopSearchResponse;
@@ -95,5 +96,12 @@ public class WallpaperDiscoveryController {
     @Operation(summary = "拉取 Wallhaven 壁纸", description = "服务端下载原图后复用本地包导入管线，同步返回导入结果")
     public ApiResponse<WallpaperImportJobResponse> importWallhaven(@Valid @RequestBody WallhavenImportCreateRequest request) {
         return ApiResponse.success(wallpaperDiscoveryService.importWallhaven(request));
+    }
+
+    @GetMapping("/wallhaven/items/{item_id}")
+    @RateLimit(key = "home.wallpapers.discovery.wallhaven.item", limit = 120, windowSeconds = 60)
+    @Operation(summary = "补全 Wallhaven 来源名称", description = "返回来源标题或标签名称；请求预算不足时返回重试间隔")
+    public ApiResponse<WallhavenItemDetailResponse> getWallhavenItem(@PathVariable("item_id") String itemId) {
+        return ApiResponse.success(wallpaperDiscoveryService.getWallhavenItem(itemId));
     }
 }

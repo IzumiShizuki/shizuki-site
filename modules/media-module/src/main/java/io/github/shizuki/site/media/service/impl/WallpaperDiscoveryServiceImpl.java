@@ -10,6 +10,7 @@ import io.github.shizuki.site.media.config.WallpaperWorkshopProperties;
 import io.github.shizuki.site.media.request.WallhavenImportCreateRequest;
 import io.github.shizuki.site.media.response.WallhavenSearchItemResponse;
 import io.github.shizuki.site.media.response.WallhavenSearchResponse;
+import io.github.shizuki.site.media.response.WallhavenItemDetailResponse;
 import io.github.shizuki.site.media.response.WallpaperImportJobResponse;
 import io.github.shizuki.site.media.response.WorkshopItemDetailResponse;
 import io.github.shizuki.site.media.response.WorkshopSearchItemResponse;
@@ -75,6 +76,8 @@ public class WallpaperDiscoveryServiceImpl implements WallpaperDiscoveryService 
     private final WorkshopMetadataProvider workshopMetadataProvider;
     private final WorkshopDownloadChannelResolver downloadChannelResolver;
     private final WorkshopPreviewMetadataCache workshopPreviewMetadataCache = new WorkshopPreviewMetadataCache();
+    private final WorkshopPreviewMetadataCache wallhavenPreviewMetadataCache = new WorkshopPreviewMetadataCache();
+    private final WallhavenMetadataCache wallhavenMetadataCache = new WallhavenMetadataCache();
 
     public WallpaperDiscoveryServiceImpl(WallpaperDiscoveryProperties discoveryProperties,
                                          WallpaperWorkshopProperties workshopProperties,
@@ -122,6 +125,7 @@ public class WallpaperDiscoveryServiceImpl implements WallpaperDiscoveryService 
                 + "&page=" + page
                 + "&numperpage=" + pageSize
                 + "&return_previews=true"
+                + "&return_tags=true"
                 + "&query_type=" + workshopApiQueryType(sort)
                 + ("trend".equals(sort) ? "&days=7" : "")
                 + (StringUtils.hasText(query) ? "&search_text=" + urlEncode(query) : "")
@@ -141,7 +145,8 @@ public class WallpaperDiscoveryServiceImpl implements WallpaperDiscoveryService 
                     itemId,
                     normalizeWorkshopTitle(detail.path("title").asText(""), itemId),
                     previewUrl,
-                    WORKSHOP_DETAIL_URL_BASE + itemId
+                    WORKSHOP_DETAIL_URL_BASE + itemId,
+                    WorkshopResolution.fromTags(detail.path("tags"))
             ));
         }
         boolean hasMore = (long) page * pageSize < total;
@@ -150,22 +155,42 @@ public class WallpaperDiscoveryServiceImpl implements WallpaperDiscoveryService 
 
     private WorkshopSearchResponse searchWorkshopByScrape(String query, int page, String sort, int pageSize,
                                                            List<String> tags) {
-        String url = trimTrailingSlash(discoveryProperties.getWorkshopBrowseBaseUrl())
-                + "/workshop/browse/?appid=" + urlEncode(readString(workshopProperties.getWorkshopAppId(), "431960"))
-                + "&section=readytouseitems"
-                + "&browsesort=" + urlEncode(workshopScrapeSort(sort))
-                + "&actualsort=" + urlEncode(workshopScrapeSort(sort))
-                + ("trend".equals(sort) ? "&days=7" : "")
-                + "&p=" + page
-                + "&numperpage=" + pageSize
-                + (StringUtils.hasText(query) ? "&searchtext=" + urlEncode(query) : "")
-                + buildWorkshopRequiredTagsQuery(tags, false);
-        String html = httpGet(url, "text/html");
-        List<WorkshopSearchItemResponse> items = WorkshopBrowseHtmlParser.parse(html, WORKSHOP_DETAIL_URL_BASE);
+        // The current Steam browse page caps numperpage at 30. Use an absolute item offset
+        // so a logical batch can start partway through a source page without skipping items.
+        int sourceSize = 30;
+        int start = (page - 1) * pageSize;
+        int sourcePage = start / sourceSize + 1;
+        int skip = start % sourceSize;
+        List<WorkshopSearchItemResponse> items = new ArrayList<>();
+        Set<String> seen = new LinkedHashSet<>();
+        boolean hasMore = false;
+        int maxPages = (skip + pageSize + sourceSize - 1) / sourceSize;
+        for (int offset = 0; offset < maxPages; offset++) {
+            String url = trimTrailingSlash(discoveryProperties.getWorkshopBrowseBaseUrl())
+                    + "/workshop/browse/?appid=" + urlEncode(readString(workshopProperties.getWorkshopAppId(), "431960"))
+                    + "&section=readytouseitems"
+                    + "&browsesort=" + urlEncode(workshopScrapeSort(sort))
+                    + "&actualsort=" + urlEncode(workshopScrapeSort(sort))
+                    + ("trend".equals(sort) ? "&days=7" : "")
+                    + "&p=" + (sourcePage + offset) + "&numperpage=" + sourceSize
+                    + (StringUtils.hasText(query) ? "&searchtext=" + urlEncode(query) : "")
+                    + buildWorkshopRequiredTagsQuery(tags, false);
+            List<WorkshopSearchItemResponse> sourceItems = WorkshopBrowseHtmlParser.parse(
+                    httpGet(url, "text/html"), WORKSHOP_DETAIL_URL_BASE);
+            int first = offset == 0 ? skip : 0;
+            int available = Math.max(0, sourceItems.size() - first);
+            int take = Math.min(pageSize - items.size(), available);
+            for (int i = first; i < first + take; i++) {
+                WorkshopSearchItemResponse item = sourceItems.get(i);
+                if (seen.add(item.itemId())) items.add(item);
+            }
+            hasMore = first + take < sourceItems.size() || sourceItems.size() >= sourceSize;
+            if (items.size() >= pageSize || sourceItems.size() < sourceSize) break;
+        }
+        items = workshopMetadataProvider.enrichResolutions(items);
         for (WorkshopSearchItemResponse item : items) {
             cacheWorkshopPreviewMetadata(item.itemId(), item.previewUrl());
         }
-        boolean hasMore = items.size() >= pageSize;
         return new WorkshopSearchResponse(items, page, pageSize, hasMore, -1, "browse_scrape");
     }
 
@@ -189,7 +214,8 @@ public class WallpaperDiscoveryServiceImpl implements WallpaperDiscoveryService 
                 metadata.timeUpdated(),
                 channel.channel(),
                 channel.available(),
-                channel.message()
+                channel.message(),
+                metadata.resolution()
         );
     }
 
@@ -213,7 +239,8 @@ public class WallpaperDiscoveryServiceImpl implements WallpaperDiscoveryService 
             if (!WALLHAVEN_ID_PATTERN.matcher(itemId).matches()) {
                 throw new BusinessException(ErrorCode.BAD_REQUEST, "wallhaven id is invalid");
             }
-            previewUrl = fetchWallhavenPreviewUrl(itemId);
+            previewUrl = wallhavenPreviewMetadataCache.get(itemId);
+            if (!StringUtils.hasText(previewUrl)) previewUrl = fetchWallhavenPreviewUrl(itemId);
             requireTrustedWallhavenHost(outboundClient.parseHttpUri(previewUrl));
         } else {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "preview source is unsupported");
@@ -239,9 +266,10 @@ public class WallpaperDiscoveryServiceImpl implements WallpaperDiscoveryService 
         String ratios = matchOrDefault(ratiosRaw, RATIOS_PATTERN, "");
         String order = normalizeWallhavenOrder(orderRaw);
 
+        int sourcePages = Math.max(1, (normalizedPageSize() + 23) / 24);
+        int firstSourcePage = (page - 1) * sourcePages + 1;
         StringBuilder url = new StringBuilder(trimTrailingSlash(discoveryProperties.getWallhavenBaseUrl()))
-                .append("/api/v1/search?page=").append(page)
-                .append("&categories=").append(categories)
+                .append("/api/v1/search?categories=").append(categories)
                 .append("&purity=").append(purity)
                 .append("&sorting=").append(urlEncode(sorting))
                 .append("&order=").append(order);
@@ -258,46 +286,86 @@ public class WallpaperDiscoveryServiceImpl implements WallpaperDiscoveryService 
             url.append("&apikey=").append(urlEncode(discoveryProperties.getWallhavenApiKey()));
         }
 
-        JsonNode root = readJson(httpGet(url.toString(), "application/json"), "Wallhaven 搜索结果解析失败");
         List<WallhavenSearchItemResponse> items = new ArrayList<>();
-        for (JsonNode data : root.path("data")) {
-            String id = data.path("id").asText("");
-            if (!WALLHAVEN_ID_PATTERN.matcher(id).matches()) {
-                continue;
-            }
-            List<String> colors = new ArrayList<>();
-            for (JsonNode color : data.path("colors")) {
-                String value = color.asText("").trim();
-                if (value.matches("^#[0-9a-fA-F]{6}$")) {
-                    colors.add(value);
+        int lastSourcePage = firstSourcePage;
+        long total = 0;
+        String seed = "";
+        Set<String> seen = new LinkedHashSet<>();
+        for (int offset = 0; offset < sourcePages; offset++) {
+            int sourcePage = firstSourcePage + offset;
+            JsonNode root = readJson(httpGet(url + "&page=" + sourcePage
+                    + (StringUtils.hasText(seed) ? "&seed=" + urlEncode(seed) : ""), "application/json"),
+                    "Wallhaven 搜索结果解析失败");
+            JsonNode meta = root.path("meta");
+            lastSourcePage = meta.path("last_page").asInt(sourcePage);
+            total = meta.path("total").asLong(total);
+            seed = meta.path("seed").asText(seed);
+            for (JsonNode data : root.path("data")) {
+                String id = data.path("id").asText("");
+                if (!WALLHAVEN_ID_PATTERN.matcher(id).matches() || !seen.add(id)) {
+                    continue;
                 }
+                List<String> colors = new ArrayList<>();
+                for (JsonNode color : data.path("colors")) {
+                    String value = color.asText("").trim();
+                    if (value.matches("^#[0-9a-fA-F]{6}$")) {
+                        colors.add(value);
+                    }
+                }
+                JsonNode cachedDetail = wallhavenMetadataCache.get(id);
+                String thumbUrl = data.path("thumbs").path("large")
+                        .asText(data.path("thumbs").path("original").asText(""));
+                wallhavenPreviewMetadataCache.put(id, thumbUrl);
+                items.add(new WallhavenSearchItemResponse(
+                        id,
+                        resolveWallhavenTitle(cachedDetail == null ? data : cachedDetail, id),
+                        thumbUrl,
+                        data.path("path").asText(""),
+                        data.path("url").asText(""),
+                        data.path("resolution").asText(""),
+                        data.path("ratio").asText(""),
+                        data.path("file_size").asLong(0),
+                        data.path("file_type").asText(""),
+                        data.path("purity").asText(""),
+                        data.path("category").asText(""),
+                        data.path("views").asLong(0),
+                        data.path("favorites").asLong(0),
+                        data.path("created_at").asText(""),
+                        List.copyOf(colors),
+                        data.path("source").asText("")
+                ));
             }
-            items.add(new WallhavenSearchItemResponse(
-                    id,
-                    resolveWallhavenTitle(data, id),
-                    data.path("thumbs").path("large").asText(data.path("thumbs").path("original").asText("")),
-                    data.path("path").asText(""),
-                    data.path("url").asText(""),
-                    data.path("resolution").asText(""),
-                    data.path("ratio").asText(""),
-                    data.path("file_size").asLong(0),
-                    data.path("file_type").asText(""),
-                    data.path("purity").asText(""),
-                    data.path("category").asText(""),
-                    data.path("views").asLong(0),
-                    data.path("favorites").asLong(0),
-                    data.path("created_at").asText(""),
-                    List.copyOf(colors),
-                    data.path("source").asText("")
-            ));
+            if (sourcePage >= lastSourcePage) break;
         }
-        JsonNode meta = root.path("meta");
         return new WallhavenSearchResponse(
                 items,
-                meta.path("current_page").asInt(page),
-                meta.path("last_page").asInt(page),
-                meta.path("total").asLong(items.size())
+                page,
+                Math.max(1, (lastSourcePage + sourcePages - 1) / sourcePages),
+                total
         );
+    }
+
+    @Override
+    public WallhavenItemDetailResponse getWallhavenItem(String itemIdRaw) {
+        requireDiscoveryEnabled();
+        String id = readString(itemIdRaw, "").trim();
+        if (!WALLHAVEN_ID_PATTERN.matcher(id).matches()) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "wallhaven id is invalid");
+        }
+        JsonNode data = wallhavenMetadataCache.load(id, () -> requestWallhavenDetail(id), true);
+        return data == null ? new WallhavenItemDetailResponse(id, "", 61)
+                : new WallhavenItemDetailResponse(id, resolveWallhavenTitle(data, id), 0);
+    }
+
+    private JsonNode requestWallhavenDetail(String id) {
+        String url = trimTrailingSlash(discoveryProperties.getWallhavenBaseUrl()) + "/api/v1/w/" + urlEncode(id)
+                + (StringUtils.hasText(discoveryProperties.getWallhavenApiKey())
+                ? "?apikey=" + urlEncode(discoveryProperties.getWallhavenApiKey()) : "");
+        JsonNode data = readJson(httpGet(url, "application/json"), "Wallhaven 壁纸信息解析失败").path("data");
+        if (data.isMissingNode() || data.isNull() || data.isEmpty()) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "Wallhaven wallpaper not found");
+        }
+        return data;
     }
 
     @Override
@@ -307,13 +375,7 @@ public class WallpaperDiscoveryServiceImpl implements WallpaperDiscoveryService 
         if (!WALLHAVEN_ID_PATTERN.matcher(wallhavenId).matches()) {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "wallhaven_id is invalid");
         }
-        String detailUrl = trimTrailingSlash(discoveryProperties.getWallhavenBaseUrl())
-                + "/api/v1/w/" + urlEncode(wallhavenId)
-                + (StringUtils.hasText(discoveryProperties.getWallhavenApiKey())
-                ? "?apikey=" + urlEncode(discoveryProperties.getWallhavenApiKey())
-                : "");
-        JsonNode root = readJson(httpGet(detailUrl, "application/json"), "Wallhaven 壁纸信息解析失败");
-        JsonNode data = root.path("data");
+        JsonNode data = wallhavenMetadataCache.load(wallhavenId, () -> requestWallhavenDetail(wallhavenId), false);
         String path = data.path("path").asText("");
         if (!StringUtils.hasText(path)) {
             throw new BusinessException(ErrorCode.NOT_FOUND, "Wallhaven wallpaper not found");
@@ -342,12 +404,7 @@ public class WallpaperDiscoveryServiceImpl implements WallpaperDiscoveryService 
     }
 
     private String fetchWallhavenPreviewUrl(String wallhavenId) {
-        String detailUrl = trimTrailingSlash(discoveryProperties.getWallhavenBaseUrl())
-                + "/api/v1/w/" + urlEncode(wallhavenId)
-                + (StringUtils.hasText(discoveryProperties.getWallhavenApiKey())
-                ? "?apikey=" + urlEncode(discoveryProperties.getWallhavenApiKey())
-                : "");
-        JsonNode data = readJson(httpGet(detailUrl, "application/json"), "Wallhaven 壁纸信息解析失败").path("data");
+        JsonNode data = wallhavenMetadataCache.load(wallhavenId, () -> requestWallhavenDetail(wallhavenId), false);
         String previewUrl = firstNonBlank(
                 data.path("thumbs").path("large").asText(""),
                 data.path("thumbs").path("original").asText(""),
@@ -371,7 +428,7 @@ public class WallpaperDiscoveryServiceImpl implements WallpaperDiscoveryService 
         }
 
         String tagsTitle = wallhavenTitleFromTags(data.path("tags"));
-        return StringUtils.hasText(tagsTitle) ? tagsTitle : "Wallhaven #" + wallhavenId;
+        return StringUtils.hasText(tagsTitle) ? tagsTitle : "未命名壁纸";
     }
 
     private String wallhavenTitleFromSource(String source) {
@@ -433,7 +490,7 @@ public class WallpaperDiscoveryServiceImpl implements WallpaperDiscoveryService 
             return true;
         }
         String normalizedTitle = title.trim();
-        if (normalizedTitle.equalsIgnoreCase("Wallhaven " + wallhavenId)
+        if (normalizedTitle.equals("未命名壁纸") || normalizedTitle.equalsIgnoreCase("Wallhaven " + wallhavenId)
                 || normalizedTitle.equalsIgnoreCase("Wallhaven #" + wallhavenId)) {
             return true;
         }
@@ -481,7 +538,7 @@ public class WallpaperDiscoveryServiceImpl implements WallpaperDiscoveryService 
         if (pageSize < 6) {
             return 6;
         }
-        return Math.min(pageSize, 50);
+        return Math.min(pageSize, 96);
     }
 
     private String normalizeWorkshopSort(String sortRaw) {

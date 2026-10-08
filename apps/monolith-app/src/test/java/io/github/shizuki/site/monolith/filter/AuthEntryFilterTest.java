@@ -171,7 +171,8 @@ class AuthEntryFilterTest {
         for (String path : List.of(
             WALLPAPER_WORKSHOP_SEARCH_PATH,
             WALLPAPER_WORKSHOP_ITEM_PATH,
-            WALLPAPER_WALLHAVEN_SEARCH_PATH
+            WALLPAPER_WALLHAVEN_SEARCH_PATH,
+            "/api/v1/home-wallpapers/discovery/wallhaven/items/pomle9"
         )) {
             MockHttpServletRequest request = new MockHttpServletRequest("GET", path);
             MockHttpServletResponse response = new MockHttpServletResponse();

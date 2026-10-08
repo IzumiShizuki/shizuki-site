@@ -220,10 +220,11 @@
               </span>
             </span>
             <span class="source-badge">{{ source === 'workshop' ? 'WORKSHOP' : 'WALLHAVEN' }}</span>
+            <span v-if="source === 'workshop'" class="resolution-badge" title="来源于作者标注">{{ workshopResolutionLabel(item.resolution) }}</span>
             <span v-if="selected && selected.key === item.key" class="selected-check" aria-label="已选择">✓</span>
           </span>
           <span class="item-copy">
-            <strong>{{ item.title }}</strong>
+            <strong>{{ item.nameLoading ? '读取名称…' : item.title }}</strong>
             <small>{{ item.meta }}</small>
           </span>
         </button>
@@ -286,6 +287,9 @@
           <span v-else-if="workshopDetail.downloadChannel === 'STEAMCMD'">可通过 SteamCMD 导入</span>
           <span v-else>下载通道不可用</span>
         </div>
+        <p v-if="source === 'workshop'" class="resolution-notice">
+          {{ workshopResolutionLabel(selected.resolution) }} · 来源于作者标注，原文件可能不同
+        </p>
 
         <div
           v-if="importProgress.visible"
@@ -344,6 +348,7 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import {
   getWallpaperDiscoveryPreviewUrl,
   getWorkshopItemDetail,
+  getWallhavenItemDetail,
   searchWallhavenWallpapers,
   searchWorkshopWallpapers
 } from '../../services/wallpaperApi';
@@ -404,6 +409,7 @@ const workshopDetail = reactive({
 
 let searchSeq = 0;
 let searchDebounceTimer = 0;
+let nameRetryTimer = 0;
 
 function syncFilterDisclosureToViewport() {
   const compact = window.matchMedia?.('(max-width: 720px), (orientation: portrait)').matches;
@@ -586,10 +592,17 @@ function normalizeWorkshopItem(raw) {
     title: title || `Workshop #${itemId}`,
     thumb,
     fullUrl: '',
+    resolution: String(readField(raw, 'resolution', 'resolution', '')).trim(),
     detailUrl: String(readField(raw, 'detailUrl', 'detail_url', '')).trim(),
     meta: `Workshop #${itemId}`,
     details: [`ID ${itemId}`]
   };
+}
+
+function workshopResolutionLabel(value) {
+  if (value === 'Dynamic Resolution') return '动态分辨率';
+  const pixels = /^(\d{3,5})\s*[x×]\s*(\d{3,5})$/i.exec(String(value || ''));
+  return pixels ? `${pixels[1]} × ${pixels[2]}` : '分辨率未提供';
 }
 
 function normalizeWallhavenItem(raw) {
@@ -603,7 +616,8 @@ function normalizeWallhavenItem(raw) {
   const category = String(readField(raw, 'category', 'category', '')).trim();
   const purity = String(readField(raw, 'purity', 'purity', '')).trim();
   const categoryLabel = wallhavenCategoryLabel(category);
-  const title = String(readField(raw, 'title', 'title', '')).trim() || `Wallhaven #${id}`;
+  const rawTitle = String(readField(raw, 'title', 'title', '')).trim();
+  const title = !rawTitle || /^Wallhaven\s*#?[a-z0-9]{4,20}$/i.test(rawTitle) ? '未命名壁纸' : rawTitle;
   const viewsText = formatCompactCount(readField(raw, 'views', 'views', 0), '浏览');
   const favoritesText = formatCompactCount(readField(raw, 'favorites', 'favorites', 0), '收藏');
   const createdText = formatCreatedDate(readField(raw, 'createdAt', 'created_at', ''));
@@ -612,6 +626,7 @@ function normalizeWallhavenItem(raw) {
     key: `wallhaven-${id}`,
     wallhavenId: id,
     title,
+    nameLoading: false,
     thumb,
     fullUrl,
     detailUrl: String(readField(raw, 'detailUrl', 'detail_url', '')).trim(),
@@ -712,6 +727,8 @@ function wallhavenCategories() {
 }
 
 async function runSearch(targetPage = 1, { forceRefresh = false } = {}) {
+  if (nameRetryTimer) window.clearTimeout(nameRetryTimer);
+  nameRetryTimer = 0;
   if (searchDebounceTimer) {
     window.clearTimeout(searchDebounceTimer);
     searchDebounceTimer = 0;
@@ -761,6 +778,7 @@ async function runSearch(targetPage = 1, { forceRefresh = false } = {}) {
         : [];
       clearPreviewStates();
       items.value = rawItems.map(normalizeWallhavenItem).filter(Boolean);
+      enrichWallhavenNames(items.value.filter((item) => item.title === '未命名壁纸'), seq);
       page.value = Number(readField(payload, 'page', 'page', targetPage)) || targetPage;
       lastPage.value = Number(readField(payload, 'lastPage', 'last_page', 0)) || 0;
       hasMore.value = lastPage.value > 0 ? page.value < lastPage.value : items.value.length > 0;
@@ -773,6 +791,44 @@ async function runSearch(targetPage = 1, { forceRefresh = false } = {}) {
     errorHint.value = detail ? `搜索失败：${detail}` : '搜索失败，请稍后重试。';
   } finally {
     if (seq === searchSeq) loading.value = false;
+  }
+}
+
+async function enrichWallhavenNames(queue, seq, attempt = 0) {
+  let cursor = 0;
+  const retry = [];
+  let retrySeconds = 61;
+  await Promise.all(Array.from({ length: Math.min(3, queue.length) }, async () => {
+    while (cursor < queue.length && seq === searchSeq) {
+      const item = queue[cursor++];
+      item.nameLoading = true;
+      try {
+        const payload = await getWallhavenItemDetail(item.wallhavenId, props.authorizedFetch);
+        if (seq !== searchSeq) return;
+        const delay = Number(readField(payload, 'retryAfterSeconds', 'retry_after_seconds', 0));
+        if (delay > 0) {
+          retry.push(item);
+          retrySeconds = Math.max(retrySeconds, delay);
+        } else {
+          const title = String(readField(payload, 'title', 'title', '')).trim();
+          if (title && title !== '未命名壁纸') {
+            const oldTitle = item.title;
+            item.title = title;
+            if (selected.value?.key === item.key && importTitle.value === oldTitle) importTitle.value = title;
+          }
+        }
+      } catch {
+        if (seq === searchSeq && attempt < 2) retry.push(item);
+      } finally {
+        item.nameLoading = false;
+      }
+    }
+  }));
+  if (retry.length && seq === searchSeq && attempt < 4) {
+    nameRetryTimer = window.setTimeout(() => {
+      nameRetryTimer = 0;
+      enrichWallhavenNames(retry, seq, attempt + 1);
+    }, Math.min(retrySeconds, 120) * 1000);
   }
 }
 
@@ -844,6 +900,7 @@ async function selectItem(item) {
   try {
     const payload = await getWorkshopItemDetail(item.itemId, props.authorizedFetch);
     if (!selected.value || selected.value.key !== item.key) return;
+    item.resolution = String(readField(payload, 'resolution', 'resolution', item.resolution)).trim();
     workshopDetail.hasDirectDownload = Boolean(readField(payload, 'hasDirectDownload', 'has_direct_download', false));
     workshopDetail.downloadChannel = String(readField(
       payload,
@@ -903,6 +960,7 @@ onMounted(() => {
   runSearch(1);
 });
 onBeforeUnmount(() => {
+  if (nameRetryTimer) window.clearTimeout(nameRetryTimer);
   if (searchDebounceTimer) window.clearTimeout(searchDebounceTimer);
   window.removeEventListener('resize', syncFilterDisclosureToViewport);
   searchSeq += 1;
@@ -1328,6 +1386,24 @@ defineExpose({ runSearch, switchSource });
 
 .item-copy small {
   display: none;
+}
+
+.resolution-badge {
+  position: absolute;
+  right: 6px;
+  bottom: 34px;
+  padding: 3px 5px;
+  border-radius: 5px;
+  background: rgb(0 0 0 / 70%);
+  color: #fff;
+  font-size: 10px;
+  line-height: 1.3;
+}
+
+.resolution-notice {
+  color: var(--theme-text-secondary);
+  font-size: 12px;
+  line-height: 1.6;
 }
 
 .discovery-pager {

@@ -38,6 +38,81 @@ import static org.mockito.Mockito.verify;
 class WallpaperDiscoveryServiceImplTest {
 
     @Test
+    void aggregatesWallhavenBatchesAndHandlesFinalPartialPage() throws Exception {
+        HttpClient client = Mockito.mock(HttpClient.class);
+        Mockito.doAnswer(invocation -> {
+            java.net.http.HttpRequest request = invocation.getArgument(0);
+            var matcher = java.util.regex.Pattern.compile("(?:^|&)page=(\\d+)")
+                    .matcher(request.uri().getRawQuery());
+            assertTrue(matcher.find());
+            int sourcePage = Integer.parseInt(matcher.group(1));
+            StringBuilder body = new StringBuilder("{\"data\":[");
+            for (int i = 0; i < 24; i++) {
+                if (i > 0) body.append(',');
+                body.append("{\"id\":\"w").append(sourcePage).append(String.format("%04d", i)).append("\"}");
+            }
+            body.append("],\"meta\":{\"last_page\":7,\"total\":168,\"seed\":\"fixture-seed\"}}");
+            assertTrue(request.uri().getRawQuery().contains("categories=110"));
+            if (sourcePage == 2 || sourcePage == 3) {
+                assertTrue(request.uri().getRawQuery().contains("seed=fixture-seed"));
+            }
+            return successfulResponse(body.toString());
+        }).when(client).send(any(), any());
+        var service = discoveryService(client, Mockito.mock(WallpaperService.class));
+        var first = service.searchWallhaven("", 1, "110", "100", "random", "", "", "desc");
+        var second = service.searchWallhaven("", 2, "110", "100", "random", "", "", "desc");
+        var last = service.searchWallhaven("", 3, "110", "100", "random", "", "", "desc");
+        assertEquals(72, first.items().size());
+        assertEquals(72, second.items().size());
+        assertEquals("w10000", first.items().get(0).id());
+        assertEquals("w40000", second.items().get(0).id());
+        assertEquals(3, first.lastPage());
+        assertEquals(24, last.items().size());
+        assertEquals(3, last.page());
+    }
+
+    @Test
+    void enrichesAndCachesWallhavenDetailNames() throws Exception {
+        HttpClient client = Mockito.mock(HttpClient.class);
+        Mockito.doReturn(successfulResponse("""
+                {"data":{"id":"pomle9","tags":[{"name":"Japan"},{"name":"Tokyo"},{"name":"architecture"}]}}
+                """)).when(client).send(any(), any());
+        var service = discoveryService(client, Mockito.mock(WallpaperService.class));
+        assertEquals("Japan · Tokyo · architecture", service.getWallhavenItem("pomle9").title());
+        assertEquals(0, service.getWallhavenItem("pomle9").retryAfterSeconds());
+        verify(client, Mockito.times(1)).send(any(), any());
+    }
+
+    @Test
+    void aggregatesSteamCappedPagesWithoutSkippingPartialPageRemainders() throws Exception {
+        HttpClient client = Mockito.mock(HttpClient.class);
+        Mockito.doAnswer(invocation -> {
+            java.net.http.HttpRequest request = invocation.getArgument(0);
+            if (request.method().equals("POST")) {
+                return successfulResponse("{\"response\":{\"publishedfiledetails\":[]}}");
+            }
+            var matcher = java.util.regex.Pattern.compile("(?:^|&)p=(\\d+)")
+                    .matcher(request.uri().getRawQuery());
+            assertTrue(matcher.find());
+            int sourcePage = Integer.parseInt(matcher.group(1));
+            StringBuilder html = new StringBuilder();
+            for (int i = 0; i < 30; i++) {
+                html.append("<a data-publishedfileid=\"").append(sourcePage * 1000 + i)
+                        .append("\"><img src=\"https://cdn.example/preview.jpg\" alt=\"Wallpaper\"></a>");
+            }
+            return successfulResponse(html.toString());
+        }).when(client).send(any(), any());
+        var service = discoveryService(client, Mockito.mock(WallpaperService.class));
+        var first = service.searchWorkshop("", 1, "trend", "");
+        var second = service.searchWorkshop("", 2, "trend", "");
+        assertEquals(72, first.items().size());
+        assertEquals("3011", first.items().get(71).itemId());
+        assertEquals("3012", second.items().get(0).itemId());
+        assertEquals("5023", second.items().get(71).itemId());
+        assertTrue(second.hasMore());
+    }
+
+    @Test
     void parsesAuthenticatedHttpProxy() {
         WallpaperOutboundClient.ProxyEndpoint proxy =
                 WallpaperOutboundClient.parseProxyEndpoint("http://wallpaper%2Dproxy:pass%3Aword@host.docker.internal:7890");
@@ -150,7 +225,7 @@ class WallpaperDiscoveryServiceImplTest {
         var response = service.searchWallhaven("", 1, "111", "100", "toplist", "", "", "desc");
 
         assertEquals(List.of("Robot Dave", "Original artwork", "robot · interior",
-                        "Wallhaven #ghi789", "ocean", "Moon Garden"),
+                        "未命名壁纸", "ocean", "Moon Garden"),
                 response.items().stream().map(WallhavenSearchItemResponse::title).toList());
         assertEquals("general", response.items().get(0).category());
     }

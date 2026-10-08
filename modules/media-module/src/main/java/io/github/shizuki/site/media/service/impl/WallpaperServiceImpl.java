@@ -438,9 +438,12 @@ public class WallpaperServiceImpl implements WallpaperService {
                               AssetVisibilityEnum visibility,
                               WorkshopImportCreateRequest request) {
         markJobRunning(jobId);
+        long phaseStarted = System.nanoTime();
         try {
             WorkshopMetadataProvider.WorkshopMetadata workshopMeta =
                 workshopMetadataProvider.resolve(workshopItemId);
+            logWorkshopPhase(jobId, "METADATA", phaseStarted);
+            phaseStarted = System.nanoTime();
             DetectedPackage detected = null;
             String requestedTitle = request == null ? "" : readString(request.getTitle(), "");
             String sourceTitle = StringUtils.hasText(requestedTitle)
@@ -478,6 +481,8 @@ public class WallpaperServiceImpl implements WallpaperService {
             }
 
             markJobProgress(jobId, WallpaperImportProgressStageEnum.PERSISTING);
+            logWorkshopPhase(jobId, "DOWNLOAD_AND_INSPECT", phaseStarted);
+            phaseStarted = System.nanoTime();
             ImportedWallpaper imported = persistDetectedWallpaper(
                 userId,
                 visibility,
@@ -487,12 +492,18 @@ public class WallpaperServiceImpl implements WallpaperService {
                 workshopItemId,
                 false
             );
+            logWorkshopPhase(jobId, "PERSIST", phaseStarted);
             finishJob(jobId, WallpaperImportStatusEnum.SUCCEEDED, imported.wallpaperId(), null, null);
         } catch (BusinessException businessException) {
             finishJob(jobId, WallpaperImportStatusEnum.FALLBACK_REQUIRED, null, businessException.getMessage(), "请改用本地包上传导入");
         } catch (Exception exception) {
             finishJob(jobId, WallpaperImportStatusEnum.FAILED, null, "Workshop import failed", "请改用本地包上传导入");
         }
+    }
+
+    private void logWorkshopPhase(Long jobId, String phase, long startedNanos) {
+        LOGGER.info("WORKSHOP_IMPORT_PHASE job_id={} phase={} elapsed_ms={}", jobId, phase,
+                java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedNanos));
     }
 
     private ImportedWallpaper persistDetectedWallpaper(Long userId,

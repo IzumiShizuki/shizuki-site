@@ -5,7 +5,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.function.LongSupplier;
 
-/** Bounded short-lived cache for preview URLs already returned by Workshop search. */
+/** Bounded short-lived cache for preview URLs already returned by discovery search. */
 final class WorkshopPreviewMetadataCache {
 
     private static final int DEFAULT_MAX_ENTRIES = 256;

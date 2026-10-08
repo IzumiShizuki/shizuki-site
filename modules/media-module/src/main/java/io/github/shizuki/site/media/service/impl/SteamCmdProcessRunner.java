@@ -111,12 +111,25 @@ final class SteamCmdProcessRunner {
 
             long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(timeoutSeconds);
             boolean completed = false;
+            long nextProgressSample = System.nanoTime();
             while (!completed && System.nanoTime() < deadline) {
                 long remainingNanos = deadline - System.nanoTime();
-                long waitMillis = Math.max(1L, Math.min(1_000L,
+                long waitMillis = Math.max(1L, Math.min(200L,
                         TimeUnit.NANOSECONDS.toMillis(Math.max(0L, remainingNanos))));
                 completed = process.waitFor(waitMillis, TimeUnit.MILLISECONDS);
-                progressSampler.accept(attempt);
+                if (completed || System.nanoTime() >= nextProgressSample) {
+                    progressSampler.accept(attempt);
+                    nextProgressSample = System.nanoTime() + TimeUnit.SECONDS.toNanos(1);
+                }
+                if (!completed && SteamCmdFailureClassifier.hasSuccessfulDownloadMarker(
+                        output.value(), requestedWorkshopItemId(command))) {
+                    // SteamCMD can linger in shutdown after all files have been written. The caller
+                    // still classifies final output and validates content before accepting this run.
+                    terminate(process);
+                    joinQuietly(drainThread);
+                    return new Execution(0, false, false, output.value(), attempt,
+                            output.observedFailure(), Failure.NONE);
+                }
             }
             if (!completed) {
                 terminate(process);
@@ -158,6 +171,11 @@ final class SteamCmdProcessRunner {
     private static void terminate(Process process) {
         if (process == null || !process.isAlive()) {
             return;
+        }
+        try (var descendants = process.descendants()) {
+            descendants.forEach(ProcessHandle::destroyForcibly);
+        } catch (UnsupportedOperationException ignored) {
+            // In-memory Process implementations may not expose operating-system handles.
         }
         process.destroyForcibly();
         try {

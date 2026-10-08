@@ -78,7 +78,8 @@ final class WorkshopBrowseHtmlParser {
                     itemId,
                     normalizedTitle,
                     previewUrl == null ? "" : unescapeHtml(previewUrl),
-                    detailUrlBase + itemId
+                    detailUrlBase + itemId,
+                    WorkshopResolution.fromPage(block)
             ));
         }
         return items;

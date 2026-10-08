@@ -6,6 +6,7 @@ import WallpaperDiscoveryPanel from './WallpaperDiscoveryPanel.vue';
 import {
   getWallpaperDiscoveryPreviewUrl,
   getWorkshopItemDetail,
+  getWallhavenItemDetail,
   searchWallhavenWallpapers,
   searchWorkshopWallpapers
 } from '../../services/wallpaperApi';
@@ -15,6 +16,7 @@ vi.mock('../../services/wallpaperApi', () => ({
   searchWorkshopWallpapers: vi.fn(),
   searchWallhavenWallpapers: vi.fn(),
   getWorkshopItemDetail: vi.fn(),
+  getWallhavenItemDetail: vi.fn(),
   importWallhavenWallpaper: vi.fn()
 }));
 
@@ -42,6 +44,7 @@ function mountPanel(props = {}) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  getWallhavenItemDetail.mockResolvedValue({ title: 'Tokyo · architecture', retry_after_seconds: 0 });
   searchWorkshopWallpapers.mockResolvedValue({
     items: [
       { item_id: '2141505896', title: 'Rainy Night Cafe', preview_url: 'https://img.example/1.jpg', detail_url: 'https://steamcommunity.com/sharedfiles/filedetails/?id=2141505896' },
@@ -86,6 +89,69 @@ beforeEach(() => {
 });
 
 describe('WallpaperDiscoveryPanel', () => {
+  it('shows declared Workshop resolution and explicit unknown values before import', async () => {
+    searchWorkshopWallpapers.mockResolvedValueOnce({ items: [
+      { item_id: '123456', title: 'Video', resolution: '1920x1080' },
+      { item_id: '234567', title: 'Scene', resolution: 'Dynamic Resolution' },
+      { item_id: '345678', title: 'Unknown' }
+    ], page: 1, has_more: false });
+    getWorkshopItemDetail.mockResolvedValueOnce({ resolution: '1920x1080', download_available: true });
+    const wrapper = mountPanel();
+    await flushPromises();
+    expect(wrapper.findAll('.resolution-badge').map((node) => node.text())).toEqual([
+      '1920 × 1080', '动态分辨率', '分辨率未提供'
+    ]);
+    await wrapper.find('.discovery-item').trigger('click');
+    await flushPromises();
+    expect(wrapper.find('.resolution-notice').text()).toContain('来源于作者标注');
+    wrapper.unmount();
+  });
+
+  it('replaces legacy Wallhaven ID titles from details without blocking the list', async () => {
+    searchWallhavenWallpapers.mockResolvedValueOnce({
+      items: [{ id: 'pomle9', title: 'Wallhaven #pomle9' }], page: 1, last_page: 1
+    });
+    const wrapper = mountPanel({ source: 'wallhaven' });
+    await flushPromises();
+    expect(getWallhavenItemDetail).toHaveBeenCalledWith('pomle9', authorizedFetch);
+    expect(wrapper.find('.item-copy strong').text()).toBe('Tokyo · architecture');
+    expect(wrapper.text()).not.toContain('Wallhaven #pomle9');
+    wrapper.unmount();
+  });
+
+  it('ignores late name details from a previous search and limits parallel enrichment', async () => {
+    const pending = [];
+    getWallhavenItemDetail.mockImplementation(() => new Promise((resolve) => pending.push(resolve)));
+    searchWallhavenWallpapers.mockResolvedValueOnce({
+      items: Array.from({ length: 6 }, (_, i) => ({ id: `test0${i}`, title: '未命名壁纸' })),
+      page: 1, last_page: 2
+    });
+    const wrapper = mountPanel({ source: 'wallhaven' });
+    await flushPromises();
+    expect(pending).toHaveLength(3);
+    searchWallhavenWallpapers.mockResolvedValueOnce({ items: [{ id: 'new123', title: 'New artwork' }], page: 2, last_page: 2 });
+    await wrapper.vm.runSearch(2);
+    pending.forEach((resolve) => resolve({ title: 'Old artwork' }));
+    await flushPromises();
+    expect(wrapper.find('.item-copy strong').text()).toBe('New artwork');
+    expect(getWallhavenItemDetail).toHaveBeenCalledTimes(3);
+    wrapper.unmount();
+  });
+
+  it('defers throttled names while leaving results usable', async () => {
+    vi.useFakeTimers();
+    searchWallhavenWallpapers.mockResolvedValueOnce({ items: [{ id: 'pomle9' }], page: 1, last_page: 1 });
+    getWallhavenItemDetail.mockResolvedValueOnce({ retry_after_seconds: 61 }).mockResolvedValue({ title: 'Tokyo' });
+    const wrapper = mountPanel({ source: 'wallhaven' });
+    try {
+      await flushPromises();
+      expect(wrapper.findAll('.discovery-item')).toHaveLength(1);
+      expect(getWallhavenItemDetail).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(61_000);
+      await flushPromises();
+      expect(wrapper.find('.item-copy strong').text()).toBe('Tokyo');
+    } finally { wrapper.unmount(); vi.useRealTimers(); }
+  });
   it('loads workshop results on mount and renders the grid', async () => {
     const wrapper = mountPanel();
     await flushPromises();

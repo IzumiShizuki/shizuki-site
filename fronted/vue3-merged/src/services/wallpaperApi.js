@@ -111,6 +111,15 @@ export async function getWorkshopItemDetail(itemId, authorizedFetch) {
   return unwrapApiResponse(response);
 }
 
+export async function getWallhavenItemDetail(itemId, authorizedFetch) {
+  const request = resolveReadRequest(authorizedFetch);
+  const id = String(itemId || '').trim();
+  if (!/^[a-z0-9]{4,20}$/i.test(id)) throw new Error('wallhaven itemId is required');
+  return unwrapApiResponse(await request(`/api/v1/home-wallpapers/discovery/wallhaven/items/${encodeURIComponent(id)}`, {
+    method: 'GET'
+  }));
+}
+
 export async function searchWallhavenWallpapers(params, authorizedFetch, { forceRefresh = false } = {}) {
   const request = resolveReadRequest(authorizedFetch);
   const query = {

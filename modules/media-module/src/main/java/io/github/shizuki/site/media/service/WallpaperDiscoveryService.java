@@ -2,6 +2,7 @@ package io.github.shizuki.site.media.service;
 
 import io.github.shizuki.site.media.request.WallhavenImportCreateRequest;
 import io.github.shizuki.site.media.response.WallhavenSearchResponse;
+import io.github.shizuki.site.media.response.WallhavenItemDetailResponse;
 import io.github.shizuki.site.media.response.WallpaperImportJobResponse;
 import io.github.shizuki.site.media.response.WorkshopItemDetailResponse;
 import io.github.shizuki.site.media.response.WorkshopSearchResponse;
@@ -18,6 +19,8 @@ public interface WallpaperDiscoveryService {
     WorkshopSearchResponse searchWorkshop(String query, int page, String sort, String tags);
 
     WorkshopItemDetailResponse getWorkshopItem(String itemId);
+
+    WallhavenItemDetailResponse getWallhavenItem(String itemId);
 
     WallpaperPreview fetchPreview(String source, String itemId);
 

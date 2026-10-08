@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   getWallpaperDiscoveryPreviewUrl,
+  getWallhavenItemDetail,
   searchWallhavenWallpapers,
   searchWorkshopWallpapers
 } from './wallpaperApi';
@@ -10,6 +11,12 @@ afterEach(() => {
 });
 
 describe('wallpaperApi', () => {
+  it('uses the public Wallhaven detail endpoint and validates identifiers', async () => {
+    const request = vi.fn().mockResolvedValue({ data: { title: 'Tokyo', retry_after_seconds: 0 } });
+    expect(await getWallhavenItemDetail('pomle9', request)).toEqual({ title: 'Tokyo', retry_after_seconds: 0 });
+    expect(request).toHaveBeenCalledWith('/api/v1/home-wallpapers/discovery/wallhaven/items/pomle9', { method: 'GET' });
+    await expect(getWallhavenItemDetail('../invalid', request)).rejects.toThrow('wallhaven itemId is required');
+  });
   it('builds same-origin preview URLs for supported sources', () => {
     expect(getWallpaperDiscoveryPreviewUrl('Workshop', '2141505896')).toMatch(
       /\/api\/v1\/home-wallpapers\/discovery\/preview\/workshop\/2141505896$/

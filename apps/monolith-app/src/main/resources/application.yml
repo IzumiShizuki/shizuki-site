@@ -385,7 +385,7 @@ shizuki:
         wallhaven-base-url: ${WALLPAPER_WALLHAVEN_BASE_URL:https://wallhaven.cc}
         wallhaven-api-key: ${WALLPAPER_WALLHAVEN_API_KEY:}
         request-timeout-seconds: ${WALLPAPER_DISCOVERY_TIMEOUT_SECONDS:15}
-        page-size: ${WALLPAPER_DISCOVERY_PAGE_SIZE:24}
+        page-size: ${WALLPAPER_DISCOVERY_PAGE_SIZE:72}
   meguri:
     gateway:
       enabled: ${MEGURI_GATEWAY_ENABLED:false}
@@ -485,6 +485,7 @@ shizuki:
       - /api/v1/home-wallpapers/discovery/workshop/search
       - /api/v1/home-wallpapers/discovery/workshop/items/**
       - /api/v1/home-wallpapers/discovery/wallhaven/search
+      - /api/v1/home-wallpapers/discovery/wallhaven/items/**
       - /api/v1/home-wallpapers/discovery/preview/*/*
       - /api/v1/tools/translate/**
       - /api/v1/tools/kj-source/**

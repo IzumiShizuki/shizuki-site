@@ -24,6 +24,29 @@ class WorkshopMetadataProviderTest {
 
     @Test
     @SuppressWarnings("unchecked")
+    void batchLoadsResolutionsAndReusesMetadataForSelectionAndImport() throws Exception {
+        HttpResponse<String> response = Mockito.mock(HttpResponse.class);
+        Mockito.when(response.statusCode()).thenReturn(200);
+        Mockito.when(response.body()).thenReturn("""
+                {"response":{"publishedfiledetails":[{"publishedfileid":"3812685876","result":1,
+                  "title":"静默突触","preview_url":"https://cdn.example/preview.jpg",
+                  "tags":[{"tag":"Video"},{"tag":"1920 x 1080"}]}]}}
+                """);
+        HttpClient client = Mockito.mock(HttpClient.class);
+        Mockito.doReturn(response).when(client).send(any(), any());
+        var properties = new WallpaperDiscoveryProperties();
+        var provider = new WorkshopMetadataProvider(properties, new ObjectMapper(),
+                new WallpaperOutboundClient(properties, client));
+        var items = provider.enrichResolutions(List.of(new io.github.shizuki.site.media.response.WorkshopSearchItemResponse(
+                "3812685876", "静默突触", "https://cdn.example/preview.jpg", "https://steamcommunity.com/detail")));
+        assertEquals("1920x1080", items.get(0).resolution());
+        assertEquals("1920x1080", provider.resolve("3812685876").resolution());
+        assertEquals("静默突触", provider.resolve("3812685876").title());
+        verify(client, times(1)).send(any(), any());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
     void fallsBackToPublicPageWhenSteamApiRejectsExistingItem() throws Exception {
         HttpResponse<String> apiResponse = Mockito.mock(HttpResponse.class);
         Mockito.when(apiResponse.statusCode()).thenReturn(200);

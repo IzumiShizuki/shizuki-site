@@ -25,6 +25,15 @@ class WallpaperDiscoveryControllerIntegrationTest {
     private WallpaperDiscoveryService wallpaperDiscoveryService;
 
     @Test
+    void servesProgressiveNamesWithRetryMetadata() throws Exception {
+        Mockito.when(wallpaperDiscoveryService.getWallhavenItem("pomle9"))
+                .thenReturn(new io.github.shizuki.site.media.response.WallhavenItemDetailResponse("pomle9", "Tokyo", 0));
+        mockMvc.perform(MockMvcRequestBuilders.get("/api/v1/home-wallpapers/discovery/wallhaven/items/pomle9"))
+                .andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.data.title").value("Tokyo"));
+    }
+
+    @Test
     void servesCacheableImagePreviewBytes() throws Exception {
         Mockito.when(wallpaperDiscoveryService.fetchPreview(
                 ArgumentMatchers.eq("wallhaven"), ArgumentMatchers.eq("x8gxgz")))
