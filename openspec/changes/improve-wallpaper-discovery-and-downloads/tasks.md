@@ -13,4 +13,4 @@
 ## 3. Verification and handoff
 
 - [x] 3.1 Run applicable backend/frontend regression suites and builds; record outcomes.
-- [ ] 3.2 Verify spec scenarios, strict validation, cleanup and focused local commit; record deployment handoff.
+- [x] 3.2 Verify spec scenarios, strict validation, cleanup and focused local commit; record deployment handoff.

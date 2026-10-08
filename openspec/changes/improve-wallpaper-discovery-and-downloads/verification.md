@@ -4,7 +4,7 @@
 
 | Dimension | Result |
 | --- | --- |
-| Completeness | All four user requests implemented; local delivery complete after commit |
+| Completeness | 8/8 tasks complete; all four user requests implemented and committed locally |
 | Correctness | Resolution, progressive names, batch pagination and downloader completion scenarios covered |
 | Coherence | Bounded caches, source labels, lazy thumbnails, unchanged filters and timeout/retry policy |
 
@@ -42,7 +42,7 @@ The batch metadata request follows the official [Steam GetPublishedFileDetails c
 
 ## Delivery
 
-- Commit the change locally with the required Izumi author; do not push or deploy without the corresponding authorization.
+- Implementation committed locally as `8a5d9916` with the required Izumi author. No push or production deployment performed.
 - Deploy backend and frontend together and explicitly set existing `WALLPAPER_DISCOVERY_PAGE_SIZE=72`; changed defaults alone do not override an already configured value of 24.
 - Automatic Wallhaven detail enrichment allows 30 cache misses per minute globally and at most three frontend requests concurrently. Unknown names can take additional minutes to fill while the list remains usable. Requests use a bounded six-hour detail cache; thumbnails reuse search URLs to avoid detail-request multiplication.
 - Workshop resolution is author-declared and can differ from actual media. Missing metadata is displayed as unknown. This prevents presenting a preview size as guaranteed source quality.
