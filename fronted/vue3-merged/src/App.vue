@@ -331,6 +331,7 @@
 import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, provide, reactive, ref, watch } from 'vue';
 import { MotionConfig } from 'motion-v';
 import { RouterView, useRoute, useRouter } from 'vue-router';
+import './styles/design-system.css';
 import AiDialog from './components/AiDialog.vue';
 import AtmospherePanel from './components/AtmospherePanel.vue';
 import AppBackgroundStage from './components/app/AppBackgroundStage.vue';

@@ -4,9 +4,9 @@ See proposal.md. Wallhaven search returns 24 items per upstream page and normall
 
 ## Goals / Non-Goals
 
-**Goals:** Eliminate avoidable post-download waiting, preserve verified content, expose declared quality before import, improve wide-screen browsing.
+**Goals:** Eliminate avoidable post-download waiting, preserve verified content, expose declared quality before import, improve wide-screen browsing. After the user's deployment request, publish the committed backend and frontend to the personal-site server with rollback checkpoints and production verification.
 
-**Non-Goals:** Network routing changes, transcoding/upscaling, production deployment, changing existing library titles without source evidence.
+**Non-Goals:** Network routing changes, transcoding/upscaling, changing existing library titles without source evidence.
 
 ## Decisions
 

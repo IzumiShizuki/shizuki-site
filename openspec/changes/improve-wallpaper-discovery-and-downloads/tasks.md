@@ -14,3 +14,4 @@
 
 - [x] 3.1 Run applicable backend/frontend regression suites and builds; record outcomes.
 - [x] 3.2 Verify spec scenarios, strict validation, cleanup and focused local commit; record deployment handoff.
+- [ ] 3.3 Deploy the committed backend and frontend to the personal-site server after user authorization; set the existing page size to 72, preserve rollback artifacts, and verify production health and discovery endpoints.

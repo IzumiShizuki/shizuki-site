@@ -11,10 +11,8 @@
     :data-route-scroll-top="normalizedRouteScrollTop"
     data-transform-owner="menu-shell"
   >
-    <LiquidSurface
-      as="div"
+    <div
       class="top-bar"
-      variant="navigation"
       :inert="topBarInactive ? '' : undefined"
       :aria-hidden="String(topBarInactive)"
     >
@@ -236,7 +234,7 @@
           <span class="item-label">{{ displayName || '个人页面' }}</span>
         </div>
       </div>
-    </LiquidSurface>
+    </div>
 
     <LiquidSurface
       as="div"
@@ -684,9 +682,6 @@ onBeforeUnmount(() => {
 }
 
 .top-bar {
-  --liquid-fill: var(--menu-glass-bg);
-  --liquid-border: var(--menu-glass-border);
-  --liquid-shadow: var(--menu-glass-shadow);
   overflow: visible;
   width: 98%;
   max-width: 1500px;
