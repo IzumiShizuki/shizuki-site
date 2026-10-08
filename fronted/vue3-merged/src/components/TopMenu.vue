@@ -2051,7 +2051,6 @@ button.author-info-item:focus-visible {
     transition-delay: 0s !important;
   }
 }
-</style>
 
 .icon-rotated {
   transform: rotate(90deg);
