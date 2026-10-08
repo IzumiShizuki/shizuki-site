@@ -2140,7 +2140,9 @@ function messageRoleLabel(role) {
 }
 </script>
 
-<style scoped>
+<style scoped lang="scss">
+@import '../styles/mixins/liquid-material.scss';
+
 .ai-dialog-shell {
   position: relative;
   width: 100%;
@@ -2196,9 +2198,7 @@ function messageRoleLabel(role) {
   --ai-chat-ink: var(--ai-hub-ink, var(--theme-text-primary));
   --ai-chat-ink-muted: var(--ai-hub-ink-muted, var(--theme-text-secondary));
   --ai-chat-ink-subtle: var(--ai-hub-ink-subtle, var(--theme-text-tertiary));
-  --liquid-bg: var(--ai-chat-surface);
-  --liquid-border: var(--ai-chat-border);
-  --liquid-shadow: var(--theme-shadow-soft);
+
   position: relative;
   width: 100%;
   height: 100%;
@@ -2210,13 +2210,20 @@ function messageRoleLabel(role) {
   overflow: hidden;
   isolation: isolate;
   transform: translateZ(0);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
   will-change: transform, opacity;
-  background: var(--ai-chat-surface);
-  border-color: var(--ai-chat-border);
   color: var(--ai-chat-ink);
   transition: background-color 0.28s ease, border-color 0.28s ease;
+
+  /* Apply liquid material base style */
+  @include liquid-material-base;
+
+  /* Override with theme colors */
+  background:
+    linear-gradient(135deg,
+      rgba(255, 255, 255, 0.08),
+      rgba(255, 255, 255, 0.02)),
+    var(--ai-chat-surface);
+  border-color: var(--ai-chat-border);
 }
 
 .mode-sheet .ai-dialog {

@@ -3729,16 +3729,21 @@ onBeforeUnmount(() => {
   position: absolute;
   border-radius: 50%;
   border: 1.2px solid rgba(var(--accent-rgb), 0.28);
-  background: radial-gradient(circle, rgba(var(--accent-rgb), 0.24) 0%, rgba(var(--accent-rgb), 0.12) 38%, rgba(var(--accent-rgb), 0) 74%);
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, rgb(var(--accent-rgb)) 24%, transparent) 0%,
+    color-mix(in srgb, rgb(var(--accent-rgb)) 12%, transparent) 38%,
+    transparent 74%
+  );
   box-shadow: 0 0 0 1px rgba(var(--accent-rgb), 0.2);
   transform: scale(0.2);
   opacity: 0.72;
-  animation: click-ripple 560ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  animation: click-ripple var(--duration-slower) var(--ease-smooth) forwards;
 }
 
 .lyric-fade-enter-active,
 .lyric-fade-leave-active {
-  transition: opacity 180ms ease;
+  transition: opacity var(--duration-fast) var(--ease-out);
 }
 
 .lyric-fade-enter-from,
@@ -3755,6 +3760,37 @@ onBeforeUnmount(() => {
     transform: scale(1.85);
     opacity: 0;
   }
+}
+
+/* ================================ Global Hover Enhancements ================================ */
+/* Subtle hover micro-interactions for interactive elements */
+
+.icon-btn,
+.ripple-trigger,
+button:not([disabled]) {
+  transition:
+    transform var(--duration-fast) var(--ease-out),
+    box-shadow var(--duration-base) var(--ease-out),
+    color var(--duration-fast) var(--ease-out),
+    background-color var(--duration-base) var(--ease-out);
+}
+
+.icon-btn:hover:not([disabled]),
+.mini-action:hover:not([disabled]) {
+  transform: scale(1.05) translateY(-1px);
+}
+
+.ripple-trigger:hover:not([disabled]):not(.active) {
+  transform: translateY(-1px);
+}
+
+/* Ensure no layout shift from transforms */
+.icon-btn,
+.ripple-trigger,
+.mini-action {
+  will-change: transform;
+  backface-visibility: hidden;
+  -webkit-font-smoothing: subpixel-antialiased;
 }
 
 @media (max-width: 900px) {
@@ -3856,6 +3892,35 @@ onBeforeUnmount(() => {
     bottom: 8px;
     height: 104px;
     width: min(94vw, 620px);
+  }
+}
+
+/* ================================ Accessibility Enhancements ================================ */
+
+/* Focus ring for keyboard navigation */
+:focus-visible {
+  outline: 2px solid rgba(var(--accent-rgb), 0.8);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px rgba(var(--accent-rgb), 0.2);
+  transition: outline var(--duration-fast) var(--ease-out),
+              box-shadow var(--duration-fast) var(--ease-out);
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  /* Preserve critical state indicators */
+  .click-ripple {
+    animation: none !important;
+    opacity: 0 !important;
   }
 }
 </style>

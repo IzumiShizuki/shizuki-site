@@ -501,7 +501,9 @@ onMounted(() => window.addEventListener('keydown', handleEscape));
 onBeforeUnmount(() => window.removeEventListener('keydown', handleEscape));
 </script>
 
-<style scoped>
+<style scoped lang="scss">
+@import '../../styles/mixins/liquid-material.scss';
+
 .bg-picker-mask {
   position: fixed;
   inset: 0;
@@ -514,9 +516,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleEscape));
 }
 
 .bg-picker {
-  --liquid-bg: var(--theme-panel-surface, rgba(36, 28, 38, 0.84));
-  --liquid-border: var(--theme-border-strong, rgba(255, 224, 208, 0.28));
-  --liquid-shadow: 0 30px 90px rgba(20, 12, 18, 0.28);
   width: min(98vw, 1880px);
   height: min(96vh, 1120px);
   min-height: min(580px, 90vh);
@@ -526,6 +525,16 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleEscape));
   display: flex;
   flex-direction: column;
   isolation: isolate;
+
+  /* Apply liquid material elevated style */
+  @include liquid-material-elevated;
+
+  /* Override with theme colors */
+  background:
+    linear-gradient(135deg,
+      rgba(255, 255, 255, 0.10),
+      rgba(255, 255, 255, 0.04)),
+    var(--theme-panel-surface, rgba(36, 28, 38, 0.84));
 }
 
 .workspace-header {

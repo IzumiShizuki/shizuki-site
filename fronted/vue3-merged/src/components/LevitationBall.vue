@@ -514,7 +514,9 @@ onBeforeUnmount(() => {
 });
 </script>
 
-<style scoped>
+<style scoped lang="scss">
+@import '../styles/mixins/liquid-material.scss';
+
 .float-ball {
   --ease-elastic: cubic-bezier(0.34, 1.56, 0.64, 1);
   position: fixed;
@@ -535,9 +537,6 @@ onBeforeUnmount(() => {
 }
 
 .ball-body {
-  --liquid-bg: var(--theme-floating-surface, var(--glass-bg));
-  --liquid-border: var(--theme-border, rgba(255, 255, 255, 0.18));
-  --liquid-shadow: 0 16px 28px rgba(18, 9, 8, 0.16);
   position: relative;
   width: 100%;
   height: 100%;
@@ -550,6 +549,16 @@ onBeforeUnmount(() => {
   transition:
     border-radius 0.34s ease,
     background-color 0.3s ease;
+
+  /* Apply liquid material floating style */
+  @include liquid-material-floating;
+
+  /* Override with theme colors */
+  background:
+    linear-gradient(135deg,
+      rgba(255, 255, 255, 0.12),
+      rgba(255, 255, 255, 0.06)),
+    var(--theme-floating-surface, var(--glass-bg));
 }
 
 .ball-body::after {

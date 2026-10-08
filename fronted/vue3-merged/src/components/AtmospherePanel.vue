@@ -1319,7 +1319,9 @@ function rangeFillStyle(value, min = 0, max = 1) {
 }
 </script>
 
-<style scoped>
+<style scoped lang="scss">
+@import '../styles/mixins/liquid-material.scss';
+
 /* ================================ 布局骨架 ================================ */
 
 .atmo-mask {
@@ -1328,39 +1330,47 @@ function rangeFillStyle(value, min = 0, max = 1) {
   z-index: 1200;
   display: grid;
   place-items: center;
-  padding: 14px;
-  background: rgba(8, 12, 18, 0.44);
-  backdrop-filter: blur(6px) saturate(120%);
-  -webkit-backdrop-filter: blur(6px) saturate(120%);
+  padding: var(--space-3);
+  background: rgba(6, 8, 12, 0.52);
+  backdrop-filter: blur(10px) saturate(140%);
+  -webkit-backdrop-filter: blur(10px) saturate(140%);
 }
 
 .atmo-panel {
-  /* 主题化面板配色：夜间深暖近实底、日间奶油暖白（替换原先的冷灰蓝浅玻璃）。 */
-  --ap-panel-bg: linear-gradient(160deg, rgba(44, 36, 44, 0.97), rgba(32, 26, 34, 0.96));
-  --ap-surface: rgba(255, 236, 230, 0.08);
-  --ap-surface-strong: rgba(255, 236, 230, 0.15);
-  --ap-border-strong: rgba(255, 214, 224, 0.2);
-  --ap-ink: rgba(255, 243, 238, 0.95);
-  --ap-ink-muted: rgba(228, 204, 200, 0.76);
-  --ap-control-ink: rgba(255, 246, 242, 0.9);
-  --ap-ink-subtle: rgba(208, 184, 184, 0.62);
+  /* Enhanced warm glass aesthetic matching design system */
+  --ap-panel-bg: linear-gradient(160deg, rgba(26, 20, 20, 0.97), rgba(20, 16, 18, 0.96));
+  --ap-surface: rgba(255, 236, 230, 0.09);
+  --ap-surface-strong: rgba(255, 236, 230, 0.16);
+  --ap-border-strong: rgba(242, 179, 157, 0.22);
+  --ap-ink: rgba(255, 243, 238, 0.96);
+  --ap-ink-muted: rgba(230, 206, 202, 0.78);
+  --ap-control-ink: rgba(255, 246, 242, 0.92);
+  --ap-ink-subtle: rgba(210, 186, 186, 0.64);
   --ap-warning-ink: rgba(255, 196, 128, 0.96);
   --ap-danger-ink: rgba(255, 145, 132, 0.96);
   --ap-success-ink: rgba(151, 232, 174, 0.96);
   --ap-on-accent: rgba(255, 251, 247, 0.98);
-  --ap-scrollbar: rgba(228, 190, 186, 0.4);
-  --liquid-bg: var(--ap-panel-bg);
-  --liquid-border: var(--ap-border-strong);
-  --liquid-shadow: 0 24px 64px rgba(8, 12, 20, 0.34);
+  --ap-scrollbar: rgba(242, 179, 157, 0.38);
+
   width: min(1040px, calc(100vw - 20px));
   max-height: min(86vh, 800px);
-  border-radius: 24px;
-  padding: 16px 16px 0;
+  border-radius: var(--radius-2xl);
+  padding: var(--space-4) var(--space-4) 0;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--space-3);
   overflow: hidden;
   color: var(--ap-ink);
+
+  /* Apply liquid material elevated style */
+  @include liquid-material-elevated;
+
+  /* Override background with theme-specific gradient */
+  background:
+    linear-gradient(135deg,
+      rgba(255, 255, 255, 0.10),
+      rgba(255, 255, 255, 0.04)),
+    var(--ap-panel-bg);
 }
 
 .atmo-scroll {
@@ -1368,7 +1378,7 @@ function rangeFillStyle(value, min = 0, max = 1) {
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 2px 2px 16px;
+  padding: var(--space-1) var(--space-1) var(--space-4);
   scrollbar-width: thin;
   scrollbar-color: var(--ap-scrollbar) transparent;
 }
@@ -1378,8 +1388,13 @@ function rangeFillStyle(value, min = 0, max = 1) {
 }
 
 .atmo-scroll::-webkit-scrollbar-thumb {
-  border-radius: 999px;
-  background: rgba(120, 130, 150, 0.36);
+  border-radius: var(--radius-full);
+  background: var(--ap-scrollbar);
+  transition: background-color var(--duration-fast) ease;
+}
+
+.atmo-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(242, 179, 157, 0.52);
 }
 
 .panel-body {
@@ -1407,13 +1422,16 @@ function rangeFillStyle(value, min = 0, max = 1) {
   width: 44px;
   height: 44px;
   flex: none;
-  border-radius: 15px;
+  border-radius: var(--radius-lg);
   display: grid;
   place-items: center;
   font-size: 18px;
   color: rgba(255, 252, 248, 0.96);
   background: linear-gradient(145deg, rgba(var(--accent-rgb), 0.95), rgba(var(--accent-strong-rgb), 0.9));
-  box-shadow: 0 10px 22px rgba(var(--accent-rgb), 0.34);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.12),
+    0 8px 20px rgba(var(--accent-rgb), 0.36),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15);
 }
 
 .atmo-title-copy h2 {
@@ -1439,19 +1457,22 @@ function rangeFillStyle(value, min = 0, max = 1) {
 .status-chip {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
+  gap: var(--space-2);
   min-height: 28px;
-  padding: 0 11px;
-  border-radius: 999px;
-  font-size: 12px;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-full);
+  font-size: var(--text-sm);
   color: var(--ap-control-ink);
   background: var(--ap-surface-strong);
   border: 1px solid var(--ap-border-strong);
+  transition: all var(--duration-fast) var(--ease-out);
 }
 
 .status-chip.timer {
   color: rgba(var(--accent-strong-rgb), 1);
   font-variant-numeric: tabular-nums;
+  background: rgba(var(--accent-rgb), 0.12);
+  border-color: rgba(var(--accent-rgb), 0.28);
 }
 
 .icon-btn {
@@ -1459,18 +1480,21 @@ function rangeFillStyle(value, min = 0, max = 1) {
   height: 36px;
   flex: none;
   border: 1px solid var(--ap-border-strong);
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   display: inline-grid;
   place-items: center;
   background: var(--ap-surface-strong);
   color: var(--ap-control-ink);
-  transition: background-color 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
+  transition: background-color var(--duration-fast) var(--ease-out),
+              transform var(--duration-fast) var(--ease-out),
+              box-shadow var(--duration-fast) var(--ease-out);
 }
 
 .icon-btn:hover {
-  transform: translateY(-1px);
+  transform: translateY(-2px);
   background: var(--ap-surface-strong);
-  box-shadow: 0 10px 20px rgba(8, 12, 20, 0.1);
+  box-shadow: var(--shadow-md);
+  border-color: rgba(242, 179, 157, 0.32);
 }
 
 /* ================================ 标签页 ================================ */
@@ -1478,9 +1502,9 @@ function rangeFillStyle(value, min = 0, max = 1) {
 .atmo-tabs {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
-  padding: 4px;
-  border-radius: 14px;
+  gap: var(--space-1);
+  padding: var(--space-1);
+  border-radius: var(--radius-lg);
   background: var(--ap-surface);
   border: 1px solid var(--ap-border-strong);
   width: fit-content;
@@ -1490,25 +1514,37 @@ function rangeFillStyle(value, min = 0, max = 1) {
 .atmo-tab {
   border: 0;
   min-height: 36px;
-  padding: 0 16px;
-  border-radius: 11px;
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-md);
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  font-size: 13px;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
   white-space: nowrap;
-  background: transparent;
   color: var(--ap-ink-muted);
-  transition: background-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+  background: transparent;
+  transition: all var(--duration-fast) var(--ease-out);
+  position: relative;
 }
 
 .atmo-tab:hover {
-  background: var(--ap-surface-strong);
+  color: var(--ap-ink);
+  background: rgba(255, 255, 255, 0.05);
+  transform: translateY(-1px);
 }
 
 .atmo-tab.active {
-  background: linear-gradient(145deg, rgba(var(--accent-rgb), 0.96), rgba(var(--accent-strong-rgb), 0.92));
-  color: rgba(255, 251, 247, 0.98);
+  color: var(--ap-on-accent);
+  background: linear-gradient(135deg,
+    rgba(var(--accent-rgb), 0.92),
+    rgba(var(--accent-strong-rgb), 0.88));
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.12),
+    0 4px 12px rgba(var(--accent-rgb), 0.32),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+
+.tab-badge {
   box-shadow: 0 8px 18px rgba(var(--accent-rgb), 0.32);
 }
 
@@ -1545,23 +1581,25 @@ function rangeFillStyle(value, min = 0, max = 1) {
 
 .section-kicker,
 .mini-label {
-  margin: 0 0 2px;
+  margin: 0 0 var(--space-0-5);
   font-size: 10.5px;
   letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--ap-ink-subtle);
+  font-weight: 600;
 }
 
 .head-copy,
 .inline-note,
 .empty-note {
   margin: 0;
-  font-size: 13px;
+  font-size: var(--text-sm);
   color: var(--ap-ink-muted);
+  line-height: 1.5;
 }
 
 .head-copy {
-  margin-top: 4px;
+  margin-top: var(--space-1);
 }
 
 .inline-note.warning {
@@ -1583,16 +1621,16 @@ function rangeFillStyle(value, min = 0, max = 1) {
 .inline-link,
 .chip {
   border: 1px solid var(--ap-border-strong);
-  border-radius: 11px;
+  border-radius: var(--radius-md);
   min-height: 34px;
-  padding: 0 13px;
+  padding: 0 var(--space-3);
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-  font-size: 13px;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
   background: var(--ap-surface);
   color: var(--ap-control-ink);
-  transition: background-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease, border-color 0.18s ease;
+  transition: all var(--duration-fast) var(--ease-out);
 }
 
 .soft-btn:hover,
@@ -1600,14 +1638,26 @@ function rangeFillStyle(value, min = 0, max = 1) {
 .preset-chip:hover,
 .chip:hover {
   transform: translateY(-1px);
-  box-shadow: 0 10px 22px rgba(8, 12, 20, 0.1);
+  box-shadow: var(--shadow-md);
   background: var(--ap-surface-strong);
+  border-color: rgba(242, 179, 157, 0.28);
 }
 
 .soft-btn.primary {
   border-color: transparent;
-  background: linear-gradient(145deg, rgba(var(--accent-rgb), 0.96), rgba(var(--accent-strong-rgb), 0.92));
+  background: linear-gradient(135deg,
+    rgba(var(--accent-rgb), 0.94),
+    rgba(var(--accent-strong-rgb), 0.9));
   color: var(--ap-on-accent);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.1),
+    0 4px 12px rgba(var(--accent-rgb), 0.32);
+}
+
+.soft-btn.primary:hover {
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.14),
+    0 8px 20px rgba(var(--accent-rgb), 0.4);
 }
 
 .soft-btn.primary:hover {
@@ -1656,9 +1706,9 @@ function rangeFillStyle(value, min = 0, max = 1) {
 
 .inline-link {
   min-height: 26px;
-  padding: 0 10px;
-  margin-left: 6px;
-  border-radius: 999px;
+  padding: 0 var(--space-2-5);
+  margin-left: var(--space-1-5);
+  border-radius: var(--radius-full);
 }
 
 /* ------------------------------- 自定义滑杆 ------------------------------- */
@@ -1675,7 +1725,7 @@ function rangeFillStyle(value, min = 0, max = 1) {
 
 .atmo-range::-webkit-slider-runnable-track {
   height: 6px;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background:
     linear-gradient(
       90deg,
@@ -1693,23 +1743,24 @@ function rangeFillStyle(value, min = 0, max = 1) {
   border-radius: 50%;
   border: 2px solid rgba(255, 255, 255, 0.96);
   background: rgb(var(--accent-strong-rgb));
-  box-shadow: 0 3px 8px rgba(8, 12, 20, 0.22);
-  transition: transform 0.15s ease;
+  box-shadow: var(--shadow-sm);
+  transition: transform var(--duration-fast) var(--ease-out);
 }
 
 .atmo-range:hover::-webkit-slider-thumb {
-  transform: scale(1.12);
+  transform: scale(1.15);
+  box-shadow: var(--shadow-md);
 }
 
 .atmo-range::-moz-range-track {
   height: 6px;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background: var(--ap-surface-strong);
 }
 
 .atmo-range::-moz-range-progress {
   height: 6px;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background: linear-gradient(90deg, rgba(var(--accent-strong-rgb), 0.92), rgba(var(--accent-rgb), 0.92));
 }
 
@@ -1719,7 +1770,7 @@ function rangeFillStyle(value, min = 0, max = 1) {
   border-radius: 50%;
   border: 2px solid rgba(255, 255, 255, 0.96);
   background: rgb(var(--accent-strong-rgb));
-  box-shadow: 0 3px 8px rgba(8, 12, 20, 0.22);
+  box-shadow: var(--shadow-sm);
 }
 
 .atmo-range.small {
@@ -1731,36 +1782,43 @@ function rangeFillStyle(value, min = 0, max = 1) {
 .scene-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(226px, 1fr));
-  gap: 12px;
+  gap: var(--space-3);
 }
 
 .scene-card {
   position: relative;
   border: 1px solid var(--ap-border-strong);
-  border-radius: 18px;
+  border-radius: var(--radius-xl);
   min-height: 168px;
-  padding: 13px;
+  padding: var(--space-3);
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  gap: 10px;
+.scene-card {
+  position: relative;
+  border: 1px solid rgba(255, 255, 255, 0.48);
+  border-radius: var(--radius-xl);
+  padding: var(--space-2-5);
+  display: grid;
+  gap: var(--space-2-5);
   text-align: left;
+  background: var(--ap-surface);
   overflow: hidden;
-  background: var(--cover-bg);
-  color: var(--ap-on-accent);
-  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  transition: all var(--duration-normal) var(--ease-out);
 }
 
 .scene-card:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 18px 34px rgba(10, 14, 24, 0.26);
+  transform: translateY(-2px);
+  border-color: rgba(242, 179, 157, 0.32);
+  box-shadow: var(--shadow-lg);
+  background: var(--ap-surface-strong);
 }
 
 .scene-card.active {
   border-color: rgba(255, 255, 255, 0.85);
   box-shadow:
     0 0 0 2px rgba(var(--accent-rgb), 0.55),
-    0 18px 34px rgba(10, 14, 24, 0.28);
+    var(--shadow-xl);
 }
 
 .scene-glass {
@@ -1795,51 +1853,53 @@ function rangeFillStyle(value, min = 0, max = 1) {
 .scene-live {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
+  gap: var(--space-2);
   min-height: 26px;
-  padding: 0 10px;
-  border-radius: 999px;
+  padding: 0 var(--space-2-5);
+  border-radius: var(--radius-full);
   font-size: 11.5px;
-  background: rgba(12, 16, 24, 0.36);
-  border: 1px solid rgba(255, 255, 255, 0.3);
+  background: rgba(12, 16, 24, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.32);
+  backdrop-filter: blur(4px);
 }
 
 .scene-copy {
   position: relative;
   display: grid;
-  gap: 4px;
+  gap: var(--space-1);
 }
 
 .scene-copy strong {
-  font-size: 16px;
+  font-size: var(--text-base);
   letter-spacing: 0.02em;
-  text-shadow: 0 1px 6px rgba(8, 10, 16, 0.35);
+  text-shadow: var(--shadow-text);
 }
 
 .scene-copy small {
-  font-size: 12px;
+  font-size: var(--text-xs);
   line-height: 1.5;
   color: var(--ap-on-accent);
-  text-shadow: 0 1px 4px rgba(8, 10, 16, 0.3);
+  text-shadow: var(--shadow-text-sm);
 }
 
 .scene-tags {
   position: relative;
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: var(--space-1-5);
 }
 
 .scene-tag {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: var(--space-1-5);
   min-height: 23px;
-  padding: 0 9px;
-  border-radius: 999px;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-full);
   font-size: 11px;
-  background: rgba(12, 16, 24, 0.32);
+  background: rgba(12, 16, 24, 0.36);
   border: 1px solid var(--ap-border-strong);
+  backdrop-filter: blur(4px);
 }
 
 /* ================================ 环境音页 ================================ */
@@ -1852,7 +1912,7 @@ function rangeFillStyle(value, min = 0, max = 1) {
 .console-volume {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--space-3);
   min-width: 0;
 }
 
@@ -1860,7 +1920,7 @@ function rangeFillStyle(value, min = 0, max = 1) {
   flex: 1;
   min-width: 160px;
   display: grid;
-  gap: 4px;
+  gap: var(--space-1);
 }
 
 .console-volume-head {
@@ -1878,7 +1938,7 @@ function rangeFillStyle(value, min = 0, max = 1) {
 
 .console-side {
   display: grid;
-  gap: 8px;
+  gap: var(--space-2);
   justify-items: end;
 }
 
@@ -1924,49 +1984,52 @@ function rangeFillStyle(value, min = 0, max = 1) {
 .sound-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(196px, 1fr));
-  gap: 10px;
+  gap: var(--space-2-5);
 }
 
 .sound-tile {
   position: relative;
-  border-radius: 16px;
   border: 1px solid var(--ap-border-strong);
+  border-radius: var(--radius-xl);
+  overflow: hidden;
   background: var(--ap-surface);
-  transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease;
+  transition: all var(--duration-normal) var(--ease-out);
 }
 
 .sound-tile:hover {
   transform: translateY(-2px);
-  box-shadow: 0 12px 24px rgba(8, 12, 20, 0.1);
+  box-shadow: var(--shadow-lg);
+  border-color: rgba(242, 179, 157, 0.28);
 }
 
 .sound-tile.active {
   border-color: rgba(var(--accent-strong-rgb), 0.66);
   background: rgba(var(--accent-rgb), 0.14);
-  box-shadow: 0 14px 26px rgba(var(--accent-rgb), 0.16);
+  box-shadow: 0 0 0 1px rgba(var(--accent-rgb), 0.2),
+              var(--shadow-lg);
 }
 
 .tile-face {
   width: 100%;
   border: 0;
   background: transparent;
-  padding: 11px;
+  padding: var(--space-3);
   display: grid;
   grid-template-columns: 42px minmax(0, 1fr) 26px;
   align-items: center;
-  gap: 10px;
+  gap: var(--space-2-5);
   text-align: left;
   color: inherit;
-  border-radius: 16px;
+  border-radius: var(--radius-lg);
 }
 
 .tile-icon {
   width: 42px;
   height: 42px;
-  border-radius: 13px;
+  border-radius: var(--radius-md);
   display: grid;
   place-items: center;
-  font-size: 16px;
+  font-size: var(--text-base);
   color: rgba(252, 253, 255, 0.96);
   background: var(--cover-bg, linear-gradient(140deg, rgba(150, 160, 180, 0.9), rgba(80, 90, 110, 0.9)));
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.22);
@@ -1974,7 +2037,7 @@ function rangeFillStyle(value, min = 0, max = 1) {
 
 .tile-copy {
   display: grid;
-  gap: 2px;
+  gap: var(--space-0-5);
   min-width: 0;
 }
 
@@ -2009,7 +2072,7 @@ function rangeFillStyle(value, min = 0, max = 1) {
   font-size: 11px;
   color: var(--ap-ink-subtle);
   opacity: 0;
-  transition: opacity 0.16s ease;
+  transition: opacity var(--duration-fast) var(--ease-out);
 }
 
 .sound-tile:hover .tile-play-hint {
@@ -2017,7 +2080,7 @@ function rangeFillStyle(value, min = 0, max = 1) {
 }
 
 .tile-paused {
-  font-size: 12px;
+  font-size: var(--text-xs);
   color: var(--ap-warning-ink);
 }
 
@@ -2082,9 +2145,9 @@ function rangeFillStyle(value, min = 0, max = 1) {
 .tile-source-actions {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 0 12px 10px;
-  font-size: 12px;
+  gap: var(--space-3);
+  padding: 0 var(--space-3) var(--space-2-5);
+  font-size: var(--text-xs);
 }
 
 .tile-source-actions .inline-link {
@@ -2093,6 +2156,7 @@ function rangeFillStyle(value, min = 0, max = 1) {
   background: transparent;
   color: var(--ap-ink-muted);
   text-decoration: none;
+  transition: color var(--duration-fast) var(--ease-out);
 }
 
 .tile-source-actions .inline-link:hover {
@@ -2112,7 +2176,14 @@ function rangeFillStyle(value, min = 0, max = 1) {
   font-size: 10px;
   display: none;
   place-items: center;
-  box-shadow: 0 4px 10px rgba(8, 12, 20, 0.18);
+  box-shadow: var(--shadow-md);
+  transition: all var(--duration-fast) var(--ease-out);
+}
+
+.tile-remove:hover {
+  transform: scale(1.1);
+  background: var(--ap-danger-ink);
+  color: white;
 }
 
 .sound-tile:hover .tile-remove {
@@ -2124,12 +2195,13 @@ function rangeFillStyle(value, min = 0, max = 1) {
 .preset-input {
   min-width: 190px;
   min-height: 36px;
-  border-radius: 11px;
+  border-radius: var(--radius-md);
   border: 1px solid var(--ap-border-strong);
   background: var(--ap-surface-strong);
   color: var(--ap-control-ink);
-  padding: 0 12px;
-  font-size: 13px;
+  padding: 0 var(--space-3);
+  font-size: var(--text-sm);
+  transition: all var(--duration-fast) var(--ease-out);
 }
 
 .preset-input:focus-visible {
@@ -2139,12 +2211,12 @@ function rangeFillStyle(value, min = 0, max = 1) {
 }
 
 .preset-chip {
-  border-radius: 999px;
+  border-radius: var(--radius-full);
 }
 
 .preset-chip .preset-remove {
   color: var(--ap-ink-subtle);
-  transition: color 0.15s ease;
+  transition: color var(--duration-fast) var(--ease-out);
 }
 
 .preset-chip .preset-remove:hover {
@@ -2167,7 +2239,7 @@ function rangeFillStyle(value, min = 0, max = 1) {
 
 .search-input-wrap > i {
   position: absolute;
-  left: 13px;
+  left: var(--space-3);
   font-size: 12.5px;
   color: var(--ap-ink-subtle);
   pointer-events: none;
@@ -2176,12 +2248,13 @@ function rangeFillStyle(value, min = 0, max = 1) {
 .search-input {
   width: 100%;
   min-height: 40px;
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   border: 1px solid var(--ap-border-strong);
   background: var(--ap-surface-strong);
   color: var(--ap-control-ink);
   padding: 0 36px 0 34px;
   font-size: 13.5px;
+  transition: all var(--duration-fast) var(--ease-out);
 }
 
 .search-input::-webkit-search-cancel-button {
@@ -2210,6 +2283,12 @@ function rangeFillStyle(value, min = 0, max = 1) {
   font-size: 10px;
   background: rgba(140, 150, 168, 0.24);
   color: var(--ap-control-ink);
+  transition: all var(--duration-fast) var(--ease-out);
+}
+
+.search-clear:hover {
+  background: rgba(140, 150, 168, 0.36);
+  transform: scale(1.08);
 }
 
 .ambient-empty-state {
@@ -2222,52 +2301,56 @@ function rangeFillStyle(value, min = 0, max = 1) {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--space-2);
   justify-content: flex-end;
 }
 
 .license-toggle {
   display: inline-flex;
-  gap: 4px;
+  gap: var(--space-1);
   padding: 3px;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background: var(--ap-surface);
   border: 1px solid var(--ap-border-strong);
 }
 
 .license-toggle .chip {
   min-height: 28px;
-  padding: 0 12px;
+  padding: 0 var(--space-3);
   border: 0;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background: transparent;
-  font-size: 12px;
+  font-size: var(--text-xs);
+  transition: all var(--duration-fast) var(--ease-out);
 }
 
 .license-toggle .chip.active {
   background: rgba(var(--accent-rgb), 0.24);
+  color: rgba(var(--accent-strong-rgb), 0.96);
 }
 
 .online-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(268px, 1fr));
-  gap: 10px;
+  gap: var(--space-2-5);
 }
 
 .online-card {
-  border-radius: 16px;
+  border-radius: var(--radius-xl);
   border: 1px solid var(--ap-border-strong);
   background: var(--ap-surface);
-  padding: 12px;
+  padding: var(--space-3);
   display: grid;
-  gap: 10px;
+  gap: var(--space-2-5);
   align-content: start;
-  transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+  transition: all var(--duration-normal) var(--ease-out);
 }
 
 .online-card:hover {
+.online-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 12px 24px rgba(8, 12, 20, 0.1);
+  border-color: rgba(242, 179, 157, 0.28);
+  box-shadow: var(--shadow-lg);
 }
 
 .online-card.added {
@@ -2279,12 +2362,12 @@ function rangeFillStyle(value, min = 0, max = 1) {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 8px;
+  gap: var(--space-2);
 }
 
 .online-card-copy {
   display: grid;
-  gap: 3px;
+  gap: var(--space-1);
   min-width: 0;
 }
 
@@ -2299,7 +2382,7 @@ function rangeFillStyle(value, min = 0, max = 1) {
 .online-card-copy small {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: var(--space-1-5);
   font-size: 11.5px;
   color: var(--ap-ink-muted);
 }
@@ -2311,12 +2394,13 @@ function rangeFillStyle(value, min = 0, max = 1) {
 .license-pill {
   flex: none;
   min-height: 22px;
-  padding: 0 9px;
-  border-radius: 999px;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-full);
   display: inline-flex;
   align-items: center;
   font-size: 10.5px;
   white-space: nowrap;
+  font-weight: 500;
 }
 
 .license-pill.free {
@@ -2332,7 +2416,7 @@ function rangeFillStyle(value, min = 0, max = 1) {
 .online-card-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
 }
 
 .online-card-actions .soft-btn.round {
@@ -2347,16 +2431,24 @@ function rangeFillStyle(value, min = 0, max = 1) {
 
 .attribution-row {
   border: 1px dashed rgba(160, 140, 110, 0.5);
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   min-height: 30px;
-  padding: 0 10px;
+  padding: 0 var(--space-2-5);
   display: inline-flex;
   align-items: center;
-  gap: 7px;
+  gap: var(--space-2);
+.attribution-row {
+  border: 1px dashed rgba(160, 140, 110, 0.5);
+  border-radius: var(--radius-md);
+  min-height: 30px;
+  padding: 0 var(--space-2-5);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
   font-size: 11.5px;
   background: rgba(255, 250, 240, 0.42);
   color: var(--ap-warning-ink);
-  transition: background-color 0.16s ease;
+  transition: background-color var(--duration-fast) var(--ease-out);
 }
 
 .attribution-row:hover {
@@ -2364,13 +2456,13 @@ function rangeFillStyle(value, min = 0, max = 1) {
 }
 
 .online-card.skeleton {
-  gap: 8px;
+  gap: var(--space-2);
   min-height: 104px;
 }
 
 .sk-line {
   height: 12px;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   width: 58%;
   background: linear-gradient(
     90deg,
@@ -2391,7 +2483,7 @@ function rangeFillStyle(value, min = 0, max = 1) {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 12px;
+  gap: var(--space-3);
 }
 
 .pager-info {
@@ -2401,10 +2493,10 @@ function rangeFillStyle(value, min = 0, max = 1) {
 }
 
 .inline-note code {
-  padding: 1px 6px;
-  border-radius: 5px;
+  padding: 1px var(--space-1-5);
+  border-radius: var(--radius-xs);
   background: rgba(120, 132, 150, 0.18);
-  font-size: 12px;
+  font-size: var(--text-xs);
 }
 
 /* ================================ 特效页 ================================ */
@@ -2417,13 +2509,13 @@ function rangeFillStyle(value, min = 0, max = 1) {
 .fx-console-main {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--space-3);
   min-width: 0;
 }
 
 .fx-console-copy {
   display: grid;
-  gap: 2px;
+  gap: var(--space-0-5);
   min-width: 0;
 }
 
@@ -2432,7 +2524,7 @@ function rangeFillStyle(value, min = 0, max = 1) {
 }
 
 .fx-console-copy small {
-  font-size: 12px;
+  font-size: var(--text-xs);
   color: var(--ap-ink-muted);
 }
 
@@ -2440,11 +2532,16 @@ function rangeFillStyle(value, min = 0, max = 1) {
   flex: none;
   width: 52px;
   height: 30px;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   border: 1px solid var(--ap-border-strong);
   background: rgba(148, 158, 174, 0.4);
   position: relative;
-  transition: background-color 0.2s ease, border-color 0.2s ease;
+  transition: all var(--duration-normal) var(--ease-out);
+}
+
+.fx-switch.on {
+  background: rgba(var(--accent-rgb), 0.8);
+  border-color: rgba(var(--accent-strong-rgb), 0.6);
 }
 
 .fx-switch-knob {
@@ -2454,14 +2551,9 @@ function rangeFillStyle(value, min = 0, max = 1) {
   width: 22px;
   height: 22px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.98);
-  box-shadow: 0 3px 8px rgba(8, 12, 20, 0.24);
-  transition: transform 0.22s cubic-bezier(0.34, 1.4, 0.64, 1);
-}
-
-.fx-switch.on {
-  border-color: transparent;
-  background: linear-gradient(145deg, rgba(var(--accent-rgb), 0.98), rgba(var(--accent-strong-rgb), 0.94));
+  background: white;
+  box-shadow: var(--shadow-sm);
+  transition: transform var(--duration-normal) var(--ease-out);
 }
 
 .fx-switch.on .fx-switch-knob {
@@ -2471,14 +2563,14 @@ function rangeFillStyle(value, min = 0, max = 1) {
 .fx-stage-layout {
   display: grid;
   grid-template-columns: minmax(0, 1.15fr) minmax(280px, 0.85fr);
-  gap: 12px;
+  gap: var(--space-3);
   align-items: stretch;
 }
 
 .effect-stage {
   position: relative;
   min-height: 210px;
-  border-radius: 18px;
+  border-radius: var(--radius-xl);
   border: 1px solid rgba(255, 255, 255, 0.4);
   background: var(--cover-bg);
   overflow: hidden;
@@ -2486,17 +2578,17 @@ function rangeFillStyle(value, min = 0, max = 1) {
 
 .effect-stage-tag {
   bottom: auto;
-  top: 10px;
+  top: var(--space-2-5);
 }
 
 .fx-slider-card {
-  gap: 12px;
+  gap: var(--space-3);
   align-content: center;
 }
 
 .fx-slider-row {
   display: grid;
-  gap: 5px;
+  gap: var(--space-1-5);
 }
 
 .fx-slider-head {
@@ -2510,7 +2602,7 @@ function rangeFillStyle(value, min = 0, max = 1) {
 .fx-slider-name {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
+  gap: var(--space-2);
 }
 
 .fx-slider-name i {
@@ -2529,7 +2621,7 @@ function rangeFillStyle(value, min = 0, max = 1) {
 .fx-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
-  gap: 10px;
+  gap: var(--space-2-5);
 }
 
 .fx-card {
@@ -2542,16 +2634,31 @@ function rangeFillStyle(value, min = 0, max = 1) {
   text-align: left;
   color: inherit;
   transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+  gap: var(--space-2-5);
+}
+
+.fx-card {
+  position: relative;
+  border: 1px solid var(--ap-border-strong);
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+  background: var(--ap-surface);
+  display: grid;
+  gap: var(--space-2-5);
+  padding: var(--space-2-5);
+  transition: all var(--duration-normal) var(--ease-out);
 }
 
 .fx-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 12px 24px rgba(8, 12, 20, 0.12);
+  box-shadow: var(--shadow-lg);
+  border-color: rgba(242, 179, 157, 0.28);
 }
 
 .fx-card.active {
   border-color: rgba(var(--accent-strong-rgb), 0.66);
-  box-shadow: 0 14px 26px rgba(var(--accent-rgb), 0.18);
+  box-shadow: 0 0 0 1px rgba(var(--accent-rgb), 0.2),
+              var(--shadow-lg);
   background: rgba(var(--accent-rgb), 0.12);
 }
 
@@ -2559,15 +2666,15 @@ function rangeFillStyle(value, min = 0, max = 1) {
   position: relative;
   display: block;
   min-height: 96px;
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   background: var(--cover-bg);
   overflow: hidden;
 }
 
 .fx-card-check {
   position: absolute;
-  top: 8px;
-  right: 8px;
+  top: var(--space-2);
+  right: var(--space-2);
   z-index: 2;
   width: 24px;
   height: 24px;
@@ -2577,13 +2684,13 @@ function rangeFillStyle(value, min = 0, max = 1) {
   font-size: 11px;
   color: rgba(255, 251, 247, 0.98);
   background: linear-gradient(145deg, rgba(var(--accent-rgb), 0.98), rgba(var(--accent-strong-rgb), 0.95));
-  box-shadow: 0 6px 12px rgba(8, 12, 20, 0.24);
+  box-shadow: var(--shadow-md);
 }
 
 .fx-card-copy {
   display: grid;
-  gap: 3px;
-  padding: 0 2px 2px;
+  gap: var(--space-1);
+  padding: 0 var(--space-0-5) var(--space-0-5);
 }
 
 .fx-card-copy strong {
@@ -2613,18 +2720,19 @@ function rangeFillStyle(value, min = 0, max = 1) {
 
 .card-tag {
   position: absolute;
-  left: 10px;
-  bottom: 10px;
+  left: var(--space-2-5);
+  bottom: var(--space-2-5);
   z-index: 2;
   min-height: 24px;
-  padding: 0 10px;
-  border-radius: 999px;
-  background: rgba(15, 19, 28, 0.32);
+  padding: 0 var(--space-2-5);
+  border-radius: var(--radius-full);
+  background: rgba(15, 19, 28, 0.36);
   color: rgba(248, 250, 255, 0.95);
   display: inline-flex;
   align-items: center;
   font-size: 11px;
-  backdrop-filter: blur(3px);
+  backdrop-filter: blur(4px);
+  font-weight: 500;
 }
 
 .effect-preview {
