@@ -4,7 +4,7 @@
 
 | Dimension | Result |
 | --- | --- |
-| Completeness | 8/10 tasks complete; production deployment and verification are in progress after user authorization |
+| Completeness | 10/10 tasks complete; all four user requests deployed and production smoke checks passed |
 | Correctness | Resolution, progressive names, batch pagination and downloader completion scenarios covered |
 | Coherence | Bounded caches, source labels, lazy thumbnails, unchanged filters and timeout/retry policy |
 
@@ -15,7 +15,7 @@
 - Read-only requests from the personal server through its existing wallpaper proxy confirmed Wallhaven search has 24 results per page and omits title/tags. Screenshot item `pomle9` detail has no title but contains Japan/Tokyo/architecture and other source tags. Source names are used when present; tag-based names are descriptive fallbacks, not invented original artwork titles.
 - The recent Workshop item `3812685876` has the explicit `1920 x 1080` source tag in both the public page and Steam details API. Preview dimensions are excluded from resolution parsing.
 - Steam browse requested with `numperpage=72` returned only 30 distinct item anchors. Absolute offsets across source pages now return 72 logical items without losing remainders between batches.
-- Initial production verification exposed a sparse intermediate Steam page: visible counts 30/28/30 on source pages 1/2/3, with embedded `total_pages=1000`. Counting 28 cards as the last page prematurely returned 58 items. The follow-up uses declared pagination and source-slot windows so those pages produce 70 visible items in a 72-slot logical batch and preserve the page-three remainder for the next batch.
+- Initial production verification exposed a sparse intermediate Steam page: visible counts 30/28/30 on source pages 1/2/3, with embedded `total_pages=1000`. Counting 28 cards as the last page prematurely returned 58 items. The deployed follow-up uses declared pagination and source-slot windows: production pages one/two returned 70/72 visible items with advancing enabled and no duplicate IDs between them.
 
 The batch metadata request follows the official [Steam GetPublishedFileDetails contract](https://partner.steamgames.com/doc/webapi/ISteamRemoteStorage#GetPublishedFileDetails); API search includes the documented [return_tags option](https://partner.steamgames.com/doc/webapi/IPublishedFileService#QueryFiles).
 
@@ -44,12 +44,12 @@ The batch metadata request follows the official [Steam GetPublishedFileDetails c
 
 ## Delivery
 
-- Implementation committed locally as `8a5d9916` with the required Izumi author. Following user authorization, the committed release `1f52118b` was deployed to the personal-site server; source/config checkpoints and both rollback images are retained. Public Wallhaven search returned 72 items and item `pomle9` returned a descriptive tag name. The sparse Steam-page follow-up has passed backend regression checks and is awaiting publication.
-- Deploy backend and frontend together and explicitly set existing `WALLPAPER_DISCOVERY_PAGE_SIZE=72`; changed defaults alone do not override an already configured value of 24.
+- Implementation committed locally as `8a5d9916` with the required Izumi author. Following user authorization, the committed release `1f52118b` and subsequent sparse-page correction `0c65bfc6` were deployed to the personal-site server. Both runtime images and `.deployed-commit` now identify `0c65bfc63e1c7ab033b7b88dab2919005eed67ab`. Details are in `deployment-report.md`. No Git push was performed.
+- Backend and frontend were published together and the existing environment value was explicitly changed from `WALLPAPER_DISCOVERY_PAGE_SIZE=24` to `72`. Every other environment byte and the private YAML hash were preserved.
 - Automatic Wallhaven detail enrichment allows 30 cache misses per minute globally and at most three frontend requests concurrently. Unknown names can take additional minutes to fill while the list remains usable. Requests use a bounded six-hour detail cache; thumbnails reuse search URLs to avoid detail-request multiplication.
 - Workshop resolution is author-declared and can differ from actual media. Missing metadata is displayed as unknown. This prevents presenting a preview size as guaranteed source quality.
 - `WORKSHOP_IMPORT_PHASE` logs now expose metadata, download/inspection and persistence timings for future slow jobs, without credentials or signed URLs.
 - Production end-to-end throughput after deployment has not been measured; the recent 629-second import is not claimed to have been reduced to the regression-test time.
 - The pre-existing `TopMenu.vue` changes are excluded from this commit.
 
-The sparse Steam-page correction and final production verification are active delivery tasks. Real-network import throughput remains unmeasured.
+No critical verification findings or unfinished deployment tasks remain. Real-network import throughput remains unmeasured; no new wallpaper was imported during deployment checks.

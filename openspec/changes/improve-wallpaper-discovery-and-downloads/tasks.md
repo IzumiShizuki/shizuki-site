@@ -14,5 +14,5 @@
 
 - [x] 3.1 Run applicable backend/frontend regression suites and builds; record outcomes.
 - [x] 3.2 Verify spec scenarios, strict validation, cleanup and focused local commit; record deployment handoff.
-- [ ] 3.3 Deploy the committed backend and frontend to the personal-site server after user authorization; set the existing page size to 72, preserve rollback artifacts, and verify production health and discovery endpoints.
-- [ ] 3.4 Fix the intermediate sparse Steam page found during production checks; verify source-slot offsets and next-page detection, then publish the correction.
+- [x] 3.3 Deploy the committed backend and frontend to the personal-site server after user authorization; set the existing page size to 72, preserve rollback artifacts, and verify production health and discovery endpoints.
+- [x] 3.4 Fix the intermediate sparse Steam page found during production checks; verify source-slot offsets and next-page detection, then publish the correction.
