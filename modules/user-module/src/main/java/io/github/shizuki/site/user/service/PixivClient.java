@@ -39,6 +39,7 @@ public class PixivClient {
     private static final Pattern ID = Pattern.compile("[1-9][0-9]{0,11}");
     private final ObjectMapper mapper;
     private final HttpClient client;
+    private final PixivPreviewCache previews = new PixivPreviewCache();
     private final Map<String, Cached> metadata = Collections.synchronizedMap(new LinkedHashMap<>() {
         @Override protected boolean removeEldestEntry(Map.Entry<String, Cached> eldest) { return size() > 128; }
     });
@@ -165,10 +166,12 @@ public class PixivClient {
                 || uri.getRawUserInfo() != null || (uri.getPort() != -1 && uri.getPort() != 443)) {
             throw bad("作品图片来源不受信任");
         }
-        HttpResponse<byte[]> response = send(request(uri).GET().build(), 8 * 1024 * 1024);
-        String type = response.headers().firstValue("Content-Type").orElse("").split(";")[0].trim().toLowerCase();
-        if (!List.of("image/jpeg", "image/png", "image/webp").contains(type)) throw bad("作品图片格式不受支持");
-        return new Preview(response.body(), type);
+        return previews.getOrLoad(uri.toString(), () -> {
+            HttpResponse<byte[]> response = send(request(uri).GET().build(), 8 * 1024 * 1024);
+            String type = response.headers().firstValue("Content-Type").orElse("").split(";")[0].trim().toLowerCase(java.util.Locale.ROOT);
+            if (!List.of("image/jpeg", "image/png", "image/webp").contains(type)) throw bad("作品图片格式不受支持");
+            return new Preview(response.body(), type);
+        });
     }
 
     private JsonNode json(String path, String session) {
