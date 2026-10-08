@@ -6,11 +6,25 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class WorkshopBrowseHtmlParserTest {
 
     private static final String DETAIL_BASE = "https://steamcommunity.com/sharedfiles/filedetails/?id=";
+
+    @Test
+    void readsEscapedHydrationPaginationDespiteSparseVisibleCards() {
+        String html = "<script>\\\"current_page\\\":2,\\\"total_pages\\\":1000,\\\"total_count\\\":2910229</script>";
+        assertTrue(WorkshopBrowseHtmlParser.hasMorePages(html, 2, false));
+        assertFalse(WorkshopBrowseHtmlParser.hasMorePages(html, 1000, true));
+    }
+
+    @Test
+    void preservesPaginationFallbackWithoutDeclaredPageCount() {
+        assertTrue(WorkshopBrowseHtmlParser.hasMorePages("<html>legacy</html>", 1, true));
+        assertFalse(WorkshopBrowseHtmlParser.hasMorePages(null, 1, false));
+    }
 
     @Test
     void parsesItemsFromBrowseHtml() {

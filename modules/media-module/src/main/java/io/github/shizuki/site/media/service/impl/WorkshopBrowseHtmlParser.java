@@ -29,8 +29,22 @@ final class WorkshopBrowseHtmlParser {
     private static final Pattern ALT_ATTRIBUTE_PATTERN = Pattern.compile(
             "\\balt\\s*=\\s*([\"'])(.*?)\\1", Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
     private static final Pattern NUMERIC_ENTITY_PATTERN = Pattern.compile("&#(x[0-9a-fA-F]+|\\d+);");
+    private static final Pattern TOTAL_PAGES_PATTERN = Pattern.compile(
+            "total_pages[^0-9]{1,16}(\\d{1,10})");
 
     private WorkshopBrowseHtmlParser() {
+    }
+
+    static boolean hasMorePages(String html, int currentPage, boolean fallback) {
+        if (html == null) return fallback;
+        // Steam embeds pagination in escaped hydration JSON even when some cards are hidden.
+        Matcher matcher = TOTAL_PAGES_PATTERN.matcher(html);
+        if (!matcher.find()) return fallback;
+        try {
+            return currentPage < Long.parseLong(matcher.group(1));
+        } catch (NumberFormatException exception) {
+            return fallback;
+        }
     }
 
     static List<WorkshopSearchItemResponse> parse(String html, String detailUrlBase) {

@@ -124,6 +124,38 @@ class WallpaperDiscoveryServiceImplTest {
     }
 
     @Test
+    void continuesSparseSteamPagesWithoutDuplicatingNextBatchRemainder() throws Exception {
+        HttpClient client = Mockito.mock(HttpClient.class);
+        Mockito.doAnswer(invocation -> {
+            java.net.http.HttpRequest request = invocation.getArgument(0);
+            if (request.method().equals("POST")) {
+                return successfulResponse("{\"response\":{\"publishedfiledetails\":[]}}");
+            }
+            var matcher = java.util.regex.Pattern.compile("(?:^|&)p=(\\d+)")
+                    .matcher(request.uri().getRawQuery());
+            assertTrue(matcher.find());
+            int sourcePage = Integer.parseInt(matcher.group(1));
+            StringBuilder html = new StringBuilder("<script>\\\"total_pages\\\":1000</script>");
+            int count = sourcePage == 2 ? 28 : 30;
+            for (int i = 0; i < count; i++) {
+                html.append("<a data-publishedfileid=\"").append(sourcePage * 1000 + i)
+                        .append("\"><img src=\"https://cdn.example/preview.jpg\" alt=\"Wallpaper\"></a>");
+            }
+            return successfulResponse(html.toString());
+        }).when(client).send(any(), any());
+        var service = discoveryService(client, Mockito.mock(WallpaperService.class));
+        var first = service.searchWorkshop("", 1, "trend", "");
+        var second = service.searchWorkshop("", 2, "trend", "");
+        assertEquals(70, first.items().size());
+        assertEquals("3011", first.items().get(69).itemId());
+        assertTrue(first.hasMore());
+        assertEquals(72, second.items().size());
+        assertEquals("3012", second.items().get(0).itemId());
+        var firstIds = first.items().stream().map(item -> item.itemId()).toList();
+        assertTrue(second.items().stream().noneMatch(item -> firstIds.contains(item.itemId())));
+    }
+
+    @Test
     void parsesUnauthenticatedHttpProxyWithDefaultPort() {
         WallpaperOutboundClient.ProxyEndpoint proxy =
                 WallpaperOutboundClient.parseProxyEndpoint("http://127.0.0.1");

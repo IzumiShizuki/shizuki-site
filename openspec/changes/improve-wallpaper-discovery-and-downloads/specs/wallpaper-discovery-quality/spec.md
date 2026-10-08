@@ -36,3 +36,7 @@ The default discovery batch SHALL contain up to 72 items, with correct paginatio
 #### Scenario: Final partial batch
 - **WHEN** fewer than three source pages remain
 - **THEN** the system returns the remaining pages and disables advancing past the logical last page.
+
+#### Scenario: Steam suppresses visible cards on an intermediate source page
+- **WHEN** a Steam page renders fewer than 30 visible items but embedded pagination declares more pages
+- **THEN** the system continues across source pages, preserves source-page slot boundaries between logical batches, and does not disable the next page, duplicate items or skip the source-page remainder.

@@ -164,6 +164,7 @@ public class WallpaperDiscoveryServiceImpl implements WallpaperDiscoveryService 
         List<WorkshopSearchItemResponse> items = new ArrayList<>();
         Set<String> seen = new LinkedHashSet<>();
         boolean hasMore = false;
+        int consumedSlots = 0;
         int maxPages = (skip + pageSize + sourceSize - 1) / sourceSize;
         for (int offset = 0; offset < maxPages; offset++) {
             String url = trimTrailingSlash(discoveryProperties.getWorkshopBrowseBaseUrl())
@@ -175,17 +176,21 @@ public class WallpaperDiscoveryServiceImpl implements WallpaperDiscoveryService 
                     + "&p=" + (sourcePage + offset) + "&numperpage=" + sourceSize
                     + (StringUtils.hasText(query) ? "&searchtext=" + urlEncode(query) : "")
                     + buildWorkshopRequiredTagsQuery(tags, false);
+            String html = httpGet(url, "text/html");
             List<WorkshopSearchItemResponse> sourceItems = WorkshopBrowseHtmlParser.parse(
-                    httpGet(url, "text/html"), WORKSHOP_DETAIL_URL_BASE);
+                    html, WORKSHOP_DETAIL_URL_BASE);
             int first = offset == 0 ? skip : 0;
-            int available = Math.max(0, sourceItems.size() - first);
-            int take = Math.min(pageSize - items.size(), available);
-            for (int i = first; i < first + take; i++) {
+            int slots = Math.min(pageSize - consumedSlots, sourceSize - first);
+            int end = Math.min(first + slots, sourceItems.size());
+            for (int i = first; i < end; i++) {
                 WorkshopSearchItemResponse item = sourceItems.get(i);
                 if (seen.add(item.itemId())) items.add(item);
             }
-            hasMore = first + take < sourceItems.size() || sourceItems.size() >= sourceSize;
-            if (items.size() >= pageSize || sourceItems.size() < sourceSize) break;
+            consumedSlots += slots;
+            hasMore = first + slots < sourceItems.size()
+                    || WorkshopBrowseHtmlParser.hasMorePages(html, sourcePage + offset,
+                    sourceItems.size() >= sourceSize);
+            if (consumedSlots >= pageSize || !hasMore) break;
         }
         items = workshopMetadataProvider.enrichResolutions(items);
         for (WorkshopSearchItemResponse item : items) {
