@@ -22,4 +22,17 @@ class PersonalSiteStorageBoundaryContractTest {
             .contains("${OSS_PUBLIC_BUCKET:shizuki-public}")
             .doesNotContain("${OSS_PRIVATE_BUCKET:zhuowang-files}");
     }
+
+    @Test
+    void postgresDefaultsSelectTheApplicationSchema() throws IOException {
+        String applicationYaml;
+        try (InputStream stream = getClass().getClassLoader().getResourceAsStream("application.yml")) {
+            assertThat(stream).isNotNull();
+            applicationYaml = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
+        }
+
+        assertThat(applicationYaml)
+            .contains("shizuki_app?currentSchema=shizuki_app")
+            .contains("table: ${FLYWAY_TABLE:flyway_schema_history_pg}");
+    }
 }
