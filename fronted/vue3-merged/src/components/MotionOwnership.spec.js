@@ -11,8 +11,8 @@ describe('motion transform ownership', () => {
     const menu = source('src/components/TopMenu.vue');
 
     expect(menu).toContain('data-transform-owner="menu-shell"');
-    expect(menu).toMatch(/\.fixed-nav-wrapper \{[\s\S]*?transform: translateY\(15px\)/);
-    expect(menu).toMatch(/\.fixed-nav-wrapper\.expanded \{[\s\S]*?transform: translateY\(15px\)/);
+    expect(menu).toMatch(/\.fixed-nav-wrapper \{[\s\S]*?transform: translateY\((?:15px|var\(--space-4\))\)/);
+    expect(menu).toMatch(/\.fixed-nav-wrapper\.expanded \{[\s\S]*?transform: translateY\((?:15px|var\(--space-4\))\)/);
     expect(menu).toMatch(/\.fixed-nav-wrapper:not\(\.expanded\) \.menu-item-stack \{\s*opacity: 0;\s*pointer-events: none;/);
     expect(menu).not.toMatch(/\.fixed-nav-wrapper:not\(\.expanded\) \.menu-item-stack \{[^}]*transform:/);
     expect(menu).not.toContain('.top-menu-root.motion-managed .menu-item-stack');

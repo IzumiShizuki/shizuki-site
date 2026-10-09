@@ -698,6 +698,7 @@ onBeforeUnmount(() => {
   visibility: visible;
   transform: translate3d(0, 0, 0) scale(1);
   transform-origin: 50% 0;
+  scrollbar-color: var(--theme-border-strong) transparent;
   transition:
     opacity var(--duration-fast) var(--ease-out),
     transform var(--duration-base) var(--ease-smooth),
@@ -793,7 +794,12 @@ onBeforeUnmount(() => {
   gap: var(--space-2);
   z-index: 1;
   position: relative;
-  transition: all var(--duration-base) var(--ease-smooth);
+  transition:
+    background-color var(--duration-base) var(--ease-smooth),
+    border-color var(--duration-base) var(--ease-smooth),
+    box-shadow var(--duration-base) var(--ease-smooth),
+    color var(--duration-base) var(--ease-smooth),
+    transform var(--duration-base) var(--ease-smooth);
 }
 
 .left-main-btn:hover {
@@ -832,7 +838,10 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all var(--duration-fast) var(--ease-smooth);
+  transition:
+    color var(--duration-fast) var(--ease-smooth),
+    opacity var(--duration-fast) var(--ease-smooth),
+    transform var(--duration-fast) var(--ease-smooth);
   border-radius: var(--radius-full);
   position: relative;
 }
@@ -897,7 +906,12 @@ onBeforeUnmount(() => {
   justify-content: center;
   font-size: var(--text-lg);
   color: var(--icon-primary);
-  transition: all var(--duration-base) var(--ease-smooth);
+  transition:
+    background-color var(--duration-base) var(--ease-smooth),
+    border-color var(--duration-base) var(--ease-smooth),
+    box-shadow var(--duration-base) var(--ease-smooth),
+    color var(--duration-base) var(--ease-smooth),
+    transform var(--duration-base) var(--ease-smooth);
 
   /* Subtle elevation */
   background: var(--surface-soft);
@@ -977,7 +991,11 @@ onBeforeUnmount(() => {
   border-radius: var(--radius-full);
   background: var(--surface-soft);
   border: 1px solid var(--border-subtle);
-  transition: all var(--duration-fast) var(--ease-smooth);
+  transition:
+    background-color var(--duration-fast) var(--ease-smooth),
+    border-color var(--duration-fast) var(--ease-smooth),
+    box-shadow var(--duration-fast) var(--ease-smooth),
+    transform var(--duration-fast) var(--ease-smooth);
 }
 
 .menu-status-dot.active {
@@ -1004,7 +1022,12 @@ onBeforeUnmount(() => {
   font-size: var(--text-sm);
   font-weight: var(--font-weight-semibold);
   color: var(--text-primary);
-  transition: all var(--duration-base) var(--ease-smooth);
+  transition:
+    background-color var(--duration-base) var(--ease-smooth),
+    border-color var(--duration-base) var(--ease-smooth),
+    box-shadow var(--duration-base) var(--ease-smooth),
+    color var(--duration-base) var(--ease-smooth),
+    transform var(--duration-base) var(--ease-smooth);
 
   background: var(--surface-soft);
   border: 1px solid var(--border-base);
@@ -1056,7 +1079,10 @@ onBeforeUnmount(() => {
   border-radius: var(--radius-full);
   border: 2px solid var(--surface-elevated);
   background: transparent;
-  transition: all var(--duration-fast) var(--ease-smooth);
+  transition:
+    background-color var(--duration-fast) var(--ease-smooth),
+    border-color var(--duration-fast) var(--ease-smooth),
+    box-shadow var(--duration-fast) var(--ease-smooth);
 }
 
 .ai-chat-dot.active {
@@ -1073,7 +1099,12 @@ onBeforeUnmount(() => {
 .user-profile-item {
   border-radius: var(--radius-lg);
   padding: var(--space-1) var(--space-2) var(--space-2);
-  transition: all var(--duration-base) var(--ease-smooth);
+  transition:
+    background-color var(--duration-base) var(--ease-smooth),
+    border-color var(--duration-base) var(--ease-smooth),
+    box-shadow var(--duration-base) var(--ease-smooth),
+    color var(--duration-base) var(--ease-smooth),
+    transform var(--duration-base) var(--ease-smooth);
 }
 
 button.author-info-item {
@@ -1097,7 +1128,10 @@ button.author-info-item:focus-visible {
   background: var(--surface-elevated);
   border: 2px solid var(--border-strong);
   box-shadow: var(--shadow-sm);
-  transition: all var(--duration-base) var(--ease-smooth);
+  transition:
+    border-color var(--duration-base) var(--ease-smooth),
+    box-shadow var(--duration-base) var(--ease-smooth),
+    transform var(--duration-base) var(--ease-smooth);
 }
 
 .author-avatar-image {
@@ -1129,7 +1163,10 @@ button.author-info-item:focus-visible {
   position: relative;
   overflow: hidden;
   background: var(--surface-elevated);
-  transition: all var(--duration-base) var(--ease-smooth);
+  transition:
+    border-color var(--duration-base) var(--ease-smooth),
+    box-shadow var(--duration-base) var(--ease-smooth),
+    transform var(--duration-base) var(--ease-smooth);
 }
 
 .avatar-image {
@@ -1234,7 +1271,12 @@ button.author-info-item:focus-visible {
   justify-content: center;
   align-items: flex-end;
   padding-bottom: var(--space-2);
-  transition: all var(--duration-base) var(--ease-smooth);
+  transition:
+    background-color var(--duration-base) var(--ease-smooth),
+    border-color var(--duration-base) var(--ease-smooth),
+    box-shadow var(--duration-base) var(--ease-smooth),
+    color var(--duration-base) var(--ease-smooth),
+    transform var(--duration-base) var(--ease-smooth);
   z-index: 1001;
   border: 0;
   color: inherit;
@@ -1316,7 +1358,11 @@ button.author-info-item:focus-visible {
   height: 2.5px;
   width: 24px;
   border-radius: var(--radius-xs);
-  transition: all var(--duration-base) var(--ease-smooth);
+  transition:
+    background-color var(--duration-base) var(--ease-smooth),
+    height var(--duration-base) var(--ease-smooth),
+    transform var(--duration-base) var(--ease-smooth),
+    width var(--duration-base) var(--ease-smooth);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
 }
 
@@ -1333,7 +1379,11 @@ button.author-info-item:focus-visible {
   font-weight: var(--font-weight-bold);
   color: var(--text-primary);
   letter-spacing: 0.08em;
-  transition: all var(--duration-fast) var(--ease-smooth);
+  transition:
+    color var(--duration-fast) var(--ease-smooth),
+    filter var(--duration-fast) var(--ease-smooth),
+    opacity var(--duration-fast) var(--ease-smooth),
+    transform var(--duration-fast) var(--ease-smooth);
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
 }
 
@@ -1403,7 +1453,9 @@ button.author-info-item:focus-visible {
   border-radius: var(--radius-full);
   opacity: 0;
   background: transparent;
-  transition: all var(--duration-base) var(--ease-smooth);
+  transition:
+    background-color var(--duration-base) var(--ease-smooth),
+    opacity var(--duration-base) var(--ease-smooth);
 }
 
 .theme-toggle-box i {
@@ -1527,7 +1579,11 @@ button.author-info-item:focus-visible {
   color: var(--text-secondary);
   font-size: var(--text-sm);
   cursor: pointer;
-  transition: all var(--duration-fast) var(--ease-smooth);
+  transition:
+    background-color var(--duration-fast) var(--ease-smooth),
+    border-color var(--duration-fast) var(--ease-smooth),
+    color var(--duration-fast) var(--ease-smooth),
+    box-shadow var(--duration-fast) var(--ease-smooth);
 }
 
 .appearance-color-control:hover {
@@ -1576,7 +1632,12 @@ button.author-info-item:focus-visible {
   font-size: var(--text-sm);
   font-weight: var(--font-weight-medium);
   cursor: pointer;
-  transition: all var(--duration-fast) var(--ease-smooth);
+  transition:
+    background-color var(--duration-fast) var(--ease-smooth),
+    border-color var(--duration-fast) var(--ease-smooth),
+    color var(--duration-fast) var(--ease-smooth),
+    box-shadow var(--duration-fast) var(--ease-smooth),
+    transform var(--duration-fast) var(--ease-smooth);
 }
 
 .appearance-segment button:hover {
@@ -1764,7 +1825,12 @@ button.author-info-item:focus-visible {
     font-weight: var(--font-weight-semibold);
     cursor: pointer;
     touch-action: manipulation;
-    transition: all var(--duration-fast) var(--ease-smooth);
+    transition:
+      background-color var(--duration-fast) var(--ease-smooth),
+      border-color var(--duration-fast) var(--ease-smooth),
+      color var(--duration-fast) var(--ease-smooth),
+      box-shadow var(--duration-fast) var(--ease-smooth),
+      transform var(--duration-fast) var(--ease-smooth);
   }
 
   .mobile-top-nav-item:hover {
