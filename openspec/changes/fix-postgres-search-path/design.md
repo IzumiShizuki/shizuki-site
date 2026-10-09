@@ -18,7 +18,7 @@ The production database contains two relevant schemas. The complete application 
 
 ## Decisions
 
-Use the PostgreSQL JDBC `currentSchema` connection parameter in the shared monolith default URL. This keeps existing unqualified MyBatis SQL valid and applies to every connection in the pool. Setting `search_path` through an init SQL hook was rejected because it would be easier to bypass in alternate datasource creation paths and would not fix the deployment environment itself. Creating compatibility views in `public` was rejected because it would duplicate schema ownership and obscure future migrations.
+Use the PostgreSQL JDBC `currentSchema` connection parameter in the shared monolith default URL with `shizuki_app,public` as the ordered search path. This keeps existing unqualified MyBatis SQL valid, prefers the complete application schema, and preserves access to legacy PostgreSQL tables such as `public.usr_daily_art`. Setting `search_path` through an init SQL hook was rejected because it would be easier to bypass in alternate datasource creation paths and would not fix the deployment environment itself. Creating compatibility views in `public` was rejected because it would duplicate schema ownership and obscure future migrations.
 
 Update the remote `.env.server` `DB_URL` to include `?currentSchema=shizuki_app` and restart only the backend. The existing application and database snapshot remains available for rollback.
 

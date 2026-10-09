@@ -32,7 +32,7 @@ class PersonalSiteStorageBoundaryContractTest {
         }
 
         assertThat(applicationYaml)
-            .contains("shizuki_app?currentSchema=shizuki_app")
+            .contains("shizuki_app?currentSchema=shizuki_app,public")
             .contains("table: ${FLYWAY_TABLE:flyway_schema_history_pg}");
     }
 }

@@ -2,13 +2,19 @@
 
 ### Requirement: PostgreSQL datasource selects the application schema
 
-The monolith PostgreSQL datasource MUST resolve unqualified application table names from the configured application schema, whose production value is `shizuki_app`.
+The monolith PostgreSQL datasource MUST resolve unqualified application table names from the configured application schema, whose production value is `shizuki_app`, and MUST retain `public` as a fallback for legacy PostgreSQL tables.
 
 #### Scenario: Default production connection
 
 - **WHEN** the backend starts without an explicit `DB_URL`
-- **THEN** the datasource connection selects `shizuki_app` as the PostgreSQL schema
+- **THEN** the datasource connection selects `shizuki_app` before `public` as the PostgreSQL search path
 - **AND** queries such as `SELECT ... FROM CTN_AUTHOR_PROFILE` resolve to `shizuki_app.ctn_author_profile`.
+
+#### Scenario: Legacy PostgreSQL table fallback
+
+- **WHEN** a legacy table such as `USR_DAILY_ART` exists in `public` and is absent from `shizuki_app`
+- **THEN** an unqualified query resolves to the existing `public` table
+- **AND** the application does not require copying that table into `shizuki_app`.
 
 #### Scenario: Explicit connection override
 
