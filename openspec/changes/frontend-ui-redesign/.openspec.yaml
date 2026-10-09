@@ -1,0 +1,8 @@
+schema: spec-driven
+skip_specs: true
+reason: |
+  This is a pure UI/UX enhancement change that does not modify backend APIs,
+  specifications, or business logic. All changes are frontend-only CSS/SCSS
+  improvements for visual aesthetics, consistency, and accessibility.
+
+  See PROGRESS.md for detailed implementation documentation.
