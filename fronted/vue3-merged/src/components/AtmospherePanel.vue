@@ -1787,15 +1787,6 @@ function rangeFillStyle(value, min = 0, max = 1) {
 
 .scene-card {
   position: relative;
-  border: 1px solid var(--ap-border-strong);
-  border-radius: var(--radius-xl);
-  min-height: 168px;
-  padding: var(--space-3);
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-.scene-card {
-  position: relative;
   border: 1px solid rgba(255, 255, 255, 0.48);
   border-radius: var(--radius-xl);
   padding: var(--space-2-5);
@@ -2347,7 +2338,6 @@ function rangeFillStyle(value, min = 0, max = 1) {
 }
 
 .online-card:hover {
-.online-card:hover {
   transform: translateY(-2px);
   border-color: rgba(242, 179, 157, 0.28);
   box-shadow: var(--shadow-lg);
@@ -2429,14 +2419,6 @@ function rangeFillStyle(value, min = 0, max = 1) {
   justify-content: center;
 }
 
-.attribution-row {
-  border: 1px dashed rgba(160, 140, 110, 0.5);
-  border-radius: var(--radius-md);
-  min-height: 30px;
-  padding: 0 var(--space-2-5);
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
 .attribution-row {
   border: 1px dashed rgba(160, 140, 110, 0.5);
   border-radius: var(--radius-md);
@@ -3446,6 +3428,7 @@ function rangeFillStyle(value, min = 0, max = 1) {
     height: 168px;
   }
 }
+
 /* 日间模式：奶油暖白面板。 */
 :root[data-theme-mode='day'] .atmo-panel {
   --ap-panel-bg: linear-gradient(160deg, rgba(255, 251, 247, 0.98), rgba(250, 241, 238, 0.97));
