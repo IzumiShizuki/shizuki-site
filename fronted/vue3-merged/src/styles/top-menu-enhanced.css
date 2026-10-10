@@ -1,0 +1,356 @@
+/**
+ * TopMenu Enhanced Visual Styles
+ * 震撼的Neon效果和磁性交互
+ */
+
+/* ============================================================
+   顶部导航栏 - Neon发光增强
+   ============================================================ */
+
+.top-menu-root .top-bar {
+  position: relative;
+  overflow: visible;
+}
+
+/* 顶部导航栏背景发光 */
+.top-menu-root .top-bar::before {
+  content: '';
+  position: absolute;
+  inset: -20px;
+  background: radial-gradient(
+    circle at 50% 0%,
+    rgba(0, 217, 255, 0.15) 0%,
+    transparent 60%
+  );
+  filter: blur(40px);
+  opacity: 0;
+  transition: opacity 0.6s ease;
+  pointer-events: none;
+  z-index: -1;
+}
+
+.top-menu-root:hover .top-bar::before {
+  opacity: 1;
+}
+
+/* ============================================================
+   左侧导航按钮 - 磁性效果 + Neon发光
+   ============================================================ */
+
+.left-main-btn {
+  position: relative;
+  cursor: pointer;
+  overflow: visible;
+}
+
+/* 磁性光环效果 */
+.left-main-btn::after {
+  content: '';
+  position: absolute;
+  inset: -25px;
+  background: radial-gradient(
+    circle at var(--mouse-x, 50%) var(--mouse-y, 50%),
+    rgba(100, 200, 255, 0.25) 0%,
+    transparent 60%
+  );
+  opacity: 0;
+  transition: opacity 0.4s ease;
+  pointer-events: none;
+  filter: blur(15px);
+  z-index: -1;
+}
+
+.left-main-btn:hover::after {
+  opacity: 1;
+}
+
+/* 激活状态 - Neon边框 */
+.left-main-btn.active {
+  position: relative;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  box-shadow:
+    0 0 20px rgba(var(--accent-rgb), 0.4),
+    0 8px 32px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  animation: neon-pulse-nav 2.5s ease-in-out infinite;
+}
+
+.left-main-btn.active::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  padding: 2px;
+  background: linear-gradient(
+    135deg,
+    rgba(var(--accent-rgb), 0.8) 0%,
+    rgba(var(--accent-rgb), 0.4) 50%,
+    rgba(var(--accent-rgb), 0.8) 100%
+  );
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  z-index: -1;
+}
+
+@keyframes neon-pulse-nav {
+  0%, 100% {
+    box-shadow:
+      0 0 20px rgba(var(--accent-rgb), 0.4),
+      0 8px 32px rgba(0, 0, 0, 0.3),
+      inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  }
+  50% {
+    box-shadow:
+      0 0 30px rgba(var(--accent-rgb), 0.6),
+      0 0 50px rgba(var(--accent-rgb), 0.3),
+      0 8px 32px rgba(0, 0, 0, 0.3),
+      inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  }
+}
+
+/* 图标增强 - 旋转和缩放 */
+.left-main-btn:hover .icon-minimal {
+  transform: scale(1.15) rotate(5deg) translateY(-2px);
+}
+
+.left-main-btn.active .icon-minimal {
+  animation: icon-float 3s ease-in-out infinite;
+}
+
+@keyframes icon-float {
+  0%, 100% {
+    transform: scale(1.08) translateY(0);
+  }
+  50% {
+    transform: scale(1.12) translateY(-3px);
+  }
+}
+
+/* ============================================================
+   中央圆形按钮 - 3D效果和呼吸动画
+   ============================================================ */
+
+.circle-icon-box {
+  position: relative;
+  transform-style: preserve-3d;
+  transition: all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+
+/* 3D悬浮效果 */
+.circle-icon-box:hover {
+  transform: scale(1.1) translateZ(10px);
+  box-shadow:
+    0 10px 30px rgba(0, 0, 0, 0.3),
+    0 0 20px rgba(var(--accent-rgb), 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+
+/* 激活状态 - 发光脉冲 */
+.circle-icon-box.active {
+  background: linear-gradient(
+    135deg,
+    rgba(var(--accent-rgb), 0.3),
+    rgba(var(--accent-rgb), 0.15)
+  );
+  border: 2px solid rgba(var(--accent-rgb), 0.6);
+  animation: circle-glow-pulse 2s ease-in-out infinite;
+}
+
+@keyframes circle-glow-pulse {
+  0%, 100% {
+    box-shadow:
+      0 0 10px rgba(var(--accent-rgb), 0.4),
+      0 0 20px rgba(var(--accent-rgb), 0.2),
+      0 4px 12px rgba(0, 0, 0, 0.3);
+  }
+  50% {
+    box-shadow:
+      0 0 20px rgba(var(--accent-rgb), 0.6),
+      0 0 40px rgba(var(--accent-rgb), 0.3),
+      0 4px 12px rgba(0, 0, 0, 0.3);
+  }
+}
+
+/* 按钮内部图标旋转 */
+.circle-icon-box:active {
+  transform: scale(0.95) translateZ(0);
+}
+
+.circle-icon-box:hover i {
+  animation: icon-spin 0.6s ease-in-out;
+}
+
+@keyframes icon-spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* ============================================================
+   右侧用户头像 - 彩虹光环
+   ============================================================ */
+
+.author-avatar-box {
+  position: relative;
+}
+
+/* 彩虹光环 */
+.author-avatar-box::before {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  background: conic-gradient(
+    from 0deg,
+    #FF6B6B 0deg,
+    #FFA94D 51.43deg,
+    #FFD93D 102.86deg,
+    #6BCF7F 154.29deg,
+    #4ECDC4 205.71deg,
+    #5B5FFF 257.14deg,
+    #C77DFF 308.57deg,
+    #FF6B6B 360deg
+  );
+  opacity: 0;
+  animation: rainbow-spin 3s linear infinite;
+  transition: opacity 0.4s ease;
+  z-index: -1;
+}
+
+.author-avatar-box:hover::before {
+  opacity: 0.8;
+}
+
+@keyframes rainbow-spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* 头像发光 */
+.author-avatar-box:hover {
+  filter: drop-shadow(0 0 15px rgba(255, 255, 255, 0.5));
+}
+
+/* ============================================================
+   外观设置弹窗 - 玻璃态增强
+   ============================================================ */
+
+.appearance-popover {
+  position: relative;
+  overflow: visible;
+}
+
+/* 弹窗背景光效 */
+.appearance-popover::before {
+  content: '';
+  position: absolute;
+  inset: -30px;
+  background: radial-gradient(
+    circle at 50% 0%,
+    rgba(199, 125, 255, 0.2) 0%,
+    transparent 70%
+  );
+  filter: blur(50px);
+  pointer-events: none;
+  z-index: -1;
+}
+
+/* 分段按钮增强 */
+.appearance-segment button {
+  position: relative;
+  transition: all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+
+.appearance-segment button:hover {
+  transform: translateY(-2px);
+}
+
+.appearance-segment button.active {
+  background: linear-gradient(
+    135deg,
+    rgba(var(--accent-rgb), 0.35),
+    rgba(var(--accent-rgb), 0.2)
+  );
+  box-shadow:
+    0 0 15px rgba(var(--accent-rgb), 0.3),
+    0 4px 12px rgba(0, 0, 0, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+/* ============================================================
+   移动端dock - 悬浮强化
+   ============================================================ */
+
+.mobile-nav-dock {
+  position: relative;
+}
+
+/* dock背景发光 */
+.mobile-nav-dock::before {
+  content: '';
+  position: absolute;
+  inset: -15px;
+  background: radial-gradient(
+    ellipse at 50% 100%,
+    rgba(100, 200, 255, 0.2) 0%,
+    transparent 60%
+  );
+  filter: blur(30px);
+  pointer-events: none;
+  z-index: -1;
+}
+
+/* dock按钮弹性效果 */
+.mobile-nav-dock button {
+  transition: all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+
+.mobile-nav-dock button:active {
+  transform: scale(0.9);
+}
+
+.mobile-nav-dock button.active {
+  transform: scale(1.05) translateY(-3px);
+  box-shadow:
+    0 0 20px rgba(var(--accent-rgb), 0.4),
+    0 8px 20px rgba(0, 0, 0, 0.3);
+}
+
+/* ============================================================
+   性能优化
+   ============================================================ */
+
+.left-main-btn,
+.circle-icon-box,
+.author-avatar-box {
+  will-change: transform;
+  backface-visibility: hidden;
+  -webkit-font-smoothing: subpixel-antialiased;
+}
+
+/* ============================================================
+   降低动画（无障碍支持）
+   ============================================================ */
+
+@media (prefers-reduced-motion: reduce) {
+  .left-main-btn::after,
+  .top-bar::before,
+  .appearance-popover::before,
+  .mobile-nav-dock::before,
+  .author-avatar-box::before {
+    display: none;
+  }
+
+  .left-main-btn.active,
+  .circle-icon-box.active,
+  .left-main-btn.active .icon-minimal {
+    animation: none !important;
+  }
+
+  .circle-icon-box:hover i {
+    animation: none !important;
+  }
+}
