@@ -1,0 +1,529 @@
+/**
+ * Enhanced Visual System
+ * 激进视觉重设计 - 震撼的色彩、动效、排版
+ */
+
+/* ============================================================
+   1. 多维度渐变色彩系统
+   ============================================================ */
+
+:root {
+  /* 时间主题渐变 - 根据时段动态变化 */
+  --gradient-dawn: linear-gradient(135deg,
+    #FFB6C1 0%, #FFA07A 35%, #FFD700 70%, #FFA500 100%);
+  --gradient-day: linear-gradient(135deg,
+    #87CEEB 0%, #98D8E8 35%, #B0E0E6 70%, #E0F6FF 100%);
+  --gradient-dusk: linear-gradient(135deg,
+    #FF6B6B 0%, #FF8E53 35%, #FFB74D 70%, #FFC371 100%);
+  --gradient-night: linear-gradient(135deg,
+    #2E1A47 0%, #2A2359 35%, #1E1C3A 70%, #0F0C1D 100%);
+
+  /* 彩虹渐变 - 用于强调和装饰 */
+  --gradient-rainbow: linear-gradient(90deg,
+    #FF6B6B 0%, #FFA94D 14.28%, #FFD93D 28.57%,
+    #6BCF7F 42.85%, #4ECDC4 57.14%, #5B5FFF 71.42%,
+    #C77DFF 85.71%, #FF6B9D 100%);
+
+  --gradient-rainbow-vertical: linear-gradient(180deg,
+    #FF6B6B 0%, #FFA94D 14.28%, #FFD93D 28.57%,
+    #6BCF7F 42.85%, #4ECDC4 57.14%, #5B5FFF 71.42%,
+    #C77DFF 85.71%, #FF6B9D 100%);
+
+  /* 玻璃态高级渐变 */
+  --glass-gradient-premium: linear-gradient(135deg,
+    rgba(255, 255, 255, 0.3) 0%,
+    rgba(255, 255, 255, 0.05) 50%,
+    rgba(255, 255, 255, 0.15) 100%);
+
+  --glass-gradient-color: linear-gradient(225deg,
+    rgba(var(--accent-rgb), 0.2) 0%,
+    rgba(var(--accent-rgb), 0.05) 100%);
+
+  /* 发光色彩 - Neon效果 */
+  --glow-pink: #FF6B9D;
+  --glow-cyan: #00D9FF;
+  --glow-purple: #C77DFF;
+  --glow-gold: #FFD700;
+  --glow-green: #6BCF7F;
+  --glow-orange: #FFA94D;
+
+  /* 深邃阴影 - 更强的立体感 */
+  --shadow-elevated:
+    0 20px 60px rgba(0, 0, 0, 0.3),
+    0 8px 24px rgba(0, 0, 0, 0.2);
+
+  --shadow-floating:
+    0 30px 90px rgba(0, 0, 0, 0.35),
+    0 12px 36px rgba(0, 0, 0, 0.25),
+    0 4px 12px rgba(0, 0, 0, 0.15);
+
+  --shadow-neon-cyan:
+    0 0 5px var(--glow-cyan),
+    0 0 10px var(--glow-cyan),
+    0 0 20px var(--glow-cyan),
+    0 0 40px rgba(0, 217, 255, 0.4);
+
+  --shadow-neon-pink:
+    0 0 5px var(--glow-pink),
+    0 0 10px var(--glow-pink),
+    0 0 20px var(--glow-pink),
+    0 0 40px rgba(255, 107, 157, 0.4);
+
+  --shadow-neon-purple:
+    0 0 5px var(--glow-purple),
+    0 0 10px var(--glow-purple),
+    0 0 20px var(--glow-purple),
+    0 0 40px rgba(199, 125, 255, 0.4);
+
+  /* 动画timing增强 */
+  --duration-instant: 100ms;
+  --duration-fast: 200ms;
+  --duration-normal: 350ms;
+  --duration-slow: 500ms;
+  --duration-slower: 800ms;
+  --duration-slowest: 1200ms;
+
+  --ease-smooth: cubic-bezier(0.4, 0.0, 0.2, 1);
+  --ease-bounce: cubic-bezier(0.68, -0.55, 0.265, 1.55);
+  --ease-elastic: cubic-bezier(0.68, -0.6, 0.32, 1.6);
+  --ease-spring: cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+/* ============================================================
+   2. 玻璃态材质 Premium 版本
+   ============================================================ */
+
+.glassmorphism-premium {
+  background:
+    /* 顶层光泽 */
+    var(--glass-gradient-premium),
+    /* 彩色渐变 */
+    var(--glass-gradient-color),
+    /* 基础毛玻璃 */
+    rgba(255, 255, 255, 0.08);
+
+  backdrop-filter:
+    blur(40px)
+    saturate(180%)
+    brightness(1.1)
+    contrast(1.05);
+
+  -webkit-backdrop-filter:
+    blur(40px)
+    saturate(180%)
+    brightness(1.1)
+    contrast(1.05);
+
+  border: 1px solid rgba(255, 255, 255, 0.25);
+
+  box-shadow:
+    /* 外阴影 */
+    var(--shadow-elevated),
+    /* 内高光 */
+    inset 0 1px 0 rgba(255, 255, 255, 0.4),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.1),
+    /* 发光 */
+    0 0 40px rgba(var(--accent-rgb), 0.2);
+}
+
+.glassmorphism-neon {
+  background:
+    var(--glass-gradient-premium),
+    rgba(255, 255, 255, 0.06);
+
+  backdrop-filter: blur(30px) saturate(200%);
+  -webkit-backdrop-filter: blur(30px) saturate(200%);
+
+  border: 2px solid transparent;
+  background-clip: padding-box;
+
+  position: relative;
+}
+
+.glassmorphism-neon::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  padding: 2px;
+  background: var(--gradient-rainbow);
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0.6;
+  animation: rainbow-border-flow 3s linear infinite;
+}
+
+@keyframes rainbow-border-flow {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* ============================================================
+   3. 磁性效果 - Magnetic Interaction
+   ============================================================ */
+
+.magnetic-trigger {
+  position: relative;
+  transition: transform var(--duration-normal) var(--ease-smooth);
+  cursor: pointer;
+}
+
+.magnetic-trigger::before {
+  content: '';
+  position: absolute;
+  inset: -30px;
+  opacity: 0;
+  background: radial-gradient(circle, var(--glow-cyan) 0%, transparent 70%);
+  pointer-events: none;
+  transition: opacity var(--duration-normal);
+}
+
+.magnetic-trigger:hover::before {
+  opacity: 0.3;
+  animation: magnetic-pulse 2s ease-in-out infinite;
+}
+
+@keyframes magnetic-pulse {
+  0%, 100% { transform: scale(1); opacity: 0.3; }
+  50% { transform: scale(1.2); opacity: 0.5; }
+}
+
+/* JavaScript会根据鼠标位置动态设置transform */
+.magnetic-trigger[data-magnetic-active="true"] {
+  will-change: transform;
+}
+
+/* ============================================================
+   4. 3D 变换效果
+   ============================================================ */
+
+.transform-3d-container {
+  perspective: 1000px;
+  perspective-origin: center center;
+}
+
+.transform-3d-element {
+  transform-style: preserve-3d;
+  transition: transform var(--duration-slow) var(--ease-smooth);
+}
+
+.transform-3d-element:hover {
+  transform:
+    rotateX(var(--rotate-x, 0deg))
+    rotateY(var(--rotate-y, 0deg))
+    translateZ(20px);
+}
+
+/* 3D卡片翻转 */
+.card-flip {
+  position: relative;
+  transform-style: preserve-3d;
+  transition: transform var(--duration-slow) var(--ease-smooth);
+}
+
+.card-flip.flipped {
+  transform: rotateY(180deg);
+}
+
+.card-flip-front,
+.card-flip-back {
+  backface-visibility: hidden;
+  position: absolute;
+  inset: 0;
+}
+
+.card-flip-back {
+  transform: rotateY(180deg);
+}
+
+/* ============================================================
+   5. 滚动驱动动画
+   ============================================================ */
+
+.scroll-reveal {
+  opacity: 0;
+  transform: translateY(60px);
+  transition:
+    opacity var(--duration-slow) var(--ease-smooth),
+    transform var(--duration-slow) var(--ease-smooth);
+}
+
+.scroll-reveal.revealed {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* 交错延迟 */
+.scroll-reveal:nth-child(1) { transition-delay: 0ms; }
+.scroll-reveal:nth-child(2) { transition-delay: 100ms; }
+.scroll-reveal:nth-child(3) { transition-delay: 200ms; }
+.scroll-reveal:nth-child(4) { transition-delay: 300ms; }
+.scroll-reveal:nth-child(5) { transition-delay: 400ms; }
+.scroll-reveal:nth-child(6) { transition-delay: 500ms; }
+
+/* 视差效果 */
+.parallax {
+  will-change: transform;
+  transition: transform 0.1s linear;
+}
+
+/* ============================================================
+   6. Neon 发光效果
+   ============================================================ */
+
+.neon-text {
+  color: var(--glow-cyan);
+  text-shadow: var(--shadow-neon-cyan);
+  animation: neon-flicker 3s ease-in-out infinite alternate;
+}
+
+@keyframes neon-flicker {
+  0%, 19%, 21%, 23%, 25%, 54%, 56%, 100% {
+    text-shadow: var(--shadow-neon-cyan);
+  }
+  20%, 24%, 55% {
+    text-shadow: none;
+  }
+}
+
+.neon-border {
+  border: 2px solid var(--glow-cyan);
+  box-shadow: var(--shadow-neon-cyan);
+  animation: neon-border-pulse 2s ease-in-out infinite alternate;
+}
+
+@keyframes neon-border-pulse {
+  0% {
+    box-shadow: var(--shadow-neon-cyan);
+  }
+  100% {
+    box-shadow:
+      0 0 8px var(--glow-cyan),
+      0 0 16px var(--glow-cyan),
+      0 0 30px var(--glow-cyan),
+      0 0 60px rgba(0, 217, 255, 0.6);
+  }
+}
+
+/* ============================================================
+   7. 弹性按钮效果
+   ============================================================ */
+
+.elastic-button {
+  transition: transform var(--duration-normal) var(--ease-elastic);
+  cursor: pointer;
+}
+
+.elastic-button:hover {
+  transform: scale(1.08);
+}
+
+.elastic-button:active {
+  transform: scale(0.95);
+  transition-duration: var(--duration-fast);
+}
+
+/* 按压涟漪 */
+.elastic-button::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.8) 0%, transparent 70%);
+  opacity: 0;
+  transform: scale(0);
+  transition:
+    transform var(--duration-slow) var(--ease-smooth),
+    opacity var(--duration-slow);
+}
+
+.elastic-button:active::after {
+  transform: scale(2);
+  opacity: 1;
+  transition-duration: 0s;
+}
+
+/* ============================================================
+   8. 呼吸动画
+   ============================================================ */
+
+.breathing {
+  animation: breathing 3s ease-in-out infinite;
+}
+
+@keyframes breathing {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.05);
+    opacity: 0.9;
+  }
+}
+
+/* ============================================================
+   9. 粒子背景 CSS实现
+   ============================================================ */
+
+.particle-background {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
+}
+
+.particle {
+  position: absolute;
+  width: 2px;
+  height: 2px;
+  background: rgba(255, 255, 255, 0.5);
+  border-radius: 50%;
+  animation: particle-float linear infinite;
+}
+
+@keyframes particle-float {
+  0% {
+    transform: translateY(0) translateX(0);
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-100vh) translateX(var(--drift-x, 50px));
+    opacity: 0;
+  }
+}
+
+/* ============================================================
+   10. 光晕效果
+   ============================================================ */
+
+.glow-effect {
+  position: relative;
+}
+
+.glow-effect::before {
+  content: '';
+  position: absolute;
+  inset: -20px;
+  background: radial-gradient(circle, var(--glow-cyan) 0%, transparent 60%);
+  opacity: 0;
+  filter: blur(30px);
+  transition: opacity var(--duration-slow);
+  pointer-events: none;
+  z-index: -1;
+}
+
+.glow-effect:hover::before {
+  opacity: 0.6;
+}
+
+/* ============================================================
+   11. 流体动画背景
+   ============================================================ */
+
+.fluid-background {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 20% 30%, rgba(var(--accent-rgb), 0.3) 0%, transparent 50%),
+    radial-gradient(circle at 80% 70%, rgba(var(--glow-purple), 0.3) 0%, transparent 50%),
+    radial-gradient(circle at 50% 50%, rgba(var(--glow-cyan), 0.2) 0%, transparent 50%);
+  filter: blur(60px);
+  animation: fluid-morph 20s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes fluid-morph {
+  0%, 100% {
+    transform: scale(1) rotate(0deg);
+    opacity: 0.6;
+  }
+  33% {
+    transform: scale(1.1) rotate(120deg);
+    opacity: 0.8;
+  }
+  66% {
+    transform: scale(0.9) rotate(240deg);
+    opacity: 0.7;
+  }
+}
+
+/* ============================================================
+   12. 彩虹进度条
+   ============================================================ */
+
+.rainbow-progress {
+  height: 3px;
+  background: var(--gradient-rainbow);
+  background-size: 200% 100%;
+  animation: rainbow-flow 2s linear infinite;
+  box-shadow: 0 0 10px rgba(var(--accent-rgb), 0.5);
+}
+
+@keyframes rainbow-flow {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 200% 50%; }
+}
+
+/* ============================================================
+   13. GPU 加速优化
+   ============================================================ */
+
+.gpu-accelerated {
+  will-change: transform, opacity;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  -webkit-font-smoothing: subpixel-antialiased;
+}
+
+/* ============================================================
+   14. 性能友好的动画降级
+   ============================================================ */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  .particle-background,
+  .fluid-background {
+    display: none;
+  }
+}
+
+/* ============================================================
+   15. 打字机效果
+   ============================================================ */
+
+.typewriter {
+  overflow: hidden;
+  border-right: 2px solid var(--glow-cyan);
+  white-space: nowrap;
+  animation:
+    typing 3s steps(40) 1s forwards,
+    blink-caret 0.75s step-end infinite;
+}
+
+@keyframes typing {
+  from { width: 0; }
+  to { width: 100%; }
+}
+
+@keyframes blink-caret {
+  50% { border-color: transparent; }
+}

@@ -1,6 +1,11 @@
 <template>
   <MotionConfig reduced-motion="never">
     <div class="app-shell">
+      <!-- 增强视觉效果 - 粒子背景 -->
+      <ParticleBackground v-if="!reducedMotion" />
+      <!-- 增强视觉效果 - 流体背景 -->
+      <FluidBackground v-if="!reducedMotion && isHomeRoute" />
+
       <LiquidFilterDefinitions />
       <AppBackgroundStage
         v-if="!isMobileShellRoute"
@@ -332,6 +337,9 @@ import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, p
 import { MotionConfig } from 'motion-v';
 import { RouterView, useRoute, useRouter } from 'vue-router';
 import './styles/design-system.css';
+import './styles/enhanced-visual-system.css';
+import ParticleBackground from './components/ParticleBackground.vue';
+import FluidBackground from './components/FluidBackground.vue';
 import AiDialog from './components/AiDialog.vue';
 import AtmospherePanel from './components/AtmospherePanel.vue';
 import AppBackgroundStage from './components/app/AppBackgroundStage.vue';
