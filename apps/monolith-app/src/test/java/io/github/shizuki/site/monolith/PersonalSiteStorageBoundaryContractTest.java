@@ -35,4 +35,22 @@ class PersonalSiteStorageBoundaryContractTest {
             .contains("shizuki_app?currentSchema=shizuki_app,public")
             .contains("table: ${FLYWAY_TABLE:flyway_schema_history_pg}");
     }
+
+    @Test
+    void smtpDefaultsKeepAuthenticationAndTlsNegotiationExplicit() throws IOException {
+        String applicationYaml;
+        try (InputStream stream = getClass().getClassLoader().getResourceAsStream("application.yml")) {
+            assertThat(stream).isNotNull();
+            applicationYaml = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
+        }
+
+        assertThat(applicationYaml)
+            .contains("MAIL_SMTP_AUTH_MECHANISMS:LOGIN")
+            .contains("MAIL_SMTP_AUTH_LOGIN_DISABLE:false")
+            .contains("MAIL_SMTP_AUTH_PLAIN_DISABLE:true")
+            .contains("MAIL_SMTP_STARTTLS_REQUIRED:false")
+            .contains("MAIL_SMTP_CONNECTION_TIMEOUT:10000")
+            .contains("MAIL_SMTP_TIMEOUT:10000")
+            .contains("MAIL_SMTP_WRITE_TIMEOUT:10000");
+    }
 }

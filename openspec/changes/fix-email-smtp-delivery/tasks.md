@@ -5,9 +5,9 @@
 
 ## 2. Verification
 
-- [ ] 2.1 Add or update regression coverage for the tracked mail configuration.
-- [ ] 2.2 Run focused Maven tests and the monolith build.
-- [ ] 2.3 Validate the OpenSpec change strictly.
+- [x] 2.1 Add or update regression coverage for the tracked mail configuration.
+- [x] 2.2 Run focused Maven tests and the monolith build.
+- [x] 2.3 Validate the OpenSpec change strictly.
 
 ## 3. Deployment
 
