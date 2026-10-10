@@ -8,6 +8,7 @@ COPY fronted/vue3-merged/patches/ ./patches/
 RUN corepack enable \
     && corepack prepare pnpm@11.8.0 --activate \
     && pnpm config set registry https://registry.npmmirror.com \
+    && pnpm config set dangerously-allow-all-builds true \
     && pnpm install --frozen-lockfile
 
 COPY fronted/vue3-merged/ ./
