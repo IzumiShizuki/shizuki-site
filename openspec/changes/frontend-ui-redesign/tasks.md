@@ -70,10 +70,10 @@
 **优先级**: P2
 
 ### Task 2.5: 移动端导航dock优化
-- [ ] 重新设计mobile-top-dock样式
-- [ ] 优化mobile-top-nav-item激活状态
-- [ ] 确保触摸热区>=44px
-- [ ] 改进横向滚动体验
+- [x] 重新设计mobile-top-dock样式
+- [x] 优化mobile-top-nav-item激活状态
+- [x] 确保触摸热区>=44px
+- [x] 改进横向滚动体验
 
 **文件**: `TopMenu.vue`  
 **估时**: 2h  
@@ -204,9 +204,9 @@
 **优先级**: P2
 
 ### Task 6.2: 触摸体验优化
-- [ ] 确保所有按钮>=44px
-- [ ] 增加padding提升可点击区域
-- [ ] 优化mobile-top-dock滚动
+- [x] 确保所有按钮>=44px
+- [x] 增加padding提升可点击区域
+- [x] 优化mobile-top-dock滚动
 - [ ] 测试真机触摸响应
 
 **估时**: 2h  
