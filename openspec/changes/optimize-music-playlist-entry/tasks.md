@@ -13,5 +13,5 @@
 ## 3. Verification and delivery
 
 - [x] 3.1 Run applicable backend tests, complete frontend tests, production build and strict OpenSpec validation; record verification evidence. Two pre-existing author-page test groups are documented in verification-report.md; all remaining 1644 tests and affected music/backend checks pass.
-- [ ] 3.2 Commit and integrate only this change into remote master, preserving unrelated local work and excluding the frontend optimization branch.
+- [x] 3.2 Commit and integrate only this change into remote master, preserving unrelated local work and excluding the frontend optimization branch. Implementation dee4f348 fast-forwarded from origin/master; primary checkout preserved as codex/local-master-frontend-20261011.
 - [ ] 3.3 Push master, deploy to the personal server through the guarded workflow and verify production health and deployed behavior.
