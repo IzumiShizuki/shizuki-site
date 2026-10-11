@@ -1908,24 +1908,35 @@ button.author-info-item:focus-visible {
     top: 0;
     left: 50%;
     width: min(calc(100vw - var(--space-4)), 680px);
-    min-height: 60px;
+    min-height: 64px;
     padding: var(--space-2);
-    border-radius: var(--radius-full);
+    border-radius: var(--radius-3xl);
     display: flex;
     align-items: center;
-    gap: var(--space-1);
+    gap: var(--space-2);
     overflow-x: auto;
+    overflow-y: hidden;
     transform: translateX(-50%);
     pointer-events: auto;
     scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    scroll-behavior: smooth;
 
+    /* Enhanced glassmorphic background */
     background:
+      linear-gradient(135deg,
+        rgba(var(--accent-rgb), 0.06) 0%,
+        transparent 50%),
       var(--gradient-glow),
       var(--glass-bg-gradient),
       var(--surface-elevated);
-    border: 1px solid var(--glass-border-strong);
-    backdrop-filter: var(--glass-backdrop);
-    -webkit-backdrop-filter: var(--glass-backdrop);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    box-shadow:
+      var(--shadow-xl),
+      0 0 40px rgba(var(--accent-rgb), 0.1),
+      inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    backdrop-filter: blur(24px) saturate(150%);
+    -webkit-backdrop-filter: blur(24px) saturate(150%);
   }
 
   .mobile-top-dock::-webkit-scrollbar {
@@ -1933,12 +1944,12 @@ button.author-info-item:focus-visible {
   }
 
   .mobile-top-nav-item {
-    flex: 1 0 48px;
-    min-width: 48px;
-    min-height: 48px;
+    flex: 0 0 auto;
+    min-width: 52px;
+    min-height: 52px;
     border: 0;
     border-radius: var(--radius-full);
-    padding: 0 var(--space-3);
+    padding: 0 var(--space-4);
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -1946,31 +1957,78 @@ button.author-info-item:focus-visible {
     color: var(--text-primary);
     background: transparent;
     font: inherit;
-    font-size: var(--text-xs);
-    font-weight: var(--font-weight-semibold);
+    font-size: var(--text-sm);
+    font-weight: var(--font-semibold);
     cursor: pointer;
     touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
     transition:
-      background-color var(--duration-fast) var(--ease-smooth),
-      border-color var(--duration-fast) var(--ease-smooth),
-      color var(--duration-fast) var(--ease-smooth),
-      box-shadow var(--duration-fast) var(--ease-smooth),
-      transform var(--duration-fast) var(--ease-smooth);
+      background-color var(--duration-base) var(--ease-smooth),
+      border-color var(--duration-base) var(--ease-smooth),
+      color var(--duration-base) var(--ease-smooth),
+      box-shadow var(--duration-base) var(--ease-smooth),
+      transform var(--duration-base) var(--ease-smooth);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .mobile-top-nav-item::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: linear-gradient(135deg,
+      rgba(var(--accent-rgb), 0.12),
+      transparent 60%);
+    opacity: 0;
+    transition: opacity var(--duration-fast) var(--ease-smooth);
+  }
+
+  .mobile-top-nav-item:active {
+    transform: scale(0.95);
   }
 
   .mobile-top-nav-item:hover {
     background: var(--interactive-hover);
   }
 
+  .mobile-top-nav-item:hover::before {
+    opacity: 0.5;
+  }
+
   .mobile-top-nav-item.active {
     color: var(--accent-surface-text);
-    background: var(--accent-fill-strong);
-    border: 1px solid var(--accent-border);
-    box-shadow: var(--shadow-accent-sm);
+    background:
+      linear-gradient(135deg,
+        rgba(var(--accent-rgb), 0.95) 0%,
+        rgba(var(--accent-rgb), 0.85) 100%),
+      linear-gradient(180deg,
+        rgba(255, 255, 255, 0.15) 0%,
+        transparent 100%);
+    border: 1px solid rgba(var(--accent-rgb), 0.5);
+    box-shadow:
+      var(--shadow-accent-md),
+      0 0 20px rgba(var(--accent-rgb), 0.3),
+      inset 0 1px 0 rgba(255, 255, 255, 0.25);
+    transform: scale(1.02);
+  }
+
+  .mobile-top-nav-item.active::after {
+    content: '';
+    position: absolute;
+    inset: -3px;
+    border-radius: inherit;
+    background: radial-gradient(
+      circle at 50% 50%,
+      rgba(var(--accent-rgb), 0.3),
+      transparent 70%
+    );
+    filter: blur(8px);
+    z-index: -1;
   }
 
   .mobile-top-nav-item:focus-visible {
-    outline: 2px solid var(--accent-base);
+    outline: 2px solid rgba(var(--accent-rgb), 0.6);
     outline-offset: 2px;
   }
 
