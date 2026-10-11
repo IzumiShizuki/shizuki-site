@@ -880,72 +880,88 @@ onBeforeUnmount(() => {
   transition: all 620ms var(--elastic);
   animation: disc-spin 3s linear infinite;
   animation-play-state: paused;
+  will-change: transform;
 
-  /* Enhanced vinyl texture with warm tones */
+  /* Enhanced vinyl texture with realistic grooves */
   background:
-    /* Highlight spot */
+    /* Highlight spot - simulating light reflection */
     radial-gradient(
       circle at 28% 25%,
-      rgba(255, 255, 255, 0.12),
-      transparent 45%
+      rgba(255, 255, 255, 0.18),
+      rgba(255, 255, 255, 0.08) 30%,
+      transparent 50%
     ),
-    /* Center label gradient */
+    /* Center label gradient with warmth */
     radial-gradient(
       circle at 50% 50%,
-      rgba(255, 200, 180, 0.15) 0%,
-      rgba(40, 35, 30, 0.95) 32%,
+      rgba(255, 200, 180, 0.2) 0%,
+      rgba(60, 50, 45, 0.95) 28%,
+      rgba(40, 35, 30, 0.98) 32%,
       transparent 38%
     ),
-    /* Grooves - concentric rings */
+    /* Fine grooves - more realistic spacing */
     repeating-radial-gradient(
       circle at 50% 50%,
-      rgba(0, 0, 0, 0.08) 0px,
-      rgba(255, 255, 255, 0.02) 1px,
-      rgba(0, 0, 0, 0.08) 2px
+      rgba(0, 0, 0, 0.12) 0px,
+      rgba(255, 255, 255, 0.03) 0.5px,
+      rgba(0, 0, 0, 0.12) 1px,
+      rgba(0, 0, 0, 0.08) 1.5px
     ),
-    /* Conic gradient for depth */
+    /* Conic gradient for vinyl sheen */
     conic-gradient(
       from 0deg,
-      rgba(0, 0, 0, 0.06) 0deg,
-      rgba(255, 255, 255, 0.04) 90deg,
-      rgba(0, 0, 0, 0.06) 180deg,
-      rgba(255, 255, 255, 0.04) 270deg,
-      rgba(0, 0, 0, 0.06) 360deg
+      rgba(0, 0, 0, 0.08) 0deg,
+      rgba(255, 255, 255, 0.06) 90deg,
+      rgba(0, 0, 0, 0.08) 180deg,
+      rgba(255, 255, 255, 0.06) 270deg,
+      rgba(0, 0, 0, 0.08) 360deg
     ),
-    /* Base color */
+    /* Subtle outer ring highlight */
+    radial-gradient(
+      circle at 50% 50%,
+      transparent 85%,
+      rgba(255, 255, 255, 0.04) 90%,
+      rgba(0, 0, 0, 0.1) 95%,
+      transparent 100%
+    ),
+    /* Base vinyl black */
     #1A1614;
 
   box-shadow:
-    /* Outer rim */
-    0 0 0 2px rgba(255, 255, 255, 0.06),
-    /* Elevation shadow */
-    0 8px 24px rgba(0, 0, 0, 0.32),
-    /* Inner highlight */
-    inset 0 1px 2px rgba(255, 255, 255, 0.08),
-    /* Inner shadow */
-    inset 0 -2px 4px rgba(0, 0, 0, 0.24);
+    /* Outer rim with subtle color */
+    0 0 0 2px rgba(255, 255, 255, 0.08),
+    /* Elevation shadow for depth */
+    0 8px 24px rgba(0, 0, 0, 0.4),
+    0 4px 12px rgba(0, 0, 0, 0.3),
+    /* Inner highlight on top edge */
+    inset 0 1px 3px rgba(255, 255, 255, 0.1),
+    /* Inner shadow on bottom edge */
+    inset 0 -2px 6px rgba(0, 0, 0, 0.3);
 }
 
 .player-card.active .cover-vinyl {
   width: 244px;
   height: 244px;
   box-shadow:
-    /* Label ring */
-    inset 0 0 0 3px rgba(20, 18, 16, 0.95),
-    /* Label area */
-    inset 0 0 0 68px rgba(15, 13, 11, 0.85),
-    /* Label edge highlight */
-    inset 0 0 0 70px rgba(255, 200, 180, 0.12),
-    /* Outer edge */
-    0 0 0 2px rgba(255, 255, 255, 0.08),
-    /* Deep shadow */
-    0 16px 48px rgba(0, 0, 0, 0.36),
-    /* Soft glow */
-    0 0 32px rgba(var(--accent-rgb), 0.08);
+    /* Label ring - distinct separation */
+    inset 0 0 0 3px rgba(20, 18, 16, 0.98),
+    /* Label area - rich dark tone */
+    inset 0 0 0 68px rgba(15, 13, 11, 0.9),
+    /* Label edge highlight - warm glow */
+    inset 0 0 0 70px rgba(255, 200, 180, 0.15),
+    /* Label texture */
+    inset 0 0 20px 68px rgba(0, 0, 0, 0.2),
+    /* Outer edge enhancement */
+    0 0 0 2px rgba(255, 255, 255, 0.1),
+    /* Deep elevation shadow */
+    0 16px 48px rgba(0, 0, 0, 0.45),
+    0 8px 24px rgba(0, 0, 0, 0.35),
+    /* Soft accent glow */
+    0 0 40px rgba(var(--accent-rgb), 0.12);
 }
 
 .cover-vinyl.expanded {
-  /* Subtle pulsing when expanded */
+  /* Subtle pulsing and rotation when expanded */
   animation: disc-spin 3s linear infinite, vinyl-breathe 4s ease-in-out infinite;
 }
 
@@ -965,8 +981,9 @@ onBeforeUnmount(() => {
   inset: 28%;
   border-radius: var(--radius-full);
   box-shadow:
-    0 0 0 1px rgba(255, 255, 255, 0.08),
-    0 2px 8px rgba(0, 0, 0, 0.2);
+    0 0 0 1px rgba(255, 255, 255, 0.12),
+    0 2px 12px rgba(0, 0, 0, 0.3),
+    inset 0 1px 2px rgba(255, 255, 255, 0.1);
 }
 
 /* Center Hole */
@@ -979,22 +996,39 @@ onBeforeUnmount(() => {
   height: 18px;
   border-radius: var(--radius-full);
   background:
+    /* Inner darkness */
     radial-gradient(
       circle,
-      rgba(0, 0, 0, 0.95) 0%,
-      rgba(40, 35, 30, 0.85) 100%
+      rgba(0, 0, 0, 1) 0%,
+      rgba(0, 0, 0, 0.95) 40%,
+      rgba(40, 35, 30, 0.9) 80%,
+      rgba(60, 50, 45, 0.8) 100%
     );
-  border: 1px solid rgba(0, 0, 0, 0.7);
+  border: 1px solid rgba(0, 0, 0, 0.8);
   box-shadow:
-    inset 0 1px 2px rgba(0, 0, 0, 0.8),
-    0 1px 2px rgba(255, 255, 255, 0.1);
+    /* Deep inset shadow */
+    inset 0 2px 4px rgba(0, 0, 0, 0.9),
+    inset 0 -1px 2px rgba(0, 0, 0, 0.7),
+    /* Subtle outer highlight */
+    0 1px 2px rgba(255, 255, 255, 0.15),
+    /* Rim glow */
+    0 0 4px rgba(0, 0, 0, 0.5);
   z-index: 3;
   transition: all 620ms var(--elastic);
+  will-change: transform;
 }
 
 .player-card.active .center-hole {
   width: 24px;
   height: 24px;
+  box-shadow:
+    /* Deeper inset shadow when larger */
+    inset 0 3px 6px rgba(0, 0, 0, 0.95),
+    inset 0 -2px 4px rgba(0, 0, 0, 0.8),
+    /* Enhanced outer highlight */
+    0 2px 4px rgba(255, 255, 255, 0.2),
+    /* Stronger rim glow */
+    0 0 6px rgba(0, 0, 0, 0.6);
 }
 
 /* ========================================
@@ -1285,19 +1319,41 @@ onBeforeUnmount(() => {
   letter-spacing: 0.05em;
 }
 
-/* Spin Animations */
+/* Spin Animations - Optimized for Performance */
 .cover-vinyl.spinning {
   animation-play-state: running;
 }
 
 @keyframes disc-spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 @keyframes vinyl-breathe {
-  0%, 100% { filter: brightness(1); }
-  50% { filter: brightness(1.05); }
+  0%, 100% {
+    filter: brightness(1) contrast(1);
+  }
+  50% {
+    filter: brightness(1.06) contrast(1.02);
+  }
+}
+
+/* Disc wrapper hover effects */
+.disc-wrap {
+  transition: transform var(--duration-base) var(--ease-smooth);
+  will-change: transform;
+}
+
+.disc-wrap:hover {
+  transform: scale(1.03);
+}
+
+.player-card.active .disc-wrap:hover {
+  transform: scale(1.01);
 }
 
 /* ========================================
@@ -1335,24 +1391,28 @@ onBeforeUnmount(() => {
   height: var(--pause-btn-size);
   border: 0;
   border-radius: var(--radius-full);
-  background: linear-gradient(
-    135deg,
-    var(--accent-soft),
-    var(--accent-base)
-  );
+  background:
+    linear-gradient(135deg,
+      rgba(var(--accent-rgb), 1) 0%,
+      rgba(var(--accent-rgb), 0.85) 100%),
+    linear-gradient(180deg,
+      rgba(255, 255, 255, 0.15) 0%,
+      transparent 100%);
   color: var(--accent-surface-text);
   font-size: var(--text-2xl);
   cursor: pointer;
-  transition: all var(--duration-fast) var(--smooth);
+  transition: all var(--duration-base) var(--ease-smooth);
   display: flex;
   align-items: center;
   justify-content: center;
   box-shadow:
     var(--shadow-lg),
-    var(--glow-soft);
-  border: 1px solid rgba(var(--accent-rgb), 0.4);
+    0 0 24px rgba(var(--accent-rgb), 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  border: 1px solid rgba(var(--accent-rgb), 0.5);
   position: relative;
   overflow: hidden;
+  will-change: transform;
 }
 
 .pause-btn::before {
@@ -1361,22 +1421,43 @@ onBeforeUnmount(() => {
   inset: 0;
   background: radial-gradient(
     circle at 50% 0%,
-    rgba(255, 255, 255, 0.2),
+    rgba(255, 255, 255, 0.25),
     transparent 70%
   );
-  opacity: 0.8;
+  opacity: 1;
   transition: opacity var(--duration-fast);
 }
 
+.pause-btn::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: inherit;
+  background: radial-gradient(
+    circle at 50% 50%,
+    rgba(var(--accent-rgb), 0.4),
+    transparent 70%
+  );
+  filter: blur(12px);
+  opacity: 0;
+  transition: opacity var(--duration-base) var(--ease-smooth);
+  z-index: -1;
+}
+
 .pause-btn:hover {
-  transform: translateY(-3px) scale(1.05);
+  transform: translateY(-4px) scale(1.08);
   box-shadow:
     var(--shadow-xl),
-    var(--glow-md);
+    0 0 32px rgba(var(--accent-rgb), 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+
+.pause-btn:hover::after {
+  opacity: 1;
 }
 
 .pause-btn:active {
-  transform: translateY(-1px) scale(1);
+  transform: translateY(-2px) scale(1.02);
 }
 
 /* ========================================
