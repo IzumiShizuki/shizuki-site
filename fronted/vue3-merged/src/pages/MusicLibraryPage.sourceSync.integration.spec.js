@@ -1050,7 +1050,7 @@ describe('MusicLibraryPage stored Folia account entry integration', () => {
     }
   });
 
-  it('expands the current queue through a late duplicate and continues paging forward', async () => {
+  it('expands the current queue through a late duplicate only on explicit location', async () => {
     const tracks = Array.from({ length: 1000 }, (_, index) => ({
       id: index === 12 || index === 869 ? 'duplicate-42' : `track-${index}`,
       trackId: index === 12 || index === 869 ? '42' : `track-${index}`,
@@ -1070,6 +1070,8 @@ describe('MusicLibraryPage stored Folia account entry integration', () => {
     const wrapper = await mountPage({ teleport: true });
     try {
       const context = wrapper.vm.$.provides[MUSIC_LIBRARY_CONTEXT_KEY];
+      expect(context.currentPlaylistTracks.value).toHaveLength(100);
+      await context.revealCurrentPlaylistTrack();
       expect(context.currentPlaylistTracks.value).toHaveLength(870);
       expect(context.currentPlaylistTracks.value[869].queueEntryId).toBe('queue-entry-869');
       expect(context.currentPlaylistHasMore.value).toBe(true);
@@ -1081,7 +1083,99 @@ describe('MusicLibraryPage stored Folia account entry integration', () => {
     }
   });
 
-  it('returns a changed Folia song to the same real playlist and signals a fresh row reveal', async () => {
+  it('opens one account page while the unrelated library is pending, appends and retries without duplicating the first request', async () => {
+    window.localStorage.removeItem('online_provider:netease:cookie');
+    mocked.route = reactive({
+      name: 'music-library-playlist', path: '/music-library/playlist/account_netease_5',
+      fullPath: '/music-library/playlist/account_netease_5', query: {}, params: { playlistCode: 'account_netease_5' }, meta: {}
+    });
+    const firstPage = deferred();
+    const catalog = deferred();
+    mocked.api.getMyMusicLibrarySidebar.mockReturnValue(catalog.promise);
+    mocked.api.getPlaylistBundleByCode.mockReturnValueOnce(firstPage.promise);
+    const wrapper = await mountPage();
+    try {
+      const context = wrapper.vm.$.provides[MUSIC_LIBRARY_CONTEXT_KEY];
+      expect(mocked.api.getPlaylistBundleByCode).toHaveBeenCalledTimes(1);
+      expect(mocked.api.getPlaylistBundleByCode).toHaveBeenCalledWith('account_netease_5', expect.any(Function), { offset: 0, limit: 100 });
+      const first = Array.from({ length: 100 }, (_, index) => ({ id: String(index), provider: 'netease' }));
+      firstPage.resolve({ profile: { playlistCode: 'account_netease_5', trackCount: 205 }, tracks: first });
+      await flushPromises();
+      expect(context.currentPlaylistAllTracks.value).toHaveLength(100);
+      expect(context.currentPlaylistLoading.value).toBe(false);
+      expect(context.currentPlaylistHasMore.value).toBe(true);
+      mocked.api.getPlaylistBundleByCode.mockRejectedValueOnce(new Error('page failed'));
+      await context.loadMoreCurrentPlaylistTracks();
+      expect(context.currentPlaylistAllTracks.value).toHaveLength(100);
+      expect(context.currentPlaylistError.value).toBe('page failed');
+      mocked.api.getPlaylistBundleByCode.mockResolvedValueOnce({
+        profile: { playlistCode: 'account_netease_5', trackCount: 205 },
+        tracks: first.map((track) => ({ ...track, id: String(Number(track.id) + 100) }))
+      });
+      await context.loadMoreCurrentPlaylistTracks();
+      expect(context.currentPlaylistAllTracks.value).toHaveLength(200);
+      expect(context.currentPlaylistAllTracks.value[100].trackId).toBe('100');
+      expect(mocked.api.getPlaylistBundleByCode).toHaveBeenLastCalledWith('account_netease_5', expect.any(Function), { offset: 100, limit: 100 });
+      expect(context.currentPlaylistError.value).toBe('');
+    } finally {
+      catalog.resolve({});
+      wrapper.unmount();
+      await flushPromises();
+    }
+  });
+
+  it('hands off the complete playlist on playback without expanding or scrolling the browse page', async () => {
+    window.localStorage.removeItem('online_provider:netease:cookie');
+    mocked.route = reactive({
+      name: 'music-library-playlist', path: '/music-library/playlist/account_netease_5',
+      fullPath: '/music-library/playlist/account_netease_5', query: {}, params: { playlistCode: 'account_netease_5' }, meta: {}
+    });
+    const tracks = Array.from({ length: 205 }, (_, index) => ({ id: String(index), provider: 'netease' }));
+    const profile = { playlistCode: 'account_netease_5', name: 'Large playlist', trackCount: 205 };
+    mocked.api.getPlaylistBundleByCode.mockResolvedValueOnce({ profile, tracks: tracks.slice(0, 100) });
+    const wrapper = await mountPage();
+    try {
+      const context = wrapper.vm.$.provides[MUSIC_LIBRARY_CONTEXT_KEY];
+      mocked.api.getPlaylistBundleByCode.mockResolvedValueOnce({ profile, tracks });
+      await context.playTrackInCurrentPlaylist(42);
+      expect(mocked.api.getPlaylistBundleByCode).toHaveBeenLastCalledWith('account_netease_5', expect.any(Function));
+      expect(mocked.player.replaceQueueWithTracks).toHaveBeenCalledWith(expect.any(Array), 42, true, expect.objectContaining({ sourceCode: 'account_netease_5' }));
+      expect(mocked.player.replaceQueueWithTracks.mock.calls[0][0]).toHaveLength(205);
+      expect(context.currentPlaylistTracks.value).toHaveLength(100);
+      expect(context.currentTrackRevealVersion.value).toBe(0);
+    } finally {
+      wrapper.unmount();
+    }
+  });
+
+  it('discards an obsolete appended page after changing playlists', async () => {
+    window.localStorage.removeItem('online_provider:netease:cookie');
+    mocked.route = reactive({
+      name: 'music-library-playlist', path: '/music-library/playlist/account_netease_5',
+      fullPath: '/music-library/playlist/account_netease_5', query: {}, params: { playlistCode: 'account_netease_5' }, meta: {}
+    });
+    const profile = { playlistCode: 'account_netease_5', trackCount: 200 };
+    mocked.api.getPlaylistBundleByCode.mockResolvedValueOnce({ profile, tracks: Array.from({ length: 100 }, (_, i) => ({ id: String(i) })) });
+    const wrapper = await mountPage();
+    try {
+      const context = wrapper.vm.$.provides[MUSIC_LIBRARY_CONTEXT_KEY];
+      const append = deferred();
+      mocked.api.getPlaylistBundleByCode.mockReturnValueOnce(append.promise);
+      const pending = context.loadMoreCurrentPlaylistTracks();
+      mocked.api.getPlaylistBundleByCode.mockResolvedValueOnce({ profile: { playlistCode: 'account_netease_6', trackCount: 1 }, tracks: [{ id: 'new-playlist' }] });
+      mocked.route.params.playlistCode = 'account_netease_6';
+      mocked.route.fullPath = '/music-library/playlist/account_netease_6';
+      await flushPromises();
+      append.resolve({ profile, tracks: [{ id: 'obsolete-append' }] });
+      await pending;
+      expect(context.currentPlaylistProfile.value.playlistCode).toBe('account_netease_6');
+      expect(context.currentPlaylistAllTracks.value.map((track) => track.trackId)).toEqual(['new-playlist']);
+    } finally {
+      wrapper.unmount();
+    }
+  });
+
+  it('returns a changed Folia song to the same real playlist without forcing row location', async () => {
     const tracks = [
       { id: 'default_public-first', trackId: 'default_public-first', provider: 'netease', queueEntryId: 'p1-entry-a', title: 'P1 A' },
       { id: 'default_public-second', trackId: 'default_public-second', provider: 'netease', queueEntryId: 'p1-entry-b', title: 'P1 B' }
@@ -1125,7 +1219,7 @@ describe('MusicLibraryPage stored Folia account entry integration', () => {
       expect(mocked.router.push).toHaveBeenCalledWith({
         name: 'music-library-playlist', params: { playlistCode: 'default_public' }
       });
-      expect(context.currentTrackRevealVersion.value).toBeGreaterThan(initialRevealVersion);
+      expect(context.currentTrackRevealVersion.value).toBe(initialRevealVersion);
     } finally {
       wrapper.unmount();
     }

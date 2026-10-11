@@ -97,8 +97,12 @@ public class MusicController {
     @GetMapping("/playlists/{playlistCode}/bundle")
     @RateLimit(key = "music.playlist.bundle", limit = 60, windowSeconds = 60)
     @Operation(summary = "按歌单编码查询歌单聚合", description = "公开歌单可游客访问，私有歌单仅所有者可访问")
-    public ApiResponse<MusicPlaylistBundleResponse> playlistBundle(@PathVariable("playlistCode") String playlistCode) {
-        return ApiResponse.success(mediaService.getMusicPlaylistBundle(playlistCode));
+    public ApiResponse<MusicPlaylistBundleResponse> playlistBundle(@PathVariable("playlistCode") String playlistCode,
+                                                                  @RequestParam(value = "offset", required = false) Integer offset,
+                                                                  @RequestParam(value = "limit", required = false) Integer limit) {
+        return ApiResponse.success(offset == null && limit == null
+            ? mediaService.getMusicPlaylistBundle(playlistCode)
+            : mediaService.getMusicPlaylistPage(playlistCode, offset == null ? 0 : offset, limit == null ? 100 : limit));
     }
 
     @GetMapping("/search")

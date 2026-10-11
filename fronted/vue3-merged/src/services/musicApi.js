@@ -64,12 +64,13 @@ export async function searchMusic(query, options = {}, authorizedFetch) {
   return unwrapApiResponse(response);
 }
 
-export async function getPlaylistBundleByCode(playlistCode, authorizedFetch) {
+export async function getPlaylistBundleByCode(playlistCode, authorizedFetch, page) {
   const code = String(playlistCode || '').trim();
   if (!code) {
     throw new Error('playlistCode is required');
   }
-  const path = `/api/v1/music/playlists/${encodeURIComponent(code)}/bundle`;
+  const query = page ? `?${new URLSearchParams({ offset: String(page.offset ?? 0), limit: String(page.limit ?? 100) })}` : '';
+  const path = `/api/v1/music/playlists/${encodeURIComponent(code)}/bundle${query}`;
   const response = typeof authorizedFetch === 'function'
     ? await authorizedFetch(path, { method: 'GET' })
     : await httpRequest(path, { method: 'GET' });

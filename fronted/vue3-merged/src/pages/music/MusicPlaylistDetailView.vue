@@ -24,6 +24,10 @@
             <i class="fas fa-table-cells-large"></i>
             Folia 播放
           </button>
+          <button class="hero-btn locate-current-track-btn ripple-trigger" type="button" @click="locateCurrentTrack" :disabled="!canLocateCurrentTrack">
+            <i class="fas fa-location-crosshairs"></i>
+            定位当前歌曲
+          </button>
           <button v-if="!isQueueView" class="hero-btn ripple-trigger" type="button" @click="music.reloadCurrentPlaylist" :disabled="music.currentPlaylistLoading.value">
             <i class="fas fa-rotate-right"></i>
             刷新
@@ -132,22 +136,14 @@ const isQueueView = computed(() => route.name === 'music-library-queue');
 const profile = computed(() => music.currentPlaylistProfile.value || { name: '', description: '', cover: '' });
 const allTracks = computed(() => (Array.isArray(music.currentPlaylistAllTracks?.value) ? music.currentPlaylistAllTracks.value : []));
 const visibleTracks = computed(() => (Array.isArray(music.currentPlaylistTracks.value) ? music.currentPlaylistTracks.value : []));
+const revealedTrackCount = ref(0);
 const renderTracks = computed(() => {
   if (!allTracks.value.length) return visibleTracks.value;
-  const currentIndex = resolveCurrentTrackIndex();
   const visibleCount = visibleTracks.value.length || Math.min(allTracks.value.length, 100);
-  if (currentIndex >= visibleCount) return allTracks.value.slice(0, currentIndex + 1);
-  return visibleTracks.value.length > 0 ? visibleTracks.value : allTracks.value.slice(0, visibleCount);
+  return allTracks.value.slice(0, Math.max(visibleCount, revealedTrackCount.value));
 });
 const currentPlayingTrack = computed(() => music.player.currentTrack.value);
-const currentTrackIdentity = computed(() => {
-  const current = currentPlayingTrack.value;
-  const entryId = String(current?.queueEntryId || '').trim();
-  const baseIdentity = entryId
-    ? `entry:${entryId}`
-    : `track:${String(current?.provider || '').trim().toLowerCase()}:${resolveTrackId(current)}`;
-  return `${baseIdentity}:${resolveCurrentTrackIndex()}`;
-});
+const canLocateCurrentTrack = computed(() => music.canRevealCurrentPlaylistTrack?.value ?? resolveCurrentTrackIndex() >= 0);
 const currentTrackRowRef = ref(null);
 const totalTrackCount = computed(() => {
   const profileCount = Number(profile.value?.trackCount || 0);
@@ -244,23 +240,38 @@ function setCurrentTrackRow(element) {
   if (element) currentTrackRowRef.value = element;
 }
 
-function revealCurrentTrack() {
-  nextTick(() => currentTrackRowRef.value?.scrollIntoView?.({ block: 'center' }));
+async function revealCurrentTrack() {
+  const index = resolveCurrentTrackIndex();
+  if (index < 0) return;
+  revealedTrackCount.value = Math.max(revealedTrackCount.value, index + 1);
+  await nextTick();
+  currentTrackRowRef.value?.scrollIntoView?.({ block: 'center' });
+}
+
+async function locateCurrentTrack() {
+  if (typeof music.revealCurrentPlaylistTrack === 'function') {
+    await music.revealCurrentPlaylistTrack();
+  } else {
+    await revealCurrentTrack();
+  }
 }
 
 watch(
-  [() => currentTrackIdentity.value, () => renderTracks.value.length, () => music.currentTrackRevealVersion?.value || 0],
-  revealCurrentTrack,
-  { immediate: true }
+  () => music.currentTrackRevealVersion?.value || 0,
+  revealCurrentTrack
 );
 
-function openFoliaPlaylist() {
+async function openFoliaPlaylist() {
   if (typeof window === 'undefined' || !allTracks.value.length) return;
+  const playlist = typeof music.prepareCurrentPlaylistForPlayback === 'function'
+    ? await music.prepareCurrentPlaylistForPlayback()
+    : { tracks: allTracks.value, profile: profile.value };
+  if (!playlist) return;
   window.dispatchEvent(new CustomEvent('shizuki:open-folia-lattice', {
     detail: {
       view: 'lattice',
-      tracks: allTracks.value,
-      playlist: profile.value,
+      tracks: playlist.tracks,
+      playlist: playlist.profile,
       ...(isQueueView.value && music.player.queueSourceContext?.value
         ? { sourceContext: music.player.queueSourceContext.value }
         : {})
