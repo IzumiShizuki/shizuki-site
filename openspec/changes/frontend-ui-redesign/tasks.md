@@ -84,20 +84,20 @@
 ## Phase 3: 音乐播放器美化
 
 ### Task 3.1: 唱片封面vinyl质感
-- [ ] 重新设计.cover-vinyl背景渐变
-- [ ] 添加真实vinyl同心圆纹理
-- [ ] 优化中心孔.center-hole样式
-- [ ] 增加高光和阴影层次
+- [x] 重新设计.cover-vinyl背景渐变
+- [x] 添加真实vinyl同心圆纹理
+- [x] 优化中心孔.center-hole样式
+- [x] 增加高光和阴影层次
 
 **文件**: `MusicPlayer.vue`  
 **估时**: 2h  
 **优先级**: P1
 
 ### Task 3.2: 旋转动画优化
-- [ ] 调整vinyl-spin animation timing
-- [ ] 添加will-change优化
-- [ ] 优化expanded状态过渡
-- [ ] 改进disc-wrap hover效果
+- [x] 调整vinyl-spin animation timing
+- [x] 添加will-change优化
+- [x] 优化expanded状态过渡
+- [x] 改进disc-wrap hover效果
 
 **文件**: `MusicPlayer.vue`  
 **估时**: 1h  
@@ -124,10 +124,10 @@
 **优先级**: P1
 
 ### Task 3.5: 播放控制按钮美化
-- [ ] 重新设计.pause-btn样式
+- [x] 重新设计.pause-btn样式
 - [ ] 优化.edge-btn布局
 - [ ] 改进.mode-btn和.mini-action样式
-- [ ] 统一ripple effect
+- [x] 统一ripple effect
 
 **文件**: `MusicPlayer.vue`  
 **估时**: 1h  
