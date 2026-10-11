@@ -2,12 +2,18 @@
   <section class="author-about-experience" data-author-about-layout="shared-shell" aria-label="作者公开内容">
     <div class="author-about-center">
       <section id="author-section-about" class="author-about-section author-about-section--intro" data-author-section="about">
-        <AuthorAboutOverview
+        <AuthorAboutOverviewPremium
           :hero="profile.profileJson?.hero || {}"
           :identity="profile.profileJson?.identity || {}"
           :skills="profile.profileJson?.skills || []"
           :enabled="profile.enabled !== false"
           :portals="portals"
+          :stats="{
+            posts: profile.profileJson?.stats?.posts || 0,
+            projects: profile.profileJson?.stats?.projects || 0,
+            tags: profile.profileJson?.stats?.tags || 0,
+            views: profile.profileJson?.stats?.views || 0
+          }"
           @select-portal="$emit('select-portal', $event)"
         />
         <AuthorAboutStoryColumn
@@ -90,7 +96,7 @@
 </template>
 
 <script setup>
-import AuthorAboutOverview from './AuthorAboutOverview.vue';
+import AuthorAboutOverviewPremium from './AuthorAboutOverviewPremium.vue';
 import AuthorAboutStoryColumn from './AuthorAboutStoryColumn.vue';
 import AuthorLifeCardRail from './AuthorLifeCardRail.vue';
 import AuthorPublicPostsColumn from './AuthorPublicPostsColumn.vue';
