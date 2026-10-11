@@ -29,41 +29,41 @@
 ## Phase 2: TopMenu导航优化
 
 ### Task 2.1: 左侧主导航pill group重设计
-- [ ] 优化.left-pill-group背景渐变
-- [ ] 重新设计.left-main-btn激活状态
-- [ ] 改进hover微动效
-- [ ] 调整gap和padding使用新spacing scale
-- [ ] 优化active indicator过渡动画
+- [x] 优化.left-pill-group背景渐变
+- [x] 重新设计.left-main-btn激活状态
+- [x] 改进hover微动效
+- [x] 调整gap和padding使用新spacing scale
+- [x] 优化active indicator过渡动画
 
 **文件**: `TopMenu.vue`  
 **估时**: 2h  
 **优先级**: P1
 
 ### Task 2.2: 中心操作区优化
-- [ ] 重新设计.circle-icon-box样式
-- [ ] 优化menu-hub-box状态指示点
-- [ ] 改进hover lift效果
-- [ ] 统一所有圆形按钮尺寸和间距
+- [x] 重新设计.circle-icon-box样式
+- [x] 优化menu-hub-box状态指示点
+- [x] 改进hover lift效果
+- [x] 统一所有圆形按钮尺寸和间距
 
 **文件**: `TopMenu.vue`  
 **估时**: 1.5h  
 **优先级**: P1
 
 ### Task 2.3: 右侧用户区精致化
-- [ ] 优化头像边框和阴影
-- [ ] 改进author-avatar-box样式
-- [ ] 重新设计route-active状态
-- [ ] 增加subtle hover动效
+- [x] 优化头像边框和阴影
+- [x] 改进author-avatar-box样式
+- [x] 重新设计route-active状态
+- [x] 增加subtle hover动效
 
 **文件**: `TopMenu.vue`  
 **估时**: 1h  
 **优先级**: P1
 
 ### Task 2.4: appearance-popover弹窗美化
-- [ ] 优化弹窗背景和边框
-- [ ] 重新设计segment按钮样式
-- [ ] 改进color picker控件
-- [ ] 优化进入/退出动画
+- [x] 优化弹窗背景和边框
+- [x] 重新设计segment按钮样式
+- [x] 改进color picker控件
+- [x] 优化进入/退出动画
 
 **文件**: `TopMenu.vue`  
 **估时**: 1.5h  
