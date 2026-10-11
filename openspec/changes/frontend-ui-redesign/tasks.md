@@ -104,20 +104,20 @@
 **优先级**: P1
 
 ### Task 3.3: 歌词窗口精致化
-- [ ] 重新设计lyrics-window布局
-- [ ] 优化字体大小和行高
-- [ ] 改进歌词translation样式
-- [ ] 增加current lyric高亮效果
+- [x] 重新设计lyrics-window布局
+- [x] 优化字体大小和行高
+- [x] 改进歌词translation样式
+- [x] 增加current lyric高亮效果
 
 **文件**: `MusicPlayer.vue`  
 **估时**: 1.5h  
 **优先级**: P1
 
 ### Task 3.4: 进度条enhancement
-- [ ] 添加进度抓手圆点
-- [ ] 优化progress-preview样式
-- [ ] 改进hover状态
-- [ ] 增加keyboard navigation支持
+- [x] 添加进度抓手圆点
+- [x] 优化progress-preview样式
+- [x] 改进hover状态
+- [x] 增加keyboard navigation支持
 
 **文件**: `MusicPlayer.vue`  
 **估时**: 1.5h  
@@ -125,8 +125,8 @@
 
 ### Task 3.5: 播放控制按钮美化
 - [x] 重新设计.pause-btn样式
-- [ ] 优化.edge-btn布局
-- [ ] 改进.mode-btn和.mini-action样式
+- [x] 优化.edge-btn布局
+- [x] 改进.mode-btn和.mini-action样式
 - [x] 统一ripple effect
 
 **文件**: `MusicPlayer.vue`  
