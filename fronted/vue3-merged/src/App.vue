@@ -3362,6 +3362,11 @@ onBeforeUnmount(() => {
 });
 </script>
 
+<style>
+/* Import design system first */
+@import './styles/design-system.css';
+</style>
+
 <style scoped>
 .app-shell {
   position: relative;

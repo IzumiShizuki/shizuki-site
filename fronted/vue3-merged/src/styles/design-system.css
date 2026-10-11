@@ -1,239 +1,174 @@
 /**
- * Shizuki Site Design System
- * Version: 2.0 - Complete Redesign
- *
- * Design Philosophy: 温馨、柔软、流动
- * - 温馨: 如同温暖的夕阳，柔和的烛光
- * - 柔软: 圆润的形态，如同云朵般舒适
- * - 流动: 优雅的过渡，如同水面的涟漪
+ * Design System - 设计系统变量
+ * 统一定义颜色、间距、字体、圆角、阴影等设计 token
  */
 
 :root {
-  /* ========================================
-     Color System - Warm & Cozy Palette
-     ======================================== */
+  /* ============================================================
+     Color Palette - 颜色系统
+     ============================================================ */
 
-  /* Primary Accent - Warm Coral Sunset */
-  --accent-base: #FFB4A2;
-  --accent-soft: #FFCFC2;
-  --accent-strong: #FF9980;
-  --accent-vivid: #FF7E63;
-  --accent-deep: #E8705A;
-  --accent-rgb: 255, 180, 162; /* for rgba() usage */
-  --accent-strong-rgb: 255, 153, 128;
+  /* Accent colors - 主题色 */
+  --accent-rgb: 59, 130, 246; /* blue-500 */
+  --accent-light-rgb: 147, 197, 253; /* blue-300 */
+  --accent-dark-rgb: 29, 78, 216; /* blue-700 */
 
-  /* Secondary Accent - Peachy Cream */
-  --secondary-base: #FFDAB9;
-  --secondary-soft: #FFE7CC;
-  --secondary-strong: #FFCA9A;
-  --secondary-rgb: 255, 218, 185;
+  /* Semantic colors */
+  --success-rgb: 34, 197, 94; /* green-500 */
+  --warning-rgb: 251, 146, 60; /* orange-400 */
+  --error-rgb: 239, 68, 68; /* red-500 */
+  --info-rgb: 14, 165, 233; /* sky-500 */
 
-  /* Secondary Accent - Peachy Cream */
-  --secondary-base: #FFDAB9;
-  --secondary-soft: #FFE7CC;
-  --secondary-strong: #FFCA9A;
-  --secondary-rgb: 255, 218, 185;
+  /* Neutral grays */
+  --gray-50: #f9fafb;
+  --gray-100: #f3f4f6;
+  --gray-200: #e5e7eb;
+  --gray-300: #d1d5db;
+  --gray-400: #9ca3af;
+  --gray-500: #6b7280;
+  --gray-600: #4b5563;
+  --gray-700: #374151;
+  --gray-800: #1f2937;
+  --gray-900: #111827;
+  --gray-950: #030712;
 
-  /* Neutral Colors - Warm Night Mode (Default) */
-  --neutral-950: #1A1412;  /* Darkest - warm black */
-  --neutral-900: #252018;  /* Very dark - warm charcoal */
-  --neutral-800: #2F2820;  /* Dark - warm brown-grey */
-  --neutral-700: #3D342A;  /* Medium dark */
-  --neutral-600: #544939;  /* Medium */
-  --neutral-500: #6E5F4D;  /* Medium light */
-  --neutral-400: #8A7A66;  /* Light medium */
-  --neutral-300: #AFA193;  /* Light */
-  --neutral-200: #CFC4B8;  /* Very light */
-  --neutral-100: #E8E2DA;  /* Almost white - cream */
-  --neutral-50: #F7F3EE;   /* Lightest - warm white */
+  /* ============================================================
+     Typography Scale - 字体排版
+     ============================================================ */
 
-  /* Status Colors - Warm & Friendly */
-  --color-success: #7DD3C0;  /* Soft mint */
-  --color-warning: #FFD16E;  /* Warm gold */
-  --color-error: #FF8B94;    /* Soft coral red */
-  --color-info: #96B8E8;     /* Soft sky blue */
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif;
+  --font-serif: Georgia, Cambria, 'Times New Roman', Times, serif;
+  --font-mono: ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, monospace;
 
-  /* ========================================
-     Semantic Tokens (Night Mode)
-     ======================================== */
+  /* Font sizes */
+  --text-xs: 0.75rem;      /* 12px */
+  --text-sm: 0.875rem;     /* 14px */
+  --text-base: 1rem;       /* 16px */
+  --text-lg: 1.125rem;     /* 18px */
+  --text-xl: 1.25rem;      /* 20px */
+  --text-2xl: 1.5rem;      /* 24px */
+  --text-3xl: 1.875rem;    /* 30px */
+  --text-4xl: 2.25rem;     /* 36px */
+  --text-5xl: 3rem;        /* 48px */
+  --text-6xl: 3.75rem;     /* 60px */
+  --text-7xl: 4.5rem;      /* 72px */
 
-  /* Surface Colors - Warm Layers */
-  --surface-base: var(--neutral-950);
-  --surface-elevated: var(--neutral-900);
-  --surface-overlay: var(--neutral-800);
-  --surface-soft: rgba(255, 255, 255, 0.05);
-  --surface-hover: rgba(255, 255, 255, 0.08);
+  /* Font weights */
+  --font-light: 300;
+  --font-normal: 400;
+  --font-medium: 500;
+  --font-semibold: 600;
+  --font-bold: 700;
+  --font-extrabold: 800;
+  --font-black: 900;
 
-  /* Text Colors - Warm White Tones */
-  --text-primary: rgba(255, 250, 245, 0.94);
-  --text-secondary: rgba(255, 250, 245, 0.76);
-  --text-tertiary: rgba(255, 250, 245, 0.56);
-  --text-disabled: rgba(255, 250, 245, 0.38);
-  --text-on-accent: #FFFFFF;
-  --text-accent: var(--accent-soft);
+  /* Line heights */
+  --leading-none: 1;
+  --leading-tight: 1.25;
+  --leading-snug: 1.375;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.625;
+  --leading-loose: 2;
 
-  /* Border Colors - Soft & Warm */
-  --border-subtle: rgba(255, 255, 255, 0.06);
-  --border-base: rgba(255, 255, 255, 0.10);
-  --border-strong: rgba(255, 255, 255, 0.16);
-  --border-accent: rgba(var(--accent-rgb), 0.40);
-  --border-accent-strong: rgba(var(--accent-rgb), 0.60);
+  /* ============================================================
+     Spacing Scale - 间距系统
+     ============================================================ */
 
-  /* Icon Colors */
-  --icon-primary: rgba(255, 250, 245, 0.90);
-  --icon-secondary: rgba(255, 250, 245, 0.68);
-  --icon-tertiary: rgba(255, 250, 245, 0.50);
-  --icon-accent: var(--accent-base);
+  --space-0: 0;
+  --space-px: 1px;
+  --space-0_5: 0.125rem;   /* 2px */
+  --space-1: 0.25rem;      /* 4px */
+  --space-1_5: 0.375rem;   /* 6px */
+  --space-2: 0.5rem;       /* 8px */
+  --space-2_5: 0.625rem;   /* 10px */
+  --space-3: 0.75rem;      /* 12px */
+  --space-3_5: 0.875rem;   /* 14px */
+  --space-4: 1rem;         /* 16px */
+  --space-5: 1.25rem;      /* 20px */
+  --space-6: 1.5rem;       /* 24px */
+  --space-7: 1.75rem;      /* 28px */
+  --space-8: 2rem;         /* 32px */
+  --space-9: 2.25rem;      /* 36px */
+  --space-10: 2.5rem;      /* 40px */
+  --space-11: 2.75rem;     /* 44px */
+  --space-12: 3rem;        /* 48px */
+  --space-14: 3.5rem;      /* 56px */
+  --space-16: 4rem;        /* 64px */
+  --space-20: 5rem;        /* 80px */
+  --space-24: 6rem;        /* 96px */
+  --space-28: 7rem;        /* 112px */
+  --space-32: 8rem;        /* 128px */
 
-  /* Interactive States - Smooth Transitions */
-  --interactive-hover: rgba(255, 255, 255, 0.10);
-  --interactive-active: rgba(255, 255, 255, 0.14);
-  --interactive-disabled: rgba(255, 255, 255, 0.04);
-  --interactive-focus: rgba(var(--accent-rgb), 0.24);
+  /* ============================================================
+     Border Radius Scale - 圆角系统
+     ============================================================ */
 
-  /* Accent Mode - Warm Glow */
-  --accent-fill: rgba(var(--accent-rgb), 0.18);
-  --accent-fill-hover: rgba(var(--accent-rgb), 0.24);
-  --accent-fill-strong: rgba(var(--accent-rgb), 0.32);
-  --accent-border: rgba(var(--accent-rgb), 0.40);
-  --accent-hover: rgba(var(--accent-rgb), 0.28);
-
-  /* Gradient Overlays */
-  --gradient-warm: linear-gradient(135deg,
-    rgba(var(--accent-rgb), 0.20) 0%,
-    rgba(var(--secondary-rgb), 0.15) 50%,
-    rgba(var(--accent-rgb), 0.10) 100%
-  );
-  --gradient-soft: linear-gradient(135deg,
-    rgba(255, 255, 255, 0.12) 0%,
-    rgba(255, 255, 255, 0.04) 100%
-  );
-  --gradient-glow: radial-gradient(
-    circle at 50% 0%,
-    rgba(var(--accent-rgb), 0.15),
-    transparent 70%
-  );
-
-  /* Accent Surface Text - Smart Contrast */
-  --accent-surface-text: #2A1F1A;
-  --accent-surface-text-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
-
-  /* ========================================
-     Typography Scale
-     ======================================== */
-
-  --text-xs: 0.625rem;    /* 10px */
-  --text-sm: 0.75rem;     /* 12px */
-  --text-base: 0.875rem;  /* 14px */
-  --text-md: 1rem;        /* 16px */
-  --text-lg: 1.125rem;    /* 18px */
-  --text-xl: 1.25rem;     /* 20px */
-  --text-2xl: 1.5rem;     /* 24px */
-  --text-3xl: 1.875rem;   /* 30px */
-  --text-4xl: 2.25rem;    /* 36px */
-
-  /* Font Weights */
-  --font-weight-normal: 400;
-  --font-weight-medium: 500;
-  --font-weight-semibold: 600;
-  --font-weight-bold: 700;
-
-  /* Line Heights */
-  --line-height-tight: 1.25;
-  --line-height-normal: 1.5;
-  --line-height-relaxed: 1.75;
-
-  /* ========================================
-     Spacing Scale (4px base)
-     ======================================== */
-
-  --space-1: 0.25rem;   /* 4px */
-  --space-2: 0.5rem;    /* 8px */
-  --space-3: 0.75rem;   /* 12px */
-  --space-4: 1rem;      /* 16px */
-  --space-5: 1.25rem;   /* 20px */
-  --space-6: 1.5rem;    /* 24px */
-  --space-8: 2rem;      /* 32px */
-  --space-10: 2.5rem;   /* 40px */
-  --space-12: 3rem;     /* 48px */
-  --space-16: 4rem;     /* 64px */
-  --space-20: 5rem;     /* 80px */
-
-  /* ========================================
-     Border Radius Scale - More Rounded
-     ======================================== */
-
-  --radius-xs: 0.375rem;  /* 6px - slightly more round */
-  --radius-sm: 0.625rem;  /* 10px */
-  --radius-md: 1rem;      /* 16px */
-  --radius-lg: 1.5rem;    /* 24px */
-  --radius-xl: 2rem;      /* 32px */
-  --radius-2xl: 2.5rem;   /* 40px */
-  --radius-3xl: 3rem;     /* 48px */
+  --radius-none: 0;
+  --radius-sm: 0.125rem;   /* 2px */
+  --radius-base: 0.25rem;  /* 4px */
+  --radius-md: 0.375rem;   /* 6px */
+  --radius-lg: 0.5rem;     /* 8px */
+  --radius-xl: 0.75rem;    /* 12px */
+  --radius-2xl: 1rem;      /* 16px */
+  --radius-3xl: 1.5rem;    /* 24px */
   --radius-full: 9999px;
 
-  /* ========================================
-     Shadow System - Soft & Layered
-     ======================================== */
+  /* ============================================================
+     Shadow System - 阴影系统
+     ============================================================ */
 
-  /* Base Shadows - Warm & Soft */
-  --shadow-xs: 0 1px 3px 0 rgba(0, 0, 0, 0.08),
-               0 1px 2px 0 rgba(0, 0, 0, 0.04);
-  --shadow-sm: 0 2px 6px 0 rgba(0, 0, 0, 0.12),
-               0 1px 4px 0 rgba(0, 0, 0, 0.06);
-  --shadow-md: 0 4px 12px 0 rgba(0, 0, 0, 0.16),
-               0 2px 6px 0 rgba(0, 0, 0, 0.08);
-  --shadow-lg: 0 8px 20px 0 rgba(0, 0, 0, 0.20),
-               0 4px 10px 0 rgba(0, 0, 0, 0.10);
-  --shadow-xl: 0 12px 28px 0 rgba(0, 0, 0, 0.24),
-               0 6px 14px 0 rgba(0, 0, 0, 0.12);
-  --shadow-2xl: 0 16px 40px 0 rgba(0, 0, 0, 0.28),
-                0 8px 20px 0 rgba(0, 0, 0, 0.14);
+  --shadow-xs: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1);
+  --shadow-base: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+  --shadow-md: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  --shadow-xl: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  --shadow-2xl: 0 35px 60px -15px rgba(0, 0, 0, 0.3);
+  --shadow-inner: inset 0 2px 4px 0 rgba(0, 0, 0, 0.05);
 
-  /* Colored Shadows - Warm Accent Glow */
-  --shadow-accent-sm: 0 2px 8px rgba(var(--accent-rgb), 0.25),
-                      0 1px 4px rgba(var(--accent-rgb), 0.15);
-  --shadow-accent-md: 0 4px 16px rgba(var(--accent-rgb), 0.30),
-                      0 2px 8px rgba(var(--accent-rgb), 0.20);
-  --shadow-accent-lg: 0 8px 24px rgba(var(--accent-rgb), 0.35),
-                      0 4px 12px rgba(var(--accent-rgb), 0.25);
+  /* Colored shadows - for accents */
+  --shadow-accent-sm: 0 4px 12px rgba(var(--accent-rgb), 0.15);
+  --shadow-accent-md: 0 8px 24px rgba(var(--accent-rgb), 0.2);
+  --shadow-accent-lg: 0 16px 40px rgba(var(--accent-rgb), 0.25);
 
-  /* Inner Shadows - Depth */
-  --shadow-inner: inset 0 2px 4px 0 rgba(0, 0, 0, 0.08);
-  --shadow-inner-lg: inset 0 4px 8px 0 rgba(0, 0, 0, 0.12);
-
-  /* Glow Effects - Warm Ambient Light */
-  --glow-sm: 0 0 12px rgba(var(--accent-rgb), 0.35);
-  --glow-md: 0 0 20px rgba(var(--accent-rgb), 0.45);
-  --glow-lg: 0 0 32px rgba(var(--accent-rgb), 0.55);
-  --glow-soft: 0 0 40px rgba(var(--accent-rgb), 0.25);
-
-  /* ========================================
-     Animation Timing
-     ======================================== */
+  /* ============================================================
+     Animation Timing - 动画时序
+     ============================================================ */
 
   /* Durations */
-  --duration-instant: 100ms;
-  --duration-fast: 200ms;
-  --duration-base: 300ms;
-  --duration-slow: 400ms;
+  --duration-instant: 0ms;
+  --duration-fast: 150ms;
+  --duration-base: 250ms;
+  --duration-slow: 350ms;
   --duration-slower: 500ms;
 
-  /* Easing Functions */
+  /* Easing functions */
+  --ease-linear: linear;
   --ease-in: cubic-bezier(0.4, 0, 1, 1);
   --ease-out: cubic-bezier(0, 0, 0.2, 1);
   --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-sharp: cubic-bezier(0.4, 0, 0.6, 1);
+  --ease-smooth: cubic-bezier(0.16, 1, 0.3, 1); /* Smooth spring-like */
   --ease-bounce: cubic-bezier(0.68, -0.55, 0.265, 1.55);
-  --ease-smooth: cubic-bezier(0.22, 1, 0.36, 1);
 
-  /* Legacy Variable Aliases (for backward compatibility) */
-  --dur-fast: var(--duration-fast);
-  --dur-base: var(--duration-base);
-  --ease-out: var(--ease-out);
+  /* ============================================================
+     Z-index Layers - 层级系统
+     ============================================================ */
 
-  /* ========================================
-     Responsive Breakpoints
-     ======================================== */
+  --z-base: 0;
+  --z-dropdown: 1000;
+  --z-sticky: 1100;
+  --z-fixed: 1200;
+  --z-modal-backdrop: 1300;
+  --z-modal: 1400;
+  --z-popover: 1500;
+  --z-tooltip: 1600;
+  --z-notification: 1700;
+  --z-max: 9999;
+
+  /* ============================================================
+     Breakpoints - 响应式断点
+     ============================================================ */
 
   --breakpoint-xs: 480px;
   --breakpoint-sm: 640px;
@@ -242,180 +177,84 @@
   --breakpoint-xl: 1280px;
   --breakpoint-2xl: 1536px;
 
-  /* Touch Targets */
-  --touch-target-min: 44px;  /* iOS minimum */
-  --touch-target-comfortable: 48px;  /* Material Design */
+  /* ============================================================
+     Theme-specific colors (overridden per theme)
+     ============================================================ */
 
-  /* ========================================
-     Liquid Glass Material (Global) - Warm Frost
-     ======================================== */
-
-  --glass-bg-gradient: linear-gradient(
-    135deg,
-    rgba(255, 255, 255, 0.12) 0%,
-    rgba(255, 255, 255, 0.04) 50%,
-    rgba(255, 255, 255, 0.08) 100%
-  );
-  --glass-bg-warm: linear-gradient(
-    135deg,
-    rgba(var(--accent-rgb), 0.08),
-    rgba(var(--secondary-rgb), 0.06)
-  );
-  --glass-border: rgba(255, 255, 255, 0.14);
-  --glass-border-strong: rgba(255, 255, 255, 0.20);
-  --glass-backdrop: blur(24px) saturate(180%);
-  --glass-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.12);
-  --glass-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.08);
-  --glass-rgb: 255, 255, 255;
-
-  /* Frosted Glass Variants */
-  --glass-frosted-light: blur(16px) saturate(150%);
-  --glass-frosted-heavy: blur(32px) saturate(200%);
+  /* These will be customized in theme files */
+  --theme-bg: var(--gray-50);
+  --theme-fg: var(--gray-900);
+  --theme-panel-surface-rgb: 255, 255, 255;
+  --theme-panel-border: rgba(0, 0, 0, 0.1);
+  --theme-text-primary: var(--gray-900);
+  --theme-text-secondary: var(--gray-600);
+  --theme-text-tertiary: var(--gray-400);
 }
 
-/* ========================================
-   Day Mode (Light Theme) Overrides
-   ======================================== */
+/* ============================================================
+   Dark Theme Overrides
+   ============================================================ */
 
-:root[data-theme-mode='day'] {
-  /* Neutral Colors - Day Mode */
-  --neutral-50: #FAFBFC;
-  --neutral-100: #F3F5F7;
-  --neutral-200: #E8ECF0;
-  --neutral-300: #D4DBE3;
-  --neutral-400: #9DA8B8;
-  --neutral-500: #6B7688;
-  --neutral-600: #4A5568;
-  --neutral-700: #2D3748;
-  --neutral-800: #1A202C;
-  --neutral-900: #0F1419;
-
-  /* Surface Colors - Day Mode */
-  --surface-base: #FFFFFF;
-  --surface-elevated: var(--neutral-50);
-  --surface-overlay: var(--neutral-100);
-  --surface-soft: rgba(0, 0, 0, 0.04);
-
-  /* Text Colors - Day Mode */
-  --text-primary: rgba(0, 0, 0, 0.88);
-  --text-secondary: rgba(0, 0, 0, 0.68);
-  --text-tertiary: rgba(0, 0, 0, 0.48);
-  --text-disabled: rgba(0, 0, 0, 0.32);
-  --text-on-accent: #FFFFFF;
-
-  /* Border Colors - Day Mode */
-  --border-subtle: rgba(0, 0, 0, 0.06);
-  --border-base: rgba(0, 0, 0, 0.10);
-  --border-strong: rgba(0, 0, 0, 0.14);
-  --border-accent: rgba(var(--accent-rgb), 0.40);
-
-  /* Icon Colors - Day Mode */
-  --icon-primary: rgba(0, 0, 0, 0.72);
-  --icon-secondary: rgba(0, 0, 0, 0.56);
-  --icon-tertiary: rgba(0, 0, 0, 0.40);
-
-  /* Interactive States - Day Mode */
-  --interactive-hover: rgba(0, 0, 0, 0.06);
-  --interactive-active: rgba(0, 0, 0, 0.10);
-  --interactive-disabled: rgba(0, 0, 0, 0.04);
-
-  /* Accent Mode - Day Mode */
-  --accent-fill: rgba(var(--accent-rgb), 0.12);
-  --accent-fill-strong: rgba(var(--accent-rgb), 0.20);
-  --accent-border: rgba(var(--accent-rgb), 0.36);
-  --accent-hover: rgba(var(--accent-rgb), 0.16);
-
-  /* Accent Surface Text - Day Mode */
-  --accent-surface-text: #FFFFFF; /* 浅色主色用白色文字 */
-  --accent-surface-text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
-
-  /* Glass Material - Day Mode */
-  --glass-bg-gradient: linear-gradient(
-    135deg,
-    rgba(255, 255, 255, 0.60),
-    rgba(255, 255, 255, 0.40)
-  );
-  --glass-border: rgba(0, 0, 0, 0.10);
-  --glass-backdrop: blur(20px) saturate(160%);
-  --glass-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.60);
-
-  /* Shadow System - Day Mode (softer) */
-  --shadow-xs: 0 1px 2px 0 rgba(0, 0, 0, 0.04);
-  --shadow-sm: 0 2px 4px 0 rgba(0, 0, 0, 0.06),
-               0 1px 2px 0 rgba(0, 0, 0, 0.03);
-  --shadow-md: 0 4px 8px 0 rgba(0, 0, 0, 0.08),
-               0 2px 4px 0 rgba(0, 0, 0, 0.04);
-  --shadow-lg: 0 8px 16px 0 rgba(0, 0, 0, 0.10),
-               0 4px 8px 0 rgba(0, 0, 0, 0.06);
-  --shadow-xl: 0 12px 24px 0 rgba(0, 0, 0, 0.12),
-               0 6px 12px 0 rgba(0, 0, 0, 0.08);
-  --shadow-2xl: 0 16px 32px 0 rgba(0, 0, 0, 0.14),
-                0 8px 16px 0 rgba(0, 0, 0, 0.10);
+[data-theme="night"],
+.night-mode {
+  --theme-bg: var(--gray-950);
+  --theme-fg: var(--gray-50);
+  --theme-panel-surface-rgb: 20, 20, 30;
+  --theme-panel-border: rgba(255, 255, 255, 0.1);
+  --theme-text-primary: var(--gray-50);
+  --theme-text-secondary: var(--gray-400);
+  --theme-text-tertiary: var(--gray-600);
 }
 
-/* ========================================
-   Accessibility
-   ======================================== */
+/* ============================================================
+   Utility Classes - 实用工具类
+   ============================================================ */
 
-/* Focus Ring */
-:focus-visible {
-  outline: 2px solid rgba(var(--accent-rgb), 0.8);
+/* Smooth transitions */
+.transition-colors {
+  transition-property: color, background-color, border-color;
+  transition-duration: var(--duration-base);
+  transition-timing-function: var(--ease-in-out);
+}
+
+.transition-transform {
+  transition-property: transform;
+  transition-duration: var(--duration-base);
+  transition-timing-function: var(--ease-smooth);
+}
+
+.transition-all {
+  transition-property: all;
+  transition-duration: var(--duration-base);
+  transition-timing-function: var(--ease-in-out);
+}
+
+/* Glass morphism */
+.glass {
+  background: rgba(var(--theme-panel-surface-rgb), 0.8);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Focus visible */
+.focus-ring:focus-visible {
+  outline: 2px solid rgba(var(--accent-rgb), 0.6);
   outline-offset: 2px;
-  box-shadow: 0 0 0 4px rgba(var(--accent-rgb), 0.2);
 }
 
-/* Reduced Motion */
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-    scroll-behavior: auto !important;
-  }
+/* Truncate text */
+.truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-/* ========================================
-   Legacy Theme Variable Mappings
-   ======================================== */
+/* Performance optimization */
+.will-change-transform {
+  will-change: transform;
+}
 
-:root {
-  /* Map old --theme-* variables to new design system */
-  --theme-text-primary: var(--text-primary);
-  --theme-text-secondary: var(--text-secondary);
-  --theme-text-tertiary: var(--text-tertiary);
-
-  --theme-surface-soft: var(--surface-soft);
-  --theme-panel-surface: var(--surface-base);
-  --theme-panel-surface-elevated: var(--surface-elevated);
-
-  --theme-border: var(--border-base);
-  --theme-border-strong: var(--border-strong);
-
-  --theme-icon-primary: var(--icon-primary);
-
-  --theme-shadow-soft: var(--shadow-sm);
-
-  --theme-focus-ring: rgba(var(--accent-rgb), 0.72);
-
-  /* Accent mode mappings */
-  --accent-mode-fill: var(--accent-fill);
-  --accent-mode-fill-strong: var(--accent-fill-strong);
-  --accent-mode-border: var(--accent-border);
-  --accent-mode-shadow: var(--shadow-md);
-
-  --accent-readable-rgb: var(--accent-strong-rgb);
-
-  /* Menu specific */
-  --theme-menu-text: var(--text-primary);
-  --theme-menu-text-muted: var(--text-tertiary);
-  --theme-menu-text-disabled: var(--text-disabled);
-  --theme-menu-avatar-border: var(--border-strong);
-
-  /* Contrast helpers (for text-shadow on variable backgrounds) */
-  --theme-contrast-text-shadow-strong: 0 1px 3px rgba(0, 0, 0, 0.4);
-  --theme-contrast-icon-shadow-strong: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3));
-  --theme-contrast-stroke-soft: rgba(0, 0, 0, 0.1);
-  --theme-contrast-outline-width: 0.5px;
+.will-change-opacity {
+  will-change: opacity;
 }

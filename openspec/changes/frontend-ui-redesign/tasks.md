@@ -3,14 +3,14 @@
 ## Phase 1: 设计系统基础 (Foundation)
 
 ### Task 1.1: 创建设计系统变量文件
-- [ ] 创建 `src/styles/design-system.css`
-- [ ] 定义完整color palette
-- [ ] 定义typography scale
-- [ ] 定义spacing scale  
-- [ ] 定义border-radius scale
-- [ ] 定义shadow system
-- [ ] 定义animation timing
-- [ ] 在App.vue中引入design-system.css
+- [x] 创建 `src/styles/design-system.css`
+- [x] 定义完整color palette
+- [x] 定义typography scale
+- [x] 定义spacing scale  
+- [x] 定义border-radius scale
+- [x] 定义shadow system
+- [x] 定义animation timing
+- [x] 在App.vue中引入design-system.css
 
 **估时**: 2h  
 **优先级**: P0
