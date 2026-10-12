@@ -181,29 +181,202 @@
      Theme-specific colors (overridden per theme)
      ============================================================ */
 
-  /* These will be customized in theme files */
+  /* Background & Surface */
   --theme-bg: var(--gray-50);
   --theme-fg: var(--gray-900);
+  --theme-panel-surface: rgba(255, 255, 255, 0.95);
   --theme-panel-surface-rgb: 255, 255, 255;
-  --theme-panel-border: rgba(0, 0, 0, 0.1);
+  --theme-panel-surface-elevated: rgba(255, 255, 255, 0.98);
+  --theme-surface-soft: rgba(245, 245, 250, 0.5);
+  --theme-surface-base: rgba(255, 255, 255, 0.95);
+  --theme-surface-elevated: rgba(255, 255, 255, 1);
+  --theme-input-surface: rgba(0, 0, 0, 0.08);
+
+  /* Borders & Dividers */
+  --theme-border: rgba(0, 0, 0, 0.1);
+  --theme-border-base: rgba(0, 0, 0, 0.1);
+  --theme-border-strong: rgba(0, 0, 0, 0.15);
+  --theme-border-subtle: rgba(0, 0, 0, 0.05);
+
+  /* Text Colors */
   --theme-text-primary: var(--gray-900);
   --theme-text-secondary: var(--gray-600);
   --theme-text-tertiary: var(--gray-400);
+  --theme-text-disabled: rgba(0, 0, 0, 0.4);
+
+  /* Semantic Colors */
+  --theme-success: var(--success-rgb);
+  --theme-positive: var(--success-rgb);
+  --theme-warning: var(--warning-rgb);
+  --theme-danger: var(--error-rgb);
+  --theme-error: var(--error-rgb);
+  --theme-info: var(--info-rgb);
+
+  /* Interactive States */
+  --theme-hover-overlay: rgba(0, 0, 0, 0.05);
+  --theme-active-overlay: rgba(0, 0, 0, 0.1);
+  --theme-disabled-overlay: rgba(0, 0, 0, 0.12);
+
+  /* Glass & Effects */
+  --theme-floating-surface: rgba(255, 255, 255, 0.95);
+  --theme-glass-bg: rgba(255, 255, 255, 0.8);
+
+  /* ============================================================
+     Backward Compatibility - Old Variable Names
+     ============================================================ */
+
+  /* Legacy glass variables */
+  --glass-rgb: 255, 255, 255;
+  --glass-bg-gradient: linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.05));
+  --glass-border: rgba(255, 255, 255, 0.2);
+  --glass-border-strong: rgba(255, 255, 255, 0.25);
+  --glass-backdrop: blur(20px);
+  --glass-highlight: 0 0 0 1px rgba(255, 255, 255, 0.2);
+
+  /* Legacy surface variables */
+  --surface-soft: rgba(245, 245, 250, 0.5);
+  --surface-base: rgba(255, 255, 255, 0.95);
+  --surface-elevated: rgba(255, 255, 255, 1);
+
+  /* Legacy text variables */
+  --text-primary: var(--gray-900);
+  --text-secondary: var(--gray-600);
+  --text-tertiary: var(--gray-400);
+  --text-disabled: rgba(0, 0, 0, 0.4);
+
+  /* Legacy icon variables */
+  --icon-primary: var(--gray-800);
+  --icon-secondary: var(--gray-600);
+
+  /* Legacy border variables */
+  --border-base: rgba(0, 0, 0, 0.1);
+  --border-strong: rgba(0, 0, 0, 0.15);
+  --border-subtle: rgba(0, 0, 0, 0.05);
+
+  /* Legacy interactive variables */
+  --interactive-hover: rgba(0, 0, 0, 0.05);
+  --interactive-active: rgba(0, 0, 0, 0.1);
+
+  /* Legacy gradient variables */
+  --gradient-glow: linear-gradient(135deg, rgba(var(--accent-rgb), 0.1), transparent);
+  --gradient-warm: linear-gradient(135deg, rgba(255, 200, 180, 0.2), rgba(255, 150, 120, 0.1));
+
+  /* Legacy glow variables */
+  --glow-soft: 0 0 20px rgba(var(--accent-rgb), 0.15);
+  --glow-sm: 0 0 16px rgba(var(--accent-rgb), 0.2);
+  --glow-md: 0 0 24px rgba(var(--accent-rgb), 0.3);
+
+  /* Legacy accent variables */
+  --accent-soft: rgba(var(--accent-rgb), 0.8);
+  --accent-base: rgba(var(--accent-rgb), 1);
+  --accent-strong: rgba(var(--accent-rgb), 1);
+  --accent-border: rgba(var(--accent-rgb), 0.3);
+  --accent-border-strong: rgba(var(--accent-rgb), 0.5);
+  --accent-fill: rgba(var(--accent-rgb), 0.2);
+  --accent-fill-strong: rgba(var(--accent-rgb), 0.95);
+  --accent-surface-text: rgba(255, 255, 255, 0.95);
 }
 
 /* ============================================================
-   Dark Theme Overrides
+   Dark Theme Overrides (Night Mode)
    ============================================================ */
 
 [data-theme="night"],
 .night-mode {
+  /* Background & Surface */
   --theme-bg: var(--gray-950);
   --theme-fg: var(--gray-50);
+  --theme-panel-surface: rgba(20, 20, 30, 0.8);
   --theme-panel-surface-rgb: 20, 20, 30;
-  --theme-panel-border: rgba(255, 255, 255, 0.1);
+  --theme-panel-surface-elevated: rgba(30, 30, 45, 0.9);
+  --theme-surface-soft: rgba(40, 40, 60, 0.4);
+  --theme-surface-base: rgba(35, 35, 50, 0.8);
+  --theme-surface-elevated: rgba(45, 45, 65, 0.9);
+  --theme-input-surface: rgba(255, 255, 255, 0.08);
+
+  /* Borders & Dividers */
+  --theme-border: rgba(255, 255, 255, 0.1);
+  --theme-border-base: rgba(255, 255, 255, 0.08);
+  --theme-border-strong: rgba(255, 255, 255, 0.15);
+  --theme-border-subtle: rgba(255, 255, 255, 0.05);
+
+  /* Text Colors */
   --theme-text-primary: var(--gray-50);
   --theme-text-secondary: var(--gray-400);
   --theme-text-tertiary: var(--gray-600);
+  --theme-text-disabled: rgba(255, 255, 255, 0.4);
+
+  /* Semantic Colors */
+  --theme-success: var(--success-rgb);
+  --theme-positive: var(--success-rgb);
+  --theme-warning: var(--warning-rgb);
+  --theme-danger: var(--error-rgb);
+  --theme-error: var(--error-rgb);
+  --theme-info: var(--info-rgb);
+
+  /* Interactive States */
+  --theme-hover-overlay: rgba(255, 255, 255, 0.08);
+  --theme-active-overlay: rgba(255, 255, 255, 0.12);
+  --theme-disabled-overlay: rgba(255, 255, 255, 0.1);
+
+  /* Glass & Effects */
+  --theme-floating-surface: rgba(20, 20, 30, 0.85);
+  --theme-glass-bg: rgba(15, 15, 25, 0.7);
+
+  /* ============================================================
+     Backward Compatibility - Old Variable Names (Dark Theme)
+     ============================================================ */
+
+  /* Legacy glass variables */
+  --glass-rgb: 20, 20, 30;
+  --glass-bg-gradient: linear-gradient(135deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.03));
+  --glass-border: rgba(255, 255, 255, 0.15);
+  --glass-border-strong: rgba(255, 255, 255, 0.2);
+  --glass-backdrop: blur(24px) saturate(150%);
+  --glass-highlight: 0 0 0 1px rgba(255, 255, 255, 0.15);
+
+  /* Legacy surface variables */
+  --surface-soft: rgba(40, 40, 60, 0.4);
+  --surface-base: rgba(35, 35, 50, 0.8);
+  --surface-elevated: rgba(45, 45, 65, 0.9);
+
+  /* Legacy text variables */
+  --text-primary: var(--gray-50);
+  --text-secondary: var(--gray-400);
+  --text-tertiary: var(--gray-600);
+  --text-disabled: rgba(255, 255, 255, 0.4);
+
+  /* Legacy icon variables */
+  --icon-primary: var(--gray-200);
+  --icon-secondary: var(--gray-400);
+
+  /* Legacy border variables */
+  --border-base: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.15);
+  --border-subtle: rgba(255, 255, 255, 0.05);
+
+  /* Legacy interactive variables */
+  --interactive-hover: rgba(255, 255, 255, 0.08);
+  --interactive-active: rgba(255, 255, 255, 0.12);
+
+  /* Legacy gradient variables */
+  --gradient-glow: linear-gradient(135deg, rgba(var(--accent-rgb), 0.08), transparent);
+  --gradient-warm: linear-gradient(135deg, rgba(255, 150, 120, 0.15), rgba(255, 100, 80, 0.08));
+
+  /* Legacy glow variables */
+  --glow-soft: 0 0 20px rgba(var(--accent-rgb), 0.2);
+  --glow-sm: 0 0 16px rgba(var(--accent-rgb), 0.25);
+  --glow-md: 0 0 24px rgba(var(--accent-rgb), 0.35);
+
+  /* Legacy accent variables */
+  --accent-soft: rgba(var(--accent-rgb), 0.7);
+  --accent-base: rgba(var(--accent-rgb), 1);
+  --accent-strong: rgba(var(--accent-rgb), 1);
+  --accent-border: rgba(var(--accent-rgb), 0.35);
+  --accent-border-strong: rgba(var(--accent-rgb), 0.55);
+  --accent-fill: rgba(var(--accent-rgb), 0.15);
+  --accent-fill-strong: rgba(var(--accent-rgb), 0.9);
+  --accent-surface-text: rgba(255, 255, 255, 0.95);
 }
 
 /* ============================================================
@@ -234,7 +407,7 @@
   background: rgba(var(--theme-panel-surface-rgb), 0.8);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--theme-border);
 }
 
 /* Focus visible */
@@ -257,4 +430,39 @@
 
 .will-change-opacity {
   will-change: opacity;
+}
+
+/* Color Mix Support - for better color manipulation */
+.color-mix-accent {
+  background-color: color-mix(in srgb, var(--accent-rgb) 20%, transparent);
+}
+
+.color-mix-success {
+  background-color: color-mix(in srgb, var(--success-rgb) 20%, transparent);
+}
+
+.color-mix-warning {
+  background-color: color-mix(in srgb, var(--warning-rgb) 20%, transparent);
+}
+
+.color-mix-error {
+  background-color: color-mix(in srgb, var(--error-rgb) 20%, transparent);
+}
+
+/* Accessibility - High Contrast */
+@media (prefers-contrast: more) {
+  :root {
+    --theme-border-strong: rgba(var(--accent-rgb), 0.4);
+    --shadow-xs: 0 1px 3px 0 rgba(0, 0, 0, 0.15);
+    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.2);
+  }
+}
+
+/* Reduced Motion */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
