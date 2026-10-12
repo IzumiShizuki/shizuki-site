@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import AiHubPage from './AiHubPage.vue';
 
 const mocked = vi.hoisted(() => ({
+  route: { query: {} },
   auth: null,
   createAdminTownNpcSession: vi.fn(),
   deleteAiSession: vi.fn(),
@@ -55,7 +56,7 @@ vi.mock('../composables/useAuthSession', () => ({
 }));
 
 vi.mock('vue-router', () => ({
-  useRoute: () => ({ query: {} })
+  useRoute: () => mocked.route
 }));
 
 vi.mock('../services/aiApi', () => ({
@@ -180,6 +181,7 @@ function findButtonByText(wrapper, text) {
 
 describe('AiHubPage', () => {
   beforeEach(() => {
+    mocked.route = { query: {} };
     mocked.auth = createAuth(['USER']);
     mocked.createAdminTownNpcSession.mockReset();
     mocked.deleteAiSession.mockReset();
@@ -382,6 +384,30 @@ describe('AiHubPage', () => {
 
     expect(wrapper.text()).not.toContain('AI 服务暂时不可达');
     expect(wrapper.text()).toContain('图书馆');
+  });
+
+  it('opens the Meguri deep link after owner authentication is ready', async () => {
+    mocked.route = { query: { mode: 'meguri' } };
+    mocked.auth = createAuth(['ADMIN']);
+    const wrapper = await mountPage();
+    expect(wrapper.findComponent(MeguriPageStub).exists()).toBe(true);
+    wrapper.unmount();
+  });
+
+  it('rejects the Meguri deep link for non-admin users', async () => {
+    mocked.route = { query: { mode: 'meguri' } };
+    const wrapper = await mountPage();
+    expect(wrapper.findComponent(MeguriPageStub).exists()).toBe(false);
+    wrapper.unmount();
+  });
+
+  it('does not mount an owner deep link from an unauthenticated ADMIN snapshot', async () => {
+    mocked.route = { query: { mode: 'meguri' } };
+    mocked.auth = createAuth(['ADMIN']);
+    mocked.auth.isAuthenticated.value = false;
+    const wrapper = await mountPage();
+    expect(wrapper.findComponent(MeguriPageStub).exists()).toBe(false);
+    wrapper.unmount();
   });
 
   it('exposes and activates the owner-only Meguri companion for admin users', async () => {

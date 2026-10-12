@@ -59,6 +59,67 @@ describe('MeguriPage', () => {
     }
   });
 
+  it('shows actual bootstrap errors and retries without claiming the gateway is disabled', async () => {
+    mocked.getMeguriBootstrap.mockRejectedValueOnce(new Error('网关连接超时')).mockResolvedValue({
+      enabled: true, coreOnline: true, spriteAvailable: false
+    });
+    const wrapper = mount(MeguriPage);
+    await flushPromises();
+    expect(wrapper.text()).toContain('网关连接超时');
+    expect(wrapper.text()).not.toContain('Meguri 网关尚未启用');
+    await wrapper.get('.retry-button').trigger('click');
+    await flushPromises();
+    expect(wrapper.find('.dialog-composer').exists()).toBe(true);
+    expect(wrapper.find('.meguri-placeholder.is-error').exists()).toBe(false);
+    wrapper.unmount();
+  });
+
+  it('offers an offline refresh that re-enables sending when Core recovers', async () => {
+    mocked.getMeguriBootstrap.mockResolvedValueOnce({ enabled: true, coreOnline: false, spriteAvailable: false })
+      .mockResolvedValue({ enabled: true, coreOnline: true, spriteAvailable: false });
+    const wrapper = mount(MeguriPage);
+    await flushPromises();
+    expect(wrapper.get('.composer-input').element.disabled).toBe(true);
+    await wrapper.get('.core-offline-banner button').trigger('click');
+    await flushPromises();
+    expect(wrapper.get('.composer-input').element.disabled).toBe(false);
+    expect(wrapper.find('.core-offline-banner').exists()).toBe(false);
+    wrapper.unmount();
+  });
+
+  it('does not send when Enter commits Chinese IME input and retains a rejected draft', async () => {
+    mocked.getMeguriBootstrap.mockResolvedValue({ enabled: true, coreOnline: true, spriteAvailable: false });
+    mocked.createMeguriTurn.mockRejectedValue(new Error('网络中断'));
+    const wrapper = mount(MeguriPage);
+    await flushPromises();
+    await wrapper.get('.composer-input').setValue('你好爱莉');
+    await wrapper.get('.composer-input').trigger('keydown', { key: 'Enter', isComposing: true });
+    expect(mocked.createMeguriTurn).not.toHaveBeenCalled();
+    await wrapper.get('.composer-input').trigger('keydown', { key: 'Enter', shiftKey: true });
+    expect(mocked.createMeguriTurn).not.toHaveBeenCalled();
+    await wrapper.get('.composer-input').trigger('keydown', { key: 'Enter' });
+    await flushPromises();
+    expect(mocked.createMeguriTurn).toHaveBeenCalledOnce();
+    expect(wrapper.get('.composer-input').element.value).toBe('你好爱莉');
+    wrapper.unmount();
+  });
+
+  it('does not start an SSE follower if closed while creating a turn', async () => {
+    mocked.getMeguriBootstrap.mockResolvedValue({ enabled: true, coreOnline: true, spriteAvailable: false });
+    let finishTurn;
+    mocked.createMeguriTurn.mockReturnValue(new Promise((resolve) => { finishTurn = resolve; }));
+    const wrapper = mount(MeguriPage);
+    await flushPromises();
+    await wrapper.get('.composer-input').setValue('等一下');
+    await wrapper.get('.dialog-composer').trigger('submit');
+    wrapper.unmount();
+    mocked.auth.user.value = { userId: 2, groups: ['ADMIN'] };
+    finishTurn({ turnId: 'late-turn', sessionId: 'web_latesession' });
+    await flushPromises();
+    expect(mocked.followMeguriTurn).not.toHaveBeenCalled();
+    expect(localStorage.getItem('shizuki.meguri.session.v1.2')).toBeNull();
+  });
+
   it('shows the disabled notice when the gateway is off', async () => {
     mocked.getMeguriBootstrap.mockResolvedValue({
       enabled: false,
@@ -74,6 +135,68 @@ describe('MeguriPage', () => {
 
     expect(wrapper.text()).toContain('Meguri 网关尚未启用');
     expect(wrapper.find('.dialog-composer').exists()).toBe(false);
+  });
+
+  it('recovers a turn accepted after handoff into the newly mounted stage', async () => {
+    mocked.getMeguriBootstrap.mockResolvedValue({ enabled: true, coreOnline: true, spriteAvailable: false });
+    let acceptTurn;
+    mocked.createMeguriTurn.mockReturnValue(new Promise((resolve) => { acceptTurn = resolve; }));
+    mocked.followMeguriTurn.mockResolvedValue({ text: '已接回原来的回复', status: 'completed' });
+    const original = mount(MeguriPage);
+    await flushPromises();
+    await original.get('.composer-input').setValue('切换工作区');
+    await original.get('.dialog-composer').trigger('submit');
+    const requestedSession = mocked.createMeguriTurn.mock.calls[0][0].sessionId;
+    original.unmount();
+    const successor = mount(MeguriPage);
+    await flushPromises();
+    acceptTurn({ turnId: 'handoff-turn', sessionId: requestedSession });
+    await flushPromises();
+    expect(mocked.followMeguriTurn).toHaveBeenCalledOnce();
+    expect(successor.text()).toContain('已接回原来的回复');
+    successor.unmount();
+  });
+
+  it('does not overwrite a new session with a late accepted turn', async () => {
+    mocked.getMeguriBootstrap.mockResolvedValue({ enabled: true, coreOnline: true, spriteAvailable: false });
+    let acceptTurn;
+    mocked.createMeguriTurn.mockReturnValue(new Promise((resolve) => { acceptTurn = resolve; }));
+    const original = mount(MeguriPage);
+    await flushPromises();
+    await original.get('.composer-input').setValue('旧回合');
+    await original.get('.dialog-composer').trigger('submit');
+    const previousSession = mocked.createMeguriTurn.mock.calls[0][0].sessionId;
+    original.unmount();
+    const successor = mount(MeguriPage);
+    await flushPromises();
+    await successor.get('.chat-actions button').trigger('click');
+    const fresh = JSON.parse(localStorage.getItem('shizuki.meguri.session.v1.1')).sessionId;
+    acceptTurn({ turnId: 'old-turn', sessionId: previousSession });
+    await flushPromises();
+    expect(mocked.followMeguriTurn).not.toHaveBeenCalled();
+    expect(JSON.parse(localStorage.getItem('shizuki.meguri.session.v1.1')).sessionId).toBe(fresh);
+    successor.unmount();
+  });
+
+  it('retries a disconnected stream by following its original turn instead of submitting twice', async () => {
+    mocked.getMeguriBootstrap.mockResolvedValue({ enabled: true, coreOnline: true, spriteAvailable: false });
+    mocked.createMeguriTurn.mockResolvedValue({ turnId: 'recover-turn', sessionId: 'web_recover_session' });
+    mocked.followMeguriTurn.mockRejectedValueOnce(new Error('连接中断'))
+      .mockResolvedValue({ text: '恢复后的回复', status: 'completed' });
+    const wrapper = mount(MeguriPage);
+    await flushPromises();
+    await wrapper.get('.composer-input').setValue('继续聊');
+    await wrapper.get('.dialog-composer').trigger('submit');
+    await flushPromises();
+    expect(JSON.parse(localStorage.getItem('shizuki.meguri.session.v1.1')).activeTurnId).toBe('recover-turn');
+    await wrapper.get('.conversation-error button').trigger('click');
+    await flushPromises();
+    expect(mocked.createMeguriTurn).toHaveBeenCalledOnce();
+    expect(mocked.followMeguriTurn).toHaveBeenCalledTimes(2);
+    expect(wrapper.findAll('.chat-row.assistant')).toHaveLength(1);
+    expect(wrapper.text()).toContain('恢复后的回复');
+    expect(JSON.parse(localStorage.getItem('shizuki.meguri.session.v1.1')).activeTurnId).toBeUndefined();
+    wrapper.unmount();
   });
 
   it('sends one message and renders the streamed reply', async () => {

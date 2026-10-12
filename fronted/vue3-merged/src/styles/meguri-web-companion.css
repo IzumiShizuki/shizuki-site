@@ -320,6 +320,40 @@
   color: #3f3733;
 }
 
+.core-offline-banner {
+  position: absolute;
+  z-index: 40;
+  top: 76px;
+  left: 16px;
+  right: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 12px;
+  background: #302526;
+  color: #fffaf7;
+  font-size: 13px;
+}
+
+.core-offline-banner button {
+  flex-shrink: 0;
+  min-height: 36px;
+  padding: 6px 12px;
+  border: 0;
+  border-radius: 8px;
+  background: #ffb58f;
+  color: #302526;
+  font: inherit;
+  cursor: pointer;
+}
+
+.core-offline-banner button:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 3px;
+}
+
 .controls-rail {
   grid-area: 1 / 1;
   display: flex;
@@ -522,6 +556,7 @@
 }
 
 .chat-header {
+  grid-row: 1;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -580,6 +615,7 @@
 }
 
 .chat-history {
+  grid-row: 2;
   min-height: 0;
   overflow: auto;
   padding: 8px 5px 4px;
@@ -591,6 +627,9 @@
   display: grid;
   place-items: center;
 }
+
+.chat-dock > .conversation-error { grid-row: 3; }
+.chat-dock > .composer { grid-row: 4; }
 
 .empty-conversation {
   color: #57534e;

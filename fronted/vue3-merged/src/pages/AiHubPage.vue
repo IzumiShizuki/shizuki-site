@@ -335,7 +335,7 @@
           </template>
 
           <template v-else-if="activePrimaryMode === 'meguri' && isAdminUser">
-            <MeguriPage class="meguri-companion-main" embedded />
+            <MeguriPage :key="auth.user.value?.userId || auth.user.value?.id" class="meguri-companion-main" embedded />
           </template>
 
           <template v-else>
@@ -513,6 +513,7 @@
 
 <script setup>
 import { computed, onMounted, reactive, ref, watch } from 'vue';
+import { useRoute } from 'vue-router';
 import AiDialog from '../components/AiDialog.vue';
 import AiSessionRail from '../components/AiSessionRail.vue';
 import MeguriPage from './MeguriPage.vue';
@@ -543,6 +544,7 @@ import { buildAiCapabilityState } from '../utils/aiAuthorizationState';
 import { readGuestLightAppData, readRemoteLightAppCache } from '../utils/lightAppsDataStore';
 
 const auth = useAuthSession();
+const route = useRoute();
 const activePrimaryMode = ref('town');
 const townSubView = ref('map');
 const conversationChatMode = ref('normal');
@@ -886,7 +888,7 @@ const adminCapability = computed(() =>
     mode: 'town_npc'
   })
 );
-const isAdminUser = computed(() => adminCapability.value.isAdmin);
+const isAdminUser = computed(() => auth.isAuthenticated.value && adminCapability.value.isAdmin);
 const canManageTownAssets = computed(() => adminCapability.value.canManageTownAssets);
 const conversationAllowedModes = computed(() =>
   isAdminUser.value ? [...STANDARD_CONVERSATION_MODES, ...ADMIN_CONVERSATION_MODES] : [...STANDARD_CONVERSATION_MODES]
@@ -1340,7 +1342,12 @@ function npcAvatarStyle(npc) {
 
 onMounted(async () => {
   await auth.ensureReady();
+  if (route.query.mode === 'meguri') activateMeguriCompanion();
   await loadTownExplorer();
+});
+
+watch(() => route.query.mode, (mode) => {
+  if (mode === 'meguri') activateMeguriCompanion();
 });
 
 watch(

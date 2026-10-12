@@ -127,7 +127,7 @@ import { useRouter } from 'vue-router';
 import { PLAYER_BRIDGE_KEY } from '../composables/playerBridge';
 import { useAuthSession } from '../composables/useAuthSession';
 import { listPublicPostWhispers } from '../services/blogApi';
-import { openAiChat } from '../utils/aiChatBus';
+import { openMeguriCompanion } from '../utils/meguriCompanionBus';
 import { useFocusSession } from '../utils/focusSessionState';
 import { HOME_STAGE_CONTEXT_KEY, resolveHomeClockVisibility, useHomeAppearance } from '../utils/homeTimeStageState';
 import { openLightAppWindow } from '../utils/lightAppWindowBus';
@@ -263,8 +263,8 @@ const companionEntry = computed(() => {
     };
   }
   return {
-    title: '自宅伴聊',
-    caption: '坐下来聊聊',
+    title: '爱莉陪伴',
+    caption: '坐下来和爱莉聊聊',
     icon: 'fas fa-comments',
     disabled: false
   };
@@ -296,10 +296,7 @@ function openCompanion() {
     return;
   }
   if (!isAdminUser.value) return;
-  openAiChat({
-    source: 'home-room',
-    preferredMode: 'companion'
-  });
+  openMeguriCompanion();
 }
 
 onMounted(() => {

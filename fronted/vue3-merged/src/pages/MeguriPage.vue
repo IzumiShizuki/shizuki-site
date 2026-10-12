@@ -61,6 +61,11 @@
         <small>{{ presentation.expressionIntensity }} · outfit {{ presentation.outfitCode }}</small>
       </div>
 
+      <div v-if="pageReady && bootstrap.enabled && !bootstrap.coreOnline" class="core-offline-banner" role="status">
+        <span>爱莉暂时离线，重新连接后就能继续聊天。</span>
+        <button type="button" :disabled="refreshing" @click="refreshCompanion">重新连接</button>
+      </div>
+
       <aside
         v-if="pageReady && bootstrap.enabled"
         class="controls-island"
@@ -192,7 +197,7 @@
 
           <div v-if="errorText" class="conversation-error error-banner" role="alert">
             <span>{{ errorText }}</span>
-            <button v-if="lastFailedUserText" type="button" :disabled="sending" @click="retryLastMessage">重试</button>
+            <button v-if="lastFailedUserText" type="button" :disabled="sending || !canRequestTurn" @click="retryLastMessage">重试</button>
           </div>
 
           <form class="composer dialog-composer" @submit.prevent="handleSend">
@@ -203,9 +208,9 @@
               rows="1"
               maxlength="4000"
               :placeholder="composerPlaceholder"
-              :disabled="sending || !bootstrap.coreOnline"
+              :disabled="sending || !canRequestTurn"
               aria-label="发给爱莉的消息"
-              @keydown.enter.exact.prevent="handleSend"
+              @keydown="handleComposerKeydown"
             ></textarea>
             <button
               v-if="sending"
@@ -228,6 +233,13 @@
         <small>检查网关、角色资源与会话通道</small>
       </section>
 
+      <section v-else-if="bootstrapError" class="meguri-placeholder is-error" role="alert">
+        <span class="empty-mark" aria-hidden="true">巡</span>
+        <strong>暂时无法连接爱莉</strong>
+        <p>{{ bootstrapError }}</p>
+        <button type="button" class="retry-button" @click="refreshCompanion">重新连接</button>
+      </section>
+
       <section v-else-if="!bootstrap.enabled" class="meguri-placeholder is-error">
         <span class="empty-mark" aria-hidden="true">巡</span>
         <strong>Meguri 网关尚未启用</strong>
@@ -239,7 +251,7 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useAuthSession } from '../composables/useAuthSession';
 import {
   cancelMeguriTurn,
@@ -255,6 +267,7 @@ import {
   resolveMeguriPresentation
 } from '../utils/meguriCharacterPresentation';
 import { followMeguriTurn, isExpressionMeguriEventType } from '../utils/meguriTurnStream';
+import { MEGURI_CHECKPOINT_UPDATED_EVENT } from '../utils/meguriCompanionBus';
 
 const SESSION_STORAGE_PREFIX = 'shizuki.meguri.session.v1.';
 const RECENT_MESSAGE_COUNT = 4;
@@ -270,7 +283,9 @@ defineProps({
 });
 
 const auth = useAuthSession();
+const emit = defineEmits(['sprite-change']);
 const pageReady = ref(false);
+const bootstrapError = ref('');
 const refreshing = ref(false);
 const bootstrap = ref({
   enabled: false,
@@ -298,6 +313,7 @@ const spriteBaseUrl = ref('');
 const spriteOverlayUrl = ref('');
 const spriteOverlayVisible = ref(false);
 const spriteHint = ref('');
+watch(spriteBaseUrl, (url) => emit('sprite-change', url));
 const messageListEl = ref(null);
 const composerEl = ref(null);
 
@@ -310,12 +326,15 @@ let sessionRecordLoaded = false;
 let spriteSwapTimer = null;
 let controlsCollapseTimer = null;
 let motionMediaQuery = null;
+let disposed = false;
+let sessionOwnerId = '';
 const spriteUrlCache = new Map();
 
 const visibleMessages = computed(() =>
   historyOpen.value ? messages.value : messages.value.slice(-RECENT_MESSAGE_COUNT)
 );
-const canSend = computed(() => Boolean(draft.value.trim()) && !sending.value && bootstrap.value.coreOnline);
+const canRequestTurn = computed(() => pageReady.value && !refreshing.value && !bootstrapError.value && bootstrap.value.enabled && bootstrap.value.coreOnline);
+const canSend = computed(() => Boolean(draft.value.trim()) && !sending.value && canRequestTurn.value);
 const stageStatus = computed(() => {
   if (!pageReady.value || refreshing.value) return 'loading';
   if (!bootstrap.value.enabled || errorText.value) return 'error';
@@ -347,8 +366,7 @@ function resolveErrorMessage(error) {
 }
 
 function storageKey() {
-  const userId = auth.user.value?.userId || auth.user.value?.id || 'anonymous';
-  return `${SESSION_STORAGE_PREFIX}${userId}`;
+  return `${SESSION_STORAGE_PREFIX}${sessionOwnerId}`;
 }
 
 function loadSessionRecord() {
@@ -368,7 +386,7 @@ function loadSessionRecord() {
 }
 
 function persistSessionRecord() {
-  if (typeof window === 'undefined' || !sessionId) return;
+  if (disposed || typeof window === 'undefined' || !sessionId) return;
   try {
     window.localStorage.setItem(
       storageKey(),
@@ -390,6 +408,7 @@ function persistSessionRecord() {
 
 function ensureSession() {
   if (sessionRecordLoaded) return sessionId;
+  sessionOwnerId = auth.user.value?.userId || auth.user.value?.id || 'anonymous';
   const saved = loadSessionRecord();
   sessionId = saved?.sessionId || createMeguriSessionId();
   activeTurnId = saved?.activeTurnId || '';
@@ -429,6 +448,10 @@ async function resolveSpriteUrl(fileName) {
   if (!normalized) return '';
   if (spriteUrlCache.has(normalized)) return spriteUrlCache.get(normalized);
   const objectUrl = await fetchMeguriSpriteObjectUrl(normalized, auth.authorizedRawFetch);
+  if (disposed) {
+    URL.revokeObjectURL?.(objectUrl);
+    return '';
+  }
   spriteUrlCache.set(normalized, objectUrl);
   return objectUrl;
 }
@@ -494,6 +517,7 @@ async function handleTurnEvent(envelope, trackerState, assistantMessage) {
 }
 
 function finalizeAssistantMessage(assistantMessage, trackerState) {
+  if (typeof trackerState.text === 'string' && trackerState.text) assistantMessage.content = trackerState.text;
   assistantMessage.pending = false;
   if (trackerState.status === 'failed') {
     assistantMessage.failed = true;
@@ -507,6 +531,7 @@ function finalizeAssistantMessage(assistantMessage, trackerState) {
 
 async function followActiveTurn(assistantMessage, afterSequence = 0) {
   followAbortController = new AbortController();
+  let terminal = false;
   try {
     const trackerState = await followMeguriTurn({
       rawFetch: auth.authorizedRawFetch,
@@ -516,11 +541,12 @@ async function followActiveTurn(assistantMessage, afterSequence = 0) {
       signal: followAbortController.signal,
       onEvent: (envelope, state) => handleTurnEvent(envelope, state, assistantMessage)
     });
+    terminal = ['completed', 'failed', 'cancelled'].includes(trackerState.status);
     finalizeAssistantMessage(assistantMessage, trackerState);
     return trackerState;
   } finally {
     followAbortController = null;
-    activeTurnId = '';
+    if (terminal) activeTurnId = '';
     persistSessionRecord();
     toolHint.value = '';
   }
@@ -528,23 +554,30 @@ async function followActiveTurn(assistantMessage, afterSequence = 0) {
 
 async function submitMessage(text, { appendUser = true } = {}) {
   const normalized = String(text || '').trim();
-  if (!normalized || sending.value || !bootstrap.value.enabled) return;
+  if (!normalized || sending.value || !canRequestTurn.value || disposed) return;
   errorText.value = '';
   lastFailedUserText.value = '';
   sending.value = true;
   ensureSession();
   if (appendUser) appendMessage('user', normalized);
   const assistantMessage = appendMessage('assistant', '', { pending: true });
+  let accepted = false;
+  const requestedSessionId = sessionId;
 
   try {
     const created = await createMeguriTurn(
       {
         message: normalized,
-        sessionId,
+        sessionId: requestedSessionId,
         idempotencyKey: `website-${Date.now()}-${messageSeed}`
       },
       auth.authorizedFetch
     );
+    accepted = true;
+    if (disposed) {
+      preserveAcceptedCheckpoint(created, requestedSessionId);
+      return true;
+    }
     sessionId = created.sessionId || sessionId;
     activeTurnId = created.turnId;
     persistSessionRecord();
@@ -565,21 +598,68 @@ async function submitMessage(text, { appendUser = true } = {}) {
     sending.value = false;
     void scrollMessagesToEnd();
   }
+  return accepted;
+}
+
+function preserveAcceptedCheckpoint(created, previousSessionId) {
+  // A handoff may have mounted another stage before this HTTP request finishes.
+  // Only update the original account's unchanged checkpoint, never a newer turn.
+  const saved = loadSessionRecord();
+  if (!saved || saved.sessionId !== previousSessionId || saved.activeTurnId || !created.turnId) return;
+  try {
+    window.localStorage.setItem(storageKey(), JSON.stringify({
+      ...saved,
+      sessionId: created.sessionId || previousSessionId,
+      activeTurnId: created.turnId
+    }));
+    window.dispatchEvent(new CustomEvent(MEGURI_CHECKPOINT_UPDATED_EVENT, { detail: {
+      ownerId: sessionOwnerId,
+      previousSessionId,
+      sessionId: created.sessionId || previousSessionId,
+      turnId: created.turnId
+    } }));
+  } catch {
+    // Storage may be unavailable; do not restart an unmounted stream.
+  }
+}
+
+function handleCheckpointUpdated(event) {
+  const checkpoint = event.detail;
+  if (disposed || sending.value || !checkpoint || String(checkpoint.ownerId) !== String(sessionOwnerId)) return;
+  if (sessionId !== checkpoint.previousSessionId) return;
+  sessionId = checkpoint.sessionId;
+  activeTurnId = checkpoint.turnId;
+  if (pageReady.value && bootstrap.value.coreOnline) void resumeInterruptedTurn();
 }
 
 async function handleSend() {
   const text = draft.value.trim();
   if (!canSend.value) return;
   draft.value = '';
-  await submitMessage(text);
+  const accepted = await submitMessage(text);
+  if (accepted === false && !draft.value) draft.value = text;
+}
+
+function handleComposerKeydown(event) {
+  if (event.key !== 'Enter' || event.shiftKey || event.ctrlKey || event.altKey || event.metaKey) return;
+  if (event.isComposing || event.keyCode === 229) return;
+  event.preventDefault();
+  void handleSend();
 }
 
 async function retryLastMessage() {
   const text = lastFailedUserText.value;
   if (!text || sending.value) return;
+  if (activeTurnId) {
+    errorText.value = '';
+    await resumeInterruptedTurn();
+    return;
+  }
   const failedIndex = messages.value.findLastIndex((message) => message.role === 'assistant' && message.failed);
   if (failedIndex >= 0) messages.value.splice(failedIndex, 1);
-  await submitMessage(text, { appendUser: false });
+  const retryingDraft = draft.value.trim() === text;
+  const accepted = await submitMessage(text, { appendUser: false });
+  if (accepted && retryingDraft && draft.value.trim() === text) draft.value = '';
 }
 
 async function handleCancel() {
@@ -596,11 +676,17 @@ async function handleCancel() {
 }
 
 async function resumeInterruptedTurn() {
-  if (!activeTurnId) return;
+  if (!activeTurnId || sending.value) return;
   sending.value = true;
-  const assistantMessage = appendMessage('assistant', '', { pending: true });
+  const assistantMessage = messages.value.findLast((message) => message.role === 'assistant' && message.failed)
+    || appendMessage('assistant', '', { pending: true });
+  assistantMessage.pending = true;
+  assistantMessage.failed = false;
+  assistantMessage.failedReason = '';
   try {
-    await followActiveTurn(assistantMessage, 0);
+    const trackerState = await followActiveTurn(assistantMessage, 0);
+    if (trackerState.status === 'completed' || trackerState.status === 'cancelled') lastFailedUserText.value = '';
+    if (trackerState.status === 'failed') errorText.value = trackerState.error || '回复失败，请重试。';
   } catch (error) {
     assistantMessage.pending = false;
     assistantMessage.failed = true;
@@ -639,7 +725,15 @@ function toggleHistory() {
 }
 
 async function loadBootstrap() {
-  const payload = await getMeguriBootstrap(auth.authorizedFetch);
+  bootstrapError.value = '';
+  let payload;
+  try {
+    payload = await getMeguriBootstrap(auth.authorizedFetch);
+    if (disposed) return;
+  } catch (error) {
+    bootstrapError.value = resolveErrorMessage(error);
+    throw error;
+  }
   bootstrap.value = payload;
   if (payload.enabled && payload.spriteAvailable) {
     const initial = resolveMeguriPresentation(DEFAULT_MEGURI_PRESENTATION, {
@@ -661,6 +755,7 @@ async function refreshCompanion() {
   errorText.value = '';
   try {
     await loadBootstrap();
+    if (!disposed && bootstrap.value.coreOnline && activeTurnId && !sending.value) void resumeInterruptedTurn();
   } catch (error) {
     errorText.value = resolveErrorMessage(error);
   } finally {
@@ -698,15 +793,19 @@ function syncReducedMotion(event) {
 onMounted(async () => {
   try {
     await auth.ensureReady();
+    if (disposed) return;
     ensureSession();
     if (typeof window !== 'undefined') {
       window.addEventListener('keydown', handleWindowKeydown);
+      window.addEventListener(MEGURI_CHECKPOINT_UPDATED_EVENT, handleCheckpointUpdated);
       motionMediaQuery = window.matchMedia?.('(prefers-reduced-motion: reduce)') || null;
       reducedMotion.value = Boolean(motionMediaQuery?.matches);
       motionMediaQuery?.addEventListener?.('change', syncReducedMotion);
     }
     await loadBootstrap();
-    await resumeInterruptedTurn();
+    if (disposed) return;
+    pageReady.value = true;
+    if (bootstrap.value.enabled && bootstrap.value.coreOnline) await resumeInterruptedTurn();
   } catch (error) {
     errorText.value = resolveErrorMessage(error);
   } finally {
@@ -715,10 +814,12 @@ onMounted(async () => {
 });
 
 onBeforeUnmount(() => {
+  disposed = true;
   followAbortController?.abort();
   if (spriteSwapTimer) clearTimeout(spriteSwapTimer);
   if (controlsCollapseTimer) clearTimeout(controlsCollapseTimer);
   if (typeof window !== 'undefined') window.removeEventListener('keydown', handleWindowKeydown);
+  if (typeof window !== 'undefined') window.removeEventListener(MEGURI_CHECKPOINT_UPDATED_EVENT, handleCheckpointUpdated);
   motionMediaQuery?.removeEventListener?.('change', syncReducedMotion);
   for (const url of spriteUrlCache.values()) {
     try {

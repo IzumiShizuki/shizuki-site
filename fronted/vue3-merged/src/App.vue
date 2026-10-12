@@ -75,6 +75,11 @@
 
       <FocusModeBar v-if="!isMobileShellRoute" />
 
+      <MeguriCompanion
+        v-if="!isMobileShellRoute && !isDesktopHomeSurface"
+        :suspended="isFocusActive"
+      />
+
       <RouterView v-if="isMobileShellRoute" v-slot="{ Component }">
         <component :is="Component" />
       </RouterView>
@@ -344,6 +349,7 @@ import './styles/blog-page-enhanced.css';
 import ParticleBackground from './components/ParticleBackground.vue';
 import FluidBackground from './components/FluidBackground.vue';
 import AiDialog from './components/AiDialog.vue';
+import MeguriCompanion from './components/companion/MeguriCompanion.vue';
 import AtmospherePanel from './components/AtmospherePanel.vue';
 import AppBackgroundStage from './components/app/AppBackgroundStage.vue';
 import BackgroundPickerDialog from './components/app/BackgroundPickerDialog.vue';

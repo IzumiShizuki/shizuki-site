@@ -3,7 +3,7 @@ import { createMemoryHistory, createRouter } from 'vue-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ref } from 'vue';
 import { PLAYER_BRIDGE_KEY } from '../composables/playerBridge';
-import { AI_CHAT_OPEN_EVENT } from '../utils/aiChatBus';
+import { MEGURI_COMPANION_OPEN_EVENT } from '../utils/meguriCompanionBus';
 import { __resetFocusSessionForTests, exitFocusSession, getFocusSessionSnapshot, setFocusTask } from '../utils/focusSessionState';
 import {
   HOME_STAGE_CONTEXT_KEY,
@@ -178,21 +178,17 @@ describe('HomePage time stage', () => {
     wrapper.unmount();
   });
 
-  it('opens companion mode for ADMIN users without leaving Home', async () => {
+  it('opens Meguri for ADMIN users without leaving Home', async () => {
     const { wrapper, router } = await mountPage();
     const listener = vi.fn();
-    window.addEventListener(AI_CHAT_OPEN_EVENT, listener);
+    window.addEventListener(MEGURI_COMPANION_OPEN_EVENT, listener);
 
     await wrapper.get('[data-testid="home-companion-action"]').trigger('click');
 
     expect(listener).toHaveBeenCalledOnce();
-    expect(listener.mock.calls[0][0].detail).toMatchObject({
-      source: 'home-room',
-      preferredMode: 'companion'
-    });
     expect(router.currentRoute.value.path).toBe('/');
 
-    window.removeEventListener(AI_CHAT_OPEN_EVENT, listener);
+    window.removeEventListener(MEGURI_COMPANION_OPEN_EVENT, listener);
     wrapper.unmount();
   });
 
