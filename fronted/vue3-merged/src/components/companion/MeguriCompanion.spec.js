@@ -1,16 +1,16 @@
 import { flushPromises, mount } from '@vue/test-utils';
 import { createMemoryHistory, createRouter } from 'vue-router';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { defineComponent, onBeforeUnmount, onMounted, ref } from 'vue';
+import { resetCompanionMode } from '../../composables/useCompanionMode';
 import { openMeguriCompanion } from '../../utils/meguriCompanionBus';
 import MeguriCompanion from './MeguriCompanion.vue';
 
 const mocked = vi.hoisted(() => ({ auth: null, mounts: 0, unmounts: 0 }));
 vi.mock('../../composables/useAuthSession', () => ({ useAuthSession: () => mocked.auth }));
-
+const wrappers = [];
 const StageStub = defineComponent({
-  name: 'MeguriPage',
-  emits: ['sprite-change'],
+  name: 'MeguriPage', emits: ['sprite-change'],
   setup(_, { emit }) {
     const draft = ref('');
     onMounted(() => { mocked.mounts++; emit('sprite-change', 'blob:owner-sprite'); });
@@ -19,7 +19,6 @@ const StageStub = defineComponent({
   },
   template: '<div class="stage-stub"><input v-model="draft" aria-label="测试对话" /></div>'
 });
-
 async function mountHost() {
   const router = createRouter({ history: createMemoryHistory(), routes: [
     { path: '/', name: 'home', component: { template: '<div />' } },
@@ -27,106 +26,97 @@ async function mountHost() {
     { path: '/ai-hub', name: 'ai-hub', component: { template: '<div />' } }
   ] });
   await router.push('/');
-  await router.isReady();
-  const wrapper = mount(MeguriCompanion, {
-    attachTo: document.body,
-    global: { plugins: [router], stubs: { MeguriPage: StageStub } }
-  });
+  const wrapper = mount(MeguriCompanion, { attachTo: document.body,
+    global: { plugins: [router], stubs: { MeguriPage: StageStub } } });
+  wrappers.push(wrapper);
   return { wrapper, router };
 }
-
-describe('MeguriCompanion', () => {
+async function hiddenGesture(wrapper, count = 5) {
+  for (let i = 0; i < count; i++) await wrapper.get('.companion-launcher').trigger('click');
+  await flushPromises();
+}
+describe('companion isolation', () => {
   beforeEach(() => {
+    resetCompanionMode();
     mocked.auth = { isAuthenticated: ref(true), user: ref({ userId: 1, groups: ['ADMIN'] }) };
-    mocked.mounts = 0;
-    mocked.unmounts = 0;
+    mocked.mounts = 0; mocked.unmounts = 0;
   });
-
-  it('never mounts for visitors or non-ADMIN users', async () => {
-    mocked.auth.user.value.groups = ['USER'];
+  afterEach(() => { wrappers.splice(0).forEach((wrapper) => wrapper.unmount()); vi.restoreAllMocks(); });
+  it('defaults even ADMIN to an ordinary cat without character names or assets', async () => {
     const { wrapper } = await mountHost();
     openMeguriCompanion();
     await flushPromises();
-    expect(wrapper.find('.companion-launcher').exists()).toBe(false);
+    expect(wrapper.text()).toContain('小猫陪伴');
+    expect(wrapper.text()).not.toMatch(/爱莉|ADMIN|未开放/);
+    expect(wrapper.find('img').exists()).toBe(false);
     expect(mocked.mounts).toBe(0);
-    mocked.auth.isAuthenticated.value = false;
-    mocked.auth.user.value = { userId: 1, groups: ['ADMIN'] };
-    await flushPromises();
-    expect(wrapper.find('.companion-launcher').exists()).toBe(false);
-    wrapper.unmount();
   });
-
-  it('loads on demand and preserves the stage and draft when minimized', async () => {
+  it.each([['USER'], ['FRIEND']])('never unlocks the role for %s', async (group) => {
+    mocked.auth.user.value.groups = [group];
     const { wrapper } = await mountHost();
+    await hiddenGesture(wrapper, 8);
+    expect(wrapper.find('.ordinary-companion-panel').exists()).toBe(true);
     expect(mocked.mounts).toBe(0);
-    await wrapper.get('.companion-launcher').trigger('click');
+  });
+  it('keeps the guest companion usable and blocks an unauthenticated ADMIN snapshot', async () => {
+    mocked.auth.isAuthenticated.value = false;
+    const { wrapper, router } = await mountHost();
+    await hiddenGesture(wrapper);
+    expect(mocked.mounts).toBe(0);
+    await wrapper.findAll('.ordinary-companion-panel nav button')[1].trigger('click');
     await flushPromises();
+    expect(router.currentRoute.value.path).toBe('/music-library/music');
+  });
+  it('requires five rapid activations and preserves the role draft while minimized', async () => {
+    const { wrapper } = await mountHost();
+    await hiddenGesture(wrapper, 4);
+    expect(mocked.mounts).toBe(0);
+    await hiddenGesture(wrapper, 1);
+    expect(mocked.mounts).toBe(1);
     await wrapper.get('.stage-stub input').setValue('还没说完');
     await wrapper.get('[aria-label="最小化陪伴窗口"]').trigger('click');
     expect(wrapper.get('.companion-panel').isVisible()).toBe(false);
-    expect(wrapper.get('.companion-launcher img').attributes('src')).toBe('blob:owner-sprite');
-    expect(document.activeElement).toBe(wrapper.get('.companion-launcher').element);
     await wrapper.get('.companion-launcher').trigger('click');
-    expect(mocked.mounts).toBe(1);
     expect(wrapper.get('.stage-stub input').element.value).toBe('还没说完');
-    wrapper.unmount();
+    expect(mocked.mounts).toBe(1);
+    await wrapper.get('[aria-label="返回普通模式"]').trigger('click');
+    expect(wrapper.find('.stage-stub').exists()).toBe(false);
+    expect(wrapper.find('img').exists()).toBe(false);
+    expect(wrapper.text()).toContain('小猫陪伴');
   });
-
-  it('retains the runtime during navigation and focus suspension', async () => {
-    const { wrapper, router } = await mountHost();
-    openMeguriCompanion();
+  it('does not unlock after the gesture time window expires', async () => {
+    const now = vi.spyOn(Date, 'now').mockReturnValue(1000);
+    const { wrapper } = await mountHost();
+    await hiddenGesture(wrapper, 4);
+    now.mockReturnValue(5001);
+    await hiddenGesture(wrapper, 1);
+    expect(mocked.mounts).toBe(0);
+  });
+  it('clears mode, stage and sprites on account changes and logout', async () => {
+    const { wrapper } = await mountHost();
+    await hiddenGesture(wrapper);
+    mocked.auth.user.value = { userId: 2, groups: ['ADMIN'] };
     await flushPromises();
+    expect(wrapper.find('.stage-stub').exists()).toBe(false);
+    expect(wrapper.text()).not.toContain('爱莉');
+    await hiddenGesture(wrapper);
+    mocked.auth.isAuthenticated.value = false;
+    await flushPromises();
+    expect(mocked.unmounts).toBe(2);
+    expect(wrapper.find('img').exists()).toBe(false);
+  });
+  it('retains the role during navigation/suspension and hands off without duplication', async () => {
+    const { wrapper, router } = await mountHost();
+    await hiddenGesture(wrapper);
     await router.push('/blog');
     await wrapper.setProps({ suspended: true });
     expect(wrapper.get('.site-companion').isVisible()).toBe(false);
     expect(mocked.unmounts).toBe(0);
     await wrapper.setProps({ suspended: false });
-    expect(wrapper.get('.companion-panel').isVisible()).toBe(true);
-    expect(mocked.mounts).toBe(1);
-    wrapper.unmount();
-  });
-
-  it('hands off to AI Hub without leaving a duplicate stage', async () => {
-    const { wrapper, router } = await mountHost();
-    openMeguriCompanion();
-    await flushPromises();
     await wrapper.get('[aria-label="在 AI Hub 中打开"]').trigger('click');
     await flushPromises();
     expect(router.currentRoute.value.query.mode).toBe('meguri');
     expect(wrapper.find('.stage-stub').exists()).toBe(false);
     expect(mocked.unmounts).toBe(1);
-    await router.push('/blog');
-    await flushPromises();
-    expect(wrapper.find('.companion-launcher img').exists()).toBe(false);
-    wrapper.unmount();
-  });
-
-  it('clears the runtime and sprite when switching accounts or logging out', async () => {
-    const { wrapper } = await mountHost();
-    openMeguriCompanion();
-    await flushPromises();
-    mocked.auth.user.value = { userId: 2, groups: ['ADMIN'] };
-    await flushPromises();
-    expect(wrapper.find('.stage-stub').exists()).toBe(false);
-    expect(wrapper.find('.companion-launcher img').exists()).toBe(false);
-    openMeguriCompanion();
-    await flushPromises();
-    mocked.auth.isAuthenticated.value = false;
-    await flushPromises();
-    expect(mocked.unmounts).toBe(2);
-    expect(wrapper.find('.companion-launcher').exists()).toBe(false);
-    wrapper.unmount();
-  });
-
-  it('unmounts on close and removes the open-event listener', async () => {
-    const { wrapper } = await mountHost();
-    openMeguriCompanion();
-    await flushPromises();
-    await wrapper.get('[aria-label="关闭陪伴窗口"]').trigger('click');
-    expect(mocked.unmounts).toBe(1);
-    wrapper.unmount();
-    openMeguriCompanion();
-    await flushPromises();
-    expect(mocked.mounts).toBe(1);
   });
 });

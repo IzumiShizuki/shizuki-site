@@ -3,6 +3,7 @@ package io.github.shizuki.site.media.controller;
 import io.github.shizuki.common.audit.annotation.AuditLog;
 import io.github.shizuki.common.core.response.ApiResponse;
 import io.github.shizuki.common.ratelimit.annotation.RateLimit;
+import io.github.shizuki.common.security.annotation.RequirePermission;
 import io.github.shizuki.site.media.request.WallhavenImportCreateRequest;
 import io.github.shizuki.site.media.response.WallhavenSearchResponse;
 import io.github.shizuki.site.media.response.WallhavenItemDetailResponse;
@@ -24,9 +25,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.time.Duration;
-
 @RestController
+@RequirePermission("media.wallpaper.discovery")
 @RequestMapping("/api/v1/home-wallpapers/discovery")
 @Tag(name = "Home Wallpaper Discovery", description = "「获取壁纸」内嵌浏览：创意工坊 / Wallhaven 搜索代理与拉取")
 public class WallpaperDiscoveryController {
@@ -70,7 +70,7 @@ public class WallpaperDiscoveryController {
         }
         return ResponseEntity.ok()
             .contentType(contentType)
-            .cacheControl(CacheControl.maxAge(Duration.ofMinutes(30)).cachePublic())
+            .cacheControl(CacheControl.noStore().cachePrivate())
             .body(preview.bytes());
     }
 

@@ -185,6 +185,7 @@ public class WallpaperServiceImpl implements WallpaperService {
 
     @Override
     public WallpaperImportJobResponse importWorkshop(WorkshopImportCreateRequest request) {
+        io.github.shizuki.site.media.service.WallpaperDiscoveryAccess.requireAccess();
         Long userId = requireLoginUserId();
         AssetVisibilityEnum visibility = AssetVisibilityEnum.fromName(
             request == null ? null : request.getVisibility(),

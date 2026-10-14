@@ -346,7 +346,6 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import {
-  getWallpaperDiscoveryPreviewUrl,
   getWorkshopItemDetail,
   getWallhavenItemDetail,
   searchWallhavenWallpapers,
@@ -356,6 +355,7 @@ import {
 const props = defineProps({
   source: { type: String, default: 'workshop' },
   authorizedFetch: { type: Function, default: null },
+  authorizedRawFetch: { type: Function, default: null },
   isAuthenticated: { type: Boolean, default: false },
   busy: { type: Boolean, default: false },
   importState: { type: Object, default: () => ({}) }
@@ -652,7 +652,11 @@ function normalizeWallhavenItem(raw) {
 }
 
 function clearPreviewStates() {
-  Object.keys(previewStates).forEach((key) => delete previewStates[key]);
+  Object.keys(previewStates).forEach((key) => {
+    previewStates[key].controller?.abort();
+    if (previewStates[key].proxyUrl) URL.revokeObjectURL(previewStates[key].proxyUrl);
+    delete previewStates[key];
+  });
 }
 
 function ensurePreviewState(item) {
@@ -665,10 +669,9 @@ function ensurePreviewState(item) {
 
 function previewCandidates(item) {
   if (!item) return [];
-  const sourceId = source.value === 'workshop' ? item.itemId : item.wallhavenId;
   return [...new Set([
     item.thumb,
-    getWallpaperDiscoveryPreviewUrl(source.value, sourceId),
+    previewStates[item.key]?.proxyUrl,
     item.fullUrl
   ].filter(Boolean))];
 }
@@ -691,12 +694,37 @@ function handlePreviewLoad(item) {
   state.lastFailedSrc = '';
 }
 
-function handlePreviewError(item, event) {
+async function handlePreviewError(item, event) {
   const state = ensurePreviewState(item);
   const candidates = previewCandidates(item);
   const failedSrc = event?.currentTarget?.getAttribute('src') || previewSrc(item);
   if (state.lastFailedSrc === failedSrc) return;
   state.lastFailedSrc = failedSrc;
+  if (!state.proxyAttempted && props.authorizedRawFetch) {
+    state.proxyAttempted = true;
+    state.controller = new AbortController();
+    try {
+      const id = source.value === 'workshop' ? item.itemId : item.wallhavenId;
+      const response = await props.authorizedRawFetch(
+        `/api/v1/home-wallpapers/discovery/preview/${source.value}/${encodeURIComponent(id)}`,
+        { method: 'GET', signal: state.controller.signal }
+      );
+      if (response.status === 401 || response.status === 403) {
+        state.loading = false;
+        state.failed = true;
+        return;
+      }
+      if (!response.ok) throw new Error('preview unavailable');
+      const blob = await response.blob();
+      if (previewStates[item.key] !== state || state.controller.signal.aborted) return;
+      state.proxyUrl = URL.createObjectURL(blob);
+      state.candidateIndex = item.thumb ? 1 : 0;
+      state.loading = true;
+      return;
+    } catch {
+      if (previewStates[item.key] !== state) return;
+    }
+  }
   if (state.candidateIndex < candidates.length - 1) {
     state.candidateIndex += 1;
     state.loading = true;
@@ -710,6 +738,9 @@ function handlePreviewError(item, event) {
 
 function retryPreview(item) {
   if (!item) return;
+  const previous = previewStates[item.key];
+  previous?.controller?.abort();
+  if (previous?.proxyUrl) URL.revokeObjectURL(previous.proxyUrl);
   previewStates[item.key] = {
     candidateIndex: 0,
     loaded: false,
@@ -727,6 +758,7 @@ function wallhavenCategories() {
 }
 
 async function runSearch(targetPage = 1, { forceRefresh = false } = {}) {
+  if (!props.isAuthenticated || !props.authorizedFetch) return;
   if (nameRetryTimer) window.clearTimeout(nameRetryTimer);
   nameRetryTimer = 0;
   if (searchDebounceTimer) {
@@ -960,6 +992,7 @@ onMounted(() => {
   runSearch(1);
 });
 onBeforeUnmount(() => {
+  clearPreviewStates();
   if (nameRetryTimer) window.clearTimeout(nameRetryTimer);
   if (searchDebounceTimer) window.clearTimeout(searchDebounceTimer);
   window.removeEventListener('resize', syncFilterDisclosureToViewport);

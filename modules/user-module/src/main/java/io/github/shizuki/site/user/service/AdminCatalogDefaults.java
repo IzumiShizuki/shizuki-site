@@ -24,6 +24,8 @@ public final class AdminCatalogDefaults {
         new AdminPermissionOptionResponse(
             "music.asmr.access", "音声内容访问", "允许收听 ASMR / 音声分区内容", "音乐", true),
         new AdminPermissionOptionResponse(
+            "media.wallpaper.discovery", "外部壁纸访问", "访问未审核的外部壁纸搜索、预览与导入；仅向明确许可的账号开放", "媒体", true),
+        new AdminPermissionOptionResponse(
             "user.group.read", "用户分组查看", "查看用户与分组归属关系", "后台·用户", true),
         new AdminPermissionOptionResponse(
             "user.group.write", "用户分组管理", "调整用户所属分组（写操作需二次验证）", "后台·用户", true),

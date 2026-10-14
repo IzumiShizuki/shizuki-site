@@ -25,6 +25,7 @@ export const MAX_SAFE_QUOTA_VALUE = Number.MAX_SAFE_INTEGER;
 export const FALLBACK_PERMISSION_OPTIONS = Object.freeze([
   { code: 'basic.read', label: '基础浏览', description: '访问站点公开内容的基础读取权限', category: '基础', builtIn: true },
   { code: 'music.asmr.access', label: '音声内容访问', description: '允许收听 ASMR / 音声分区内容', category: '音乐', builtIn: true },
+  { code: 'media.wallpaper.discovery', label: '外部壁纸访问', description: '访问未审核的外部壁纸搜索、预览与导入；仅向明确许可的账号开放', category: '媒体', builtIn: true },
   { code: 'user.group.read', label: '用户分组查看', description: '查看用户与分组归属关系', category: '后台·用户', builtIn: true },
   { code: 'user.group.write', label: '用户分组管理', description: '调整用户所属分组（写操作需二次验证）', category: '后台·用户', builtIn: true },
   { code: 'group.permission.read', label: '分组权限查看', description: '查看各分组的权限配置', category: '后台·权限', builtIn: true },

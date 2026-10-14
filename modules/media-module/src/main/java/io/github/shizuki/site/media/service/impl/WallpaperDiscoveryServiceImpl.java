@@ -16,6 +16,7 @@ import io.github.shizuki.site.media.response.WorkshopItemDetailResponse;
 import io.github.shizuki.site.media.response.WorkshopSearchItemResponse;
 import io.github.shizuki.site.media.response.WorkshopSearchResponse;
 import io.github.shizuki.site.media.service.WallpaperDiscoveryService;
+import io.github.shizuki.site.media.service.WallpaperDiscoveryAccess;
 import io.github.shizuki.site.media.service.WallpaperService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -504,6 +505,7 @@ public class WallpaperDiscoveryServiceImpl implements WallpaperDiscoveryService 
     }
 
     private void requireDiscoveryEnabled() {
+        WallpaperDiscoveryAccess.requireAccess();
         if (!discoveryProperties.isEnabled()) {
             throw new BusinessException(ErrorCode.FORBIDDEN, "Wallpaper discovery is disabled");
         }

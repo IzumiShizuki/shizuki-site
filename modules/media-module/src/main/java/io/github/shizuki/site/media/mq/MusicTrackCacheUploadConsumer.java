@@ -60,6 +60,8 @@ public class MusicTrackCacheUploadConsumer {
             return;
         }
         String provider = readString(event.provider(), "").toLowerCase(Locale.ROOT);
+        // Reject both new and previously queued voice uploads to the public bucket.
+        if ("asmr".equals(provider)) return;
         String trackId = readString(event.trackId(), "");
         String sourceAudioUrl = readString(event.sourceAudioUrl(), "");
         String title = readString(event.title(), "");

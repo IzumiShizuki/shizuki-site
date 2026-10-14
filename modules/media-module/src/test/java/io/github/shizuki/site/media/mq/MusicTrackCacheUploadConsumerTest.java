@@ -12,6 +12,16 @@ import org.mockito.ArgumentMatchers;
 import org.mockito.Mockito;
 
 class MusicTrackCacheUploadConsumerTest {
+    @Test
+    void shouldNeverUploadQueuedVoiceContentToPublicStorage() throws Exception {
+        MusicTrackCacheMapper mapper = Mockito.mock(MusicTrackCacheMapper.class);
+        ObjectStorageClient storage = Mockito.mock(ObjectStorageClient.class);
+        var consumer = new MusicTrackCacheUploadConsumer(mapper, storage,
+            new MediaStorageProperties(), new OssProperties(), new ObjectMapper());
+        consumer.onMessage(new ObjectMapper().writeValueAsString(
+            new MusicTrackCacheUploadEvent("asmr", "voice-1", "https://audio.example.com/voice.mp3", "voice", "")));
+        Mockito.verifyNoInteractions(mapper, storage);
+    }
 
     @Test
     void shouldSkipObjectExistsProbeForSourceOnlyPlaceholder() throws Exception {

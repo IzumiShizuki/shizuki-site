@@ -96,7 +96,7 @@ async function resolveVoiceRouteVisible(auth) {
     voiceAccessCache.expiresAt = now + VOICE_ACCESS_CACHE_TTL_MS;
     return visible;
   } catch {
-    return true;
+    return false;
   }
 }
 

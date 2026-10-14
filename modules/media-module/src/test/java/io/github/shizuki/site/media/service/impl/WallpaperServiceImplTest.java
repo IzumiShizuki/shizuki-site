@@ -427,7 +427,7 @@ class WallpaperServiceImplTest {
 
     @Test
     void shouldExposeQueuedProgressForNewWorkshopImport() {
-        LoginUserContext.set(new LoginUser(42L, Set.of("USER"), Set.of()));
+        LoginUserContext.set(new LoginUser(42L, Set.of("USER"), Set.of("media.wallpaper.discovery")));
         WorkshopImportCreateRequest request = new WorkshopImportCreateRequest();
         request.setWorkshopUrl("https://steamcommunity.com/sharedfiles/filedetails/?id=3789790717");
         request.setVisibility("PRIVATE");
@@ -440,6 +440,14 @@ class WallpaperServiceImplTest {
         Assertions.assertEquals(5, created.progressPercent());
         Assertions.assertEquals(created.progressStage(), fetched.progressStage());
         Assertions.assertEquals(created.progressPercent(), fetched.progressPercent());
+    }
+
+    @Test
+    void shouldDenyWorkshopImportBeforeCreatingJobWithoutGrant() {
+        LoginUserContext.set(new LoginUser(42L, Set.of("FRIEND"), Set.of()));
+        Assertions.assertThrows(BusinessException.class,
+            () -> wallpaperService.importWorkshop(new WorkshopImportCreateRequest()));
+        Mockito.verifyNoInteractions(wallpaperImportJobMapper, workshopMetadataProvider);
     }
 
     @Test

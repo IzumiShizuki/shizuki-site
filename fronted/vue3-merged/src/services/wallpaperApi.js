@@ -1,9 +1,7 @@
 import { httpRequest, normalizeApiData } from './httpClient';
-import { createWallpaperSearchCache } from '../utils/wallpaperSearchCache';
 
 const RAW_API_BASE = String(import.meta.env.VITE_GATEWAY_BASE_URL || '/').trim() || '/';
 const API_BASE = RAW_API_BASE === '/' ? '' : RAW_API_BASE.replace(/\/+$/, '');
-const wallpaperSearchCache = createWallpaperSearchCache({ ttlMs: 60_000, maxEntries: 24 });
 
 function unwrapApiResponse(response) {
   return normalizeApiData(response);
@@ -14,10 +12,6 @@ function requireAuthorizedFetch(authorizedFetch) {
     throw new Error('authorizedFetch is required for this request');
   }
   return authorizedFetch;
-}
-
-function resolveReadRequest(authorizedFetch) {
-  return typeof authorizedFetch === 'function' ? authorizedFetch : httpRequest;
 }
 
 export function getWallpaperDiscoveryPreviewUrl(source, itemId) {
@@ -83,8 +77,8 @@ export async function importWallpaperWorkshop(payload, authorizedFetch) {
   return unwrapApiResponse(response);
 }
 
-export async function searchWorkshopWallpapers(params, authorizedFetch, { forceRefresh = false } = {}) {
-  const request = resolveReadRequest(authorizedFetch);
+export async function searchWorkshopWallpapers(params, authorizedFetch) {
+  const request = requireAuthorizedFetch(authorizedFetch);
   const query = {
     query: String(params?.query || '').trim(),
     page: Number(params?.page) > 0 ? Number(params.page) : 1,
@@ -93,14 +87,12 @@ export async function searchWorkshopWallpapers(params, authorizedFetch, { forceR
       ? params.tags.map((item) => String(item || '').trim()).filter(Boolean).join(',')
       : String(params?.tags || '').trim()
   };
-  return wallpaperSearchCache.get(`workshop:${JSON.stringify(query)}`, async () => {
-    const response = await request('/api/v1/home-wallpapers/discovery/workshop/search', { method: 'GET', query });
-    return unwrapApiResponse(response);
-  }, { forceRefresh });
+  const response = await request('/api/v1/home-wallpapers/discovery/workshop/search', { method: 'GET', query });
+  return unwrapApiResponse(response);
 }
 
 export async function getWorkshopItemDetail(itemId, authorizedFetch) {
-  const request = resolveReadRequest(authorizedFetch);
+  const request = requireAuthorizedFetch(authorizedFetch);
   const normalizedId = String(itemId || '').trim();
   if (!/^\d{3,20}$/.test(normalizedId)) {
     throw new Error('itemId is required');
@@ -112,7 +104,7 @@ export async function getWorkshopItemDetail(itemId, authorizedFetch) {
 }
 
 export async function getWallhavenItemDetail(itemId, authorizedFetch) {
-  const request = resolveReadRequest(authorizedFetch);
+  const request = requireAuthorizedFetch(authorizedFetch);
   const id = String(itemId || '').trim();
   if (!/^[a-z0-9]{4,20}$/i.test(id)) throw new Error('wallhaven itemId is required');
   return unwrapApiResponse(await request(`/api/v1/home-wallpapers/discovery/wallhaven/items/${encodeURIComponent(id)}`, {
@@ -120,8 +112,8 @@ export async function getWallhavenItemDetail(itemId, authorizedFetch) {
   }));
 }
 
-export async function searchWallhavenWallpapers(params, authorizedFetch, { forceRefresh = false } = {}) {
-  const request = resolveReadRequest(authorizedFetch);
+export async function searchWallhavenWallpapers(params, authorizedFetch) {
+  const request = requireAuthorizedFetch(authorizedFetch);
   const query = {
     query: String(params?.query || '').trim(),
     page: Number(params?.page) > 0 ? Number(params.page) : 1,
@@ -132,10 +124,8 @@ export async function searchWallhavenWallpapers(params, authorizedFetch, { force
     atleast: String(params?.atleast || ''),
     ratios: String(params?.ratios || '')
   };
-  return wallpaperSearchCache.get(`wallhaven:${JSON.stringify(query)}`, async () => {
-    const response = await request('/api/v1/home-wallpapers/discovery/wallhaven/search', { method: 'GET', query });
-    return unwrapApiResponse(response);
-  }, { forceRefresh });
+  const response = await request('/api/v1/home-wallpapers/discovery/wallhaven/search', { method: 'GET', query });
+  return unwrapApiResponse(response);
 }
 
 export async function importWallhavenWallpaper(payload, authorizedFetch) {

@@ -126,6 +126,7 @@ import { computed, inject, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { PLAYER_BRIDGE_KEY } from '../composables/playerBridge';
 import { useAuthSession } from '../composables/useAuthSession';
+import { useCompanionMode } from '../composables/useCompanionMode';
 import { listPublicPostWhispers } from '../services/blogApi';
 import { openMeguriCompanion } from '../utils/meguriCompanionBus';
 import { useFocusSession } from '../utils/focusSessionState';
@@ -135,6 +136,7 @@ import { buildAuthorHomepageWhisperPool } from './authorHomepageWhispersState';
 
 const router = useRouter();
 const auth = useAuthSession();
+const { isAnime } = useCompanionMode(auth);
 const player = inject(PLAYER_BRIDGE_KEY, null);
 const stageContext = inject(HOME_STAGE_CONTEXT_KEY, null);
 const focus = useFocusSession();
@@ -240,35 +242,12 @@ const focusIslandState = computed(() => {
   };
 });
 
-const isAdminUser = computed(() => {
-  const groups = Array.isArray(auth.user.value?.groups) ? auth.user.value.groups : [];
-  return groups.some((groupCode) => String(groupCode || '').trim().toUpperCase() === 'ADMIN');
-});
-
-const companionEntry = computed(() => {
-  if (!auth.isAuthenticated.value) {
-    return {
-      title: '登录后回家',
-      caption: '开启自宅伴聊',
-      icon: 'fas fa-right-to-bracket',
-      disabled: false
-    };
-  }
-  if (!isAdminUser.value) {
-    return {
-      title: '伴聊未开放',
-      caption: '当前仅限 ADMIN',
-      icon: 'fas fa-lock',
-      disabled: true
-    };
-  }
-  return {
-    title: '爱莉陪伴',
-    caption: '坐下来和爱莉聊聊',
-    icon: 'fas fa-comments',
-    disabled: false
-  };
-});
+const companionEntry = computed(() => ({
+  title: isAnime.value ? '爱莉陪伴' : '小猫陪伴',
+  caption: isAnime.value ? '坐下来和爱莉聊聊' : '陪你阅读、听歌和专注',
+  icon: isAnime.value ? 'fas fa-comments' : 'fas fa-cat',
+  disabled: false
+}));
 
 function handleMusicAction() {
   if (player?.currentTrack?.value && typeof player.togglePlay === 'function') {
@@ -291,11 +270,6 @@ function openAuthorIntro() {
 }
 
 function openCompanion() {
-  if (!auth.isAuthenticated.value) {
-    auth.redirectToAuth('login_required', '/');
-    return;
-  }
-  if (!isAdminUser.value) return;
   openMeguriCompanion();
 }
 

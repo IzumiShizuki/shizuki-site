@@ -22,7 +22,7 @@
             <span>普通对话模式</span>
           </button>
           <button
-            v-if="isAdminUser"
+            v-if="isAnime"
             class="mode-tab ripple-trigger"
             :class="{ active: activePrimaryMode === 'meguri' }"
             type="button"
@@ -30,6 +30,10 @@
           >
             <i class="fas fa-wand-magic-sparkles" aria-hidden="true"></i>
             <span>爱莉伴聊</span>
+          </button>
+          <button v-if="isAnime" class="mode-tab ripple-trigger" type="button" @click="returnToNormal">
+            <i class="fas fa-cat" aria-hidden="true"></i>
+            <span>返回普通模式</span>
           </button>
         </div>
 
@@ -334,7 +338,7 @@
             </template>
           </template>
 
-          <template v-else-if="activePrimaryMode === 'meguri' && isAdminUser">
+          <template v-else-if="activePrimaryMode === 'meguri' && isAnime">
             <MeguriPage :key="auth.user.value?.userId || auth.user.value?.id" class="meguri-companion-main" embedded />
           </template>
 
@@ -512,11 +516,11 @@
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref, watch } from 'vue';
+import { computed, defineAsyncComponent, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import AiDialog from '../components/AiDialog.vue';
 import AiSessionRail from '../components/AiSessionRail.vue';
-import MeguriPage from './MeguriPage.vue';
+import { useCompanionMode } from '../composables/useCompanionMode';
 import { useAuthSession } from '../composables/useAuthSession';
 import {
   createAdminTownNpcSession,
@@ -544,6 +548,8 @@ import { buildAiCapabilityState } from '../utils/aiAuthorizationState';
 import { readGuestLightAppData, readRemoteLightAppCache } from '../utils/lightAppsDataStore';
 
 const auth = useAuthSession();
+const { isAnime, returnToNormal } = useCompanionMode(auth);
+const MeguriPage = defineAsyncComponent(() => import('./MeguriPage.vue'));
 const route = useRoute();
 const activePrimaryMode = ref('town');
 const townSubView = ref('map');
@@ -1020,7 +1026,7 @@ function activateStandardConversation() {
 }
 
 function activateMeguriCompanion() {
-  if (!isAdminUser.value) return;
+  if (!isAnime.value) return;
   activePrimaryMode.value = 'meguri';
   conversationOpenPayload.value = null;
 }
@@ -1348,6 +1354,10 @@ onMounted(async () => {
 
 watch(() => route.query.mode, (mode) => {
   if (mode === 'meguri') activateMeguriCompanion();
+});
+
+watch(isAnime, (anime) => {
+  if (!anime && activePrimaryMode.value === 'meguri') activePrimaryMode.value = 'conversation';
 });
 
 watch(

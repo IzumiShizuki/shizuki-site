@@ -277,6 +277,9 @@
         :wallpaper-error-hint="wallpaperErrorHint"
         :import-state="importState"
         :is-authenticated="auth.isAuthenticated.value"
+        :can-discover-wallpapers="canDiscoverWallpapers"
+        :discovery-owner-key="String(auth.user.value?.userId || '')"
+        :authorized-raw-fetch="auth.isAuthenticated.value ? auth.authorizedRawFetch : null"
         :authorized-fetch="auth.isAuthenticated.value ? auth.authorizedFetch : null"
         :package-drop-active="packageDropActive"
         :active-background="activeBackground"
@@ -665,6 +668,9 @@ const isAdminUser = computed(() => {
   const groups = Array.isArray(auth.user.value?.groups) ? auth.user.value.groups : [];
   return groups.some((groupCode) => String(groupCode || '').toUpperCase() === 'ADMIN');
 });
+const canDiscoverWallpapers = computed(() => auth.isAuthenticated.value && (
+  isAdminUser.value || (auth.user.value?.permissions || []).includes('media.wallpaper.discovery')
+));
 
 const nestedScrollOwner = createAppScrollOwnerController();
 const activeRouteScrollSource = computed(() => (
@@ -2385,6 +2391,7 @@ function buildWorkshopDiscoveryUrl() {
 }
 
 function openWorkshopDiscoveryWindow() {
+  if (!canDiscoverWallpapers.value) return;
   window.open(
     buildWorkshopDiscoveryUrl(),
     'shizuki-workshop-discovery',

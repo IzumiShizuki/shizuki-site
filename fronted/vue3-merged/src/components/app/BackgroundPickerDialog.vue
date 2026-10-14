@@ -22,6 +22,7 @@
               我的壁纸
             </button>
             <button
+              v-if="canDiscoverWallpapers"
               type="button"
               class="workspace-tab ripple-trigger"
               :class="{ active: workspaceSection === 'discover' }"
@@ -31,6 +32,7 @@
               发现
             </button>
             <button
+              v-if="canDiscoverWallpapers"
               type="button"
               class="workspace-tab ripple-trigger"
               :class="{ active: workspaceSection === 'workshop' }"
@@ -88,7 +90,7 @@
               </button>
             </section>
 
-            <section class="add-card">
+            <section v-if="canDiscoverWallpapers" class="add-card">
               <div class="add-card-title"><strong>Workshop 链接</strong></div>
               <input
                 v-model.trim="importState.workshopUrl"
@@ -331,9 +333,11 @@
           </div>
 
           <WallpaperDiscoveryPanel
-            v-else
+            v-else-if="canDiscoverWallpapers"
+            :key="discoveryOwnerKey"
             :source="onlineSource"
             :authorized-fetch="authorizedFetch"
+            :authorized-raw-fetch="authorizedRawFetch"
             :is-authenticated="isAuthenticated"
             :busy="importState.busy"
             :import-state="importState"
@@ -413,6 +417,9 @@ const props = defineProps({
   wallpaperErrorHint: { type: String, default: '' },
   importState: { type: Object, default: () => ({}) },
   isAuthenticated: { type: Boolean, default: false },
+  canDiscoverWallpapers: { type: Boolean, default: false },
+  discoveryOwnerKey: { type: String, default: '' },
+  authorizedRawFetch: { type: Function, default: null },
   authorizedFetch: { type: Function, default: null },
   packageDropActive: { type: Boolean, default: false },
   activeBackground: { type: Object, default: null },
@@ -456,7 +463,7 @@ const onlineSource = ref('wallhaven');
 const addPanelOpen = ref(false);
 
 const workspaceSection = computed(() => {
-  if (props.pickerMode === 'select') return 'installed';
+  if (!props.canDiscoverWallpapers || props.pickerMode === 'select') return 'installed';
   return onlineSource.value === 'workshop' ? 'workshop' : 'discover';
 });
 
@@ -465,6 +472,7 @@ const hasStatusMessage = computed(() => Boolean(
 ));
 
 function setWorkspaceSection(section) {
+  if (section !== 'installed' && !props.canDiscoverWallpapers) return;
   addPanelOpen.value = false;
   if (section === 'installed') {
     emit('update:pickerMode', 'select');
@@ -495,6 +503,10 @@ function handleEscape(event) {
 
 watch(() => props.visible, (visible) => {
   if (!visible) addPanelOpen.value = false;
+});
+watch(() => [props.canDiscoverWallpapers, props.discoveryOwnerKey], () => {
+  addPanelOpen.value = false;
+  emit('update:pickerMode', 'select');
 });
 
 onMounted(() => window.addEventListener('keydown', handleEscape));

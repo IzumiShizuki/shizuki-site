@@ -804,7 +804,7 @@ public class MediaServiceImpl implements MediaService {
                     cached.featuredPlaylists() == null ? 0 : cached.featuredPlaylists().size(),
                     cached.featuredTracks() == null ? 0 : cached.featuredTracks().size()
                 );
-                return cached;
+                return publicMusicHome(cached);
             }
             LOGGER.info("MUSIC_LIBRARY_HOME_CACHE_MISS");
         }
@@ -889,7 +889,7 @@ public class MediaServiceImpl implements MediaService {
                 .last("LIMIT 32")
         );
         for (UserMusicPlaylistEntity item : publicPlaylists) {
-            if (PLAYLIST_TYPE_LIKED.equalsIgnoreCase(item.getPlaylistType())) {
+            if (PLAYLIST_TYPE_LIKED.equalsIgnoreCase(item.getPlaylistType()) || playlistContainsAsmr(item.getPlaylistCode())) {
                 continue;
             }
             int count = countPlaylistTracks(item.getPlaylistCode(), false);
@@ -932,6 +932,9 @@ public class MediaServiceImpl implements MediaService {
         boolean ownerView = userId > 0 && userId.equals(playlist.getUserId());
         if (!ownerView && !Boolean.TRUE.equals(playlist.getPublicFlag())) {
             throw new BusinessException(ErrorCode.FORBIDDEN, "No permission to access this playlist");
+        }
+        if (!currentLoginUserHasPermission("music.asmr.access") && playlistContainsAsmr(normalizedCode)) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "Playlist not found");
         }
         return buildUserPlaylistBundle(playlist, ownerView);
     }
@@ -1528,7 +1531,8 @@ public class MediaServiceImpl implements MediaService {
                 if (!StringUtils.hasText(code) || !playlistCodes.add(code)) {
                     continue;
                 }
-                if (PLAYLIST_TYPE_LIKED.equalsIgnoreCase(item.getPlaylistType())) {
+                if (PLAYLIST_TYPE_LIKED.equalsIgnoreCase(item.getPlaylistType())
+                    || (!currentLoginUserHasPermission("music.asmr.access") && playlistContainsAsmr(code))) {
                     continue;
                 }
                 playlists.add(toPlaylistSummary(item, countPlaylistTracks(code, false)));
@@ -1746,6 +1750,9 @@ public class MediaServiceImpl implements MediaService {
     public MusicTrackResponse resolvePlaybackTrack(MusicResolvePlaybackRequest request) {
         long startMs = System.currentTimeMillis();
         String provider = normalizePlaybackProvider(readString(request == null ? null : request.getProvider(), ""));
+        if ("asmr".equals(provider)) {
+            requireAsmrAccess();
+        }
         if (!StringUtils.hasText(provider)) {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "Unsupported playback provider");
         }
@@ -1765,7 +1772,7 @@ public class MediaServiceImpl implements MediaService {
         SearchSourcePolicy sourcePolicy = resolveSearchSourcePolicy(userId);
         boolean canUseNeteaseAccount = canUseNeteaseAccountSource(userId, sourcePolicy, provider);
         MusicListenCacheProperties.StorageMode storageMode = musicListenCacheProperties.resolveStorageMode();
-        MusicTrackCacheEntity cache = loadTrackCache(provider, trackId);
+        MusicTrackCacheEntity cache = "asmr".equals(provider) ? null : loadTrackCache(provider, trackId);
         String cachedSourceAudio = readString(cache == null ? null : cache.getSourceUrl(), "");
         if (!forceRefresh && !canUseNeteaseAccount && cache != null && canReuseCachedSourceAudio(cachedSourceAudio)) {
             touchTrackCacheLastListen(cache);
@@ -2108,15 +2115,6 @@ public class MediaServiceImpl implements MediaService {
         boolean cacheEnqueued = false;
         if (shouldCache) {
             upsertTrackSourceCache("asmr", trackId, resolvedAudio);
-            if (shouldEnqueueTrackToOss(storageMode, resolvedAudio)) {
-                cacheEnqueued = musicTrackCacheUploadPublisher.publish(
-                    "asmr",
-                    trackId,
-                    resolvedAudio,
-                    readString(asmrTrack.title(), ""),
-                    readString(asmrTrack.artist(), "")
-                );
-            }
         }
 
         String lyricText = "";
@@ -2489,10 +2487,13 @@ public class MediaServiceImpl implements MediaService {
                 .orderByAsc(MusicProviderConfigEntity::getId)
         );
         if (configs == null || configs.isEmpty()) {
-            return List.of(
+            return currentLoginUserHasPermission("music.asmr.access") ? List.of(
                 new MusicProviderResponse("meting", true, true, 10),
                 new MusicProviderResponse("spotify", true, true, 20),
                 new MusicProviderResponse("asmr", true, false, 30)
+            ) : List.of(
+                new MusicProviderResponse("meting", true, true, 10),
+                new MusicProviderResponse("spotify", true, true, 20)
             );
         }
         boolean asmrPermitted = currentLoginUserHasPermission("music.asmr.access");
@@ -2500,7 +2501,7 @@ public class MediaServiceImpl implements MediaService {
         for (MusicProviderConfigEntity item : configs) {
             boolean visible = Boolean.TRUE.equals(item.getVisibleFlag());
             if ("asmr".equalsIgnoreCase(item.getProviderCode()) && !asmrPermitted) {
-                visible = false;
+                continue;
             }
             result.add(new MusicProviderResponse(
                 item.getProviderCode(),
@@ -2518,6 +2519,7 @@ public class MediaServiceImpl implements MediaService {
     @Override
     public MusicKeyGuideResponse getMusicKeyGuide(String provider) {
         String normalized = provider == null ? "" : provider.trim().toLowerCase(Locale.ROOT);
+        if ("asmr".equals(normalized)) requireAsmrAccess();
         MusicProviderGuideEntity guide = musicProviderGuideMapper.selectOne(
             new LambdaQueryWrapper<MusicProviderGuideEntity>().eq(MusicProviderGuideEntity::getProviderCode, normalized)
         );
@@ -2852,6 +2854,7 @@ public class MediaServiceImpl implements MediaService {
         List<MusicPlaylistSummaryResponse> createdPlaylists = new ArrayList<>();
         if (platformLibrary != null) createdPlaylists.addAll(platformLibrary.createdPlaylists());
         for (UserMusicPlaylistEntity item : createdEntities) {
+            if (!currentLoginUserHasPermission("music.asmr.access") && playlistContainsAsmr(item.getPlaylistCode())) continue;
             if (platformLibrary != null && item.getPlaylistCode().startsWith("src_netease_")) continue;
             createdPlaylists.add(toPlaylistSummary(item, countPlaylistTracks(item.getPlaylistCode(), true)));
         }
@@ -2878,6 +2881,7 @@ public class MediaServiceImpl implements MediaService {
                 continue;
             }
             boolean owner = userId.equals(playlist.getUserId());
+            if (!currentLoginUserHasPermission("music.asmr.access") && playlistContainsAsmr(code)) continue;
             if (!owner && !Boolean.TRUE.equals(playlist.getPublicFlag())) {
                 continue;
             }
@@ -3384,6 +3388,7 @@ public class MediaServiceImpl implements MediaService {
     }
 
     private MusicPlaylistBundleResponse loadVirtualAsmrPlaylistBundle(AsmrVirtualPlaylistRef ref) {
+        requireAsmrAccess();
         AsmrMusicProvider.WorkSummary work = asmrMusicProvider.getWork(ref.workId());
         List<AsmrMusicProvider.AudioTrack> audioTracks = asmrMusicProvider.listAudioTracks(ref.workId());
         List<MusicTrackResponse> tracks = new ArrayList<>();
@@ -4404,7 +4409,8 @@ public class MediaServiceImpl implements MediaService {
         );
         List<MusicTrackResponse> result = new ArrayList<>();
         for (MusicPlaylistEntity entity : entities) {
-            result.add(toPlaylistResponse(entity));
+            MusicTrackResponse track = toPlaylistResponse(entity);
+            if (!isAsmrTrack(track) || currentLoginUserHasPermission("music.asmr.access")) result.add(track);
         }
         return result;
     }
@@ -4827,6 +4833,29 @@ public class MediaServiceImpl implements MediaService {
         );
     }
 
+    private boolean isAsmrTrack(MusicTrackResponse track) {
+        return "asmr".equalsIgnoreCase(readString(track.provider(), "").trim());
+    }
+
+    private boolean playlistContainsAsmr(String playlistCode) {
+        List<UserMusicPlaylistTrackEntity> rows = userMusicPlaylistTrackMapper.selectList(
+            new LambdaQueryWrapper<UserMusicPlaylistTrackEntity>()
+                .eq(UserMusicPlaylistTrackEntity::getPlaylistCode, playlistCode));
+        return rows.stream().map(this::toPlaylistTrackResponse).anyMatch(this::isAsmrTrack);
+    }
+
+    private MusicLibraryHomeResponse publicMusicHome(MusicLibraryHomeResponse home) {
+        List<MusicPlaylistSummaryResponse> playlists = home.featuredPlaylists() == null ? List.of()
+            : home.featuredPlaylists().stream()
+                .filter(item -> !"asmr".equalsIgnoreCase(item.sourceProvider()))
+                .filter(item -> parseVirtualAsmrPlaylistCode(item.playlistCode()) == null)
+                .filter(item -> !playlistContainsAsmr(item.playlistCode()))
+                .toList();
+        List<MusicTrackResponse> tracks = home.featuredTracks() == null ? List.of()
+            : home.featuredTracks().stream().filter(item -> !isAsmrTrack(item)).toList();
+        return new MusicLibraryHomeResponse(playlists, tracks);
+    }
+
     private long resolveQuotaValue(String quotaCode, Set<String> groups, long fallback) {
         Long resolved = userMusicClient.resolveQuota(quotaCode, groups, fallback);
         long value = resolved == null ? fallback : resolved;
@@ -5127,6 +5156,7 @@ public class MediaServiceImpl implements MediaService {
                                                   String title,
                                                   String artist,
                                                   String sourceAudioUrl) {
+        if ("asmr".equalsIgnoreCase(readString(provider, ""))) return null;
         validateHttpUrlIfPresent(sourceAudioUrl, "audio");
         MusicTrackCacheEntity existing = loadTrackCache(provider, trackId);
         if (hasOssObjectCache(existing)) {
@@ -5361,7 +5391,8 @@ public class MediaServiceImpl implements MediaService {
         List<UserMusicPlaylistTrackEntity> rows = userMusicPlaylistTrackMapper.selectList(wrapper);
         List<MusicTrackResponse> result = new ArrayList<>();
         for (UserMusicPlaylistTrackEntity row : rows) {
-            result.add(toPlaylistTrackResponse(row));
+            MusicTrackResponse track = toPlaylistTrackResponse(row);
+            if (!isAsmrTrack(track) || currentLoginUserHasPermission("music.asmr.access")) result.add(track);
         }
         return result;
     }

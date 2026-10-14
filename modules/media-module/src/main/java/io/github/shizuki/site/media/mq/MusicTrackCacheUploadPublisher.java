@@ -38,6 +38,7 @@ public class MusicTrackCacheUploadPublisher {
             return false;
         }
         String normalizedProvider = readString(provider, "").toLowerCase(Locale.ROOT);
+        if ("asmr".equals(normalizedProvider)) return false;
         String normalizedTrackId = readString(trackId, "");
         String normalizedAudioUrl = readString(sourceAudioUrl, "");
         String normalizedTitle = readString(title, "");

@@ -1,7 +1,18 @@
 <template>
-  <div v-if="isOwner" v-show="!suspended && !inAiHub" class="site-companion">
+  <div v-show="!suspended && (!isAnime || !inAiHub)" class="site-companion">
+    <section v-if="!isAnime && normalExpanded" id="site-cat-panel" class="ordinary-companion-panel" role="region" aria-label="小猫陪伴窗口">
+      <header>
+        <strong>小猫陪伴</strong>
+        <button type="button" aria-label="收起小猫陪伴" @click="minimizeNormal">×</button>
+      </header>
+      <p>慢慢来，我陪你待一会儿。</p>
+      <nav aria-label="小猫快捷操作">
+        <button type="button" @click="openFocus"><i class="fas fa-bullseye" aria-hidden="true"></i> 开始专注</button>
+        <button type="button" @click="router.push('/music-library/music')"><i class="fas fa-music" aria-hidden="true"></i> 听点音乐</button>
+      </nav>
+    </section>
     <section
-      v-if="mounted"
+      v-if="isAnime && mounted"
       v-show="expanded"
       id="site-meguri-panel"
       class="companion-panel"
@@ -11,6 +22,9 @@
       <header class="companion-toolbar">
         <span>爱莉 · 随页陪伴</span>
         <nav aria-label="陪伴窗口操作">
+          <button type="button" title="返回普通模式" aria-label="返回普通模式" @click="returnToNormal">
+            <i class="fas fa-cat" aria-hidden="true"></i>
+          </button>
           <button type="button" title="在 AI Hub 中打开" aria-label="在 AI Hub 中打开" @click="openWorkspace">
             <i class="fas fa-up-right-and-down-left-from-center" aria-hidden="true"></i>
           </button>
@@ -26,19 +40,24 @@
     </section>
 
     <button
-      v-show="!expanded"
+      v-show="!isAnime || !expanded"
       ref="launcher"
       class="companion-launcher"
-      :class="{ 'with-character': spriteUrl }"
+      :class="{ 'with-character': isAnime && spriteUrl, 'ordinary-launcher': !isAnime }"
       type="button"
-      aria-label="打开爱莉陪伴窗口"
-      aria-controls="site-meguri-panel"
-      :aria-expanded="expanded"
-      @click="open"
+      :aria-label="isAnime ? '打开爱莉陪伴窗口' : '打开小猫陪伴窗口'"
+      :aria-controls="isAnime ? 'site-meguri-panel' : 'site-cat-panel'"
+      :aria-expanded="isAnime ? expanded : normalExpanded"
+      @click="activateLauncher"
     >
-      <img v-if="spriteUrl" :src="spriteUrl" alt="" draggable="false" />
+      <svg v-if="!isAnime" class="companion-cat" viewBox="0 0 64 64" aria-hidden="true">
+        <path class="cat-body" d="M13 29 12 9 26 18 Q32 15 38 18 L52 9 51 29 Q57 55 32 57 Q7 55 13 29Z" />
+        <path class="cat-ears" d="m16 15 7 6-7 4Zm32 0-7 6 7 4Z" />
+        <path class="cat-face" d="M23 32v3m18-3v3m-12 6 3 2 3-2m-3 2v3m-15-7-7-1m7 6-7 1m37-6 7-1m-7 6 7 1" />
+      </svg>
+      <img v-else-if="spriteUrl" :src="spriteUrl" alt="" draggable="false" />
       <span v-else class="companion-mark" aria-hidden="true">巡</span>
-      <span>{{ mounted ? '继续和爱莉聊' : '爱莉陪伴' }}</span>
+      <span>{{ isAnime ? (mounted ? '继续和爱莉聊' : '爱莉陪伴') : '小猫陪伴' }}</span>
     </button>
   </div>
 </template>
@@ -47,27 +66,49 @@
 import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuthSession } from '../../composables/useAuthSession';
+import { useCompanionMode } from '../../composables/useCompanionMode';
+import { useFocusSession } from '../../utils/focusSessionState';
 import { MEGURI_COMPANION_OPEN_EVENT } from '../../utils/meguriCompanionBus';
 
 const MeguriPage = defineAsyncComponent(() => import('../../pages/MeguriPage.vue'));
 defineProps({ suspended: { type: Boolean, default: false } });
 const auth = useAuthSession();
+const { isAnime, registerActivation, returnToNormal } = useCompanionMode(auth);
+const focus = useFocusSession();
 const route = useRoute();
 const router = useRouter();
 const mounted = ref(false);
 const expanded = ref(false);
+const normalExpanded = ref(false);
 const spriteUrl = ref('');
 const launcher = ref(null);
 const ownerId = computed(() => auth.user.value?.userId || auth.user.value?.id || '');
-const isOwner = computed(() => auth.isAuthenticated.value && (auth.user.value?.groups || []).some(
-  (group) => String(group).trim().toUpperCase() === 'ADMIN'
-));
 const inAiHub = computed(() => route.name === 'ai-hub' || route.path === '/ai-hub');
 
 function open() {
-  if (!isOwner.value || inAiHub.value) return;
+  if (!isAnime.value) {
+    normalExpanded.value = true;
+    return;
+  }
+  if (inAiHub.value) return;
   mounted.value = true;
   expanded.value = true;
+}
+
+function activateLauncher() {
+  if (!isAnime.value && registerActivation()) normalExpanded.value = false;
+  open();
+}
+
+async function minimizeNormal() {
+  normalExpanded.value = false;
+  await nextTick();
+  launcher.value?.focus();
+}
+
+function openFocus() {
+  focus.startFocusSession({ presetId: 'desk' });
+  minimizeNormal();
 }
 
 async function minimize() {
@@ -92,8 +133,9 @@ function openWorkspace() {
   router.push({ name: 'ai-hub', query: { mode: 'meguri' } });
 }
 
-watch([isOwner, ownerId, inAiHub], ([owner, id, hub], previous) => {
-  if (!owner || hub || (previous && id !== previous[1])) reset();
+watch([isAnime, ownerId, inAiHub], ([anime, id, hub], previous) => {
+  if (!anime || hub || (previous && id !== previous[1])) reset();
+  if (previous && id !== previous[1]) normalExpanded.value = false;
 });
 
 onMounted(() => window.addEventListener(MEGURI_COMPANION_OPEN_EVENT, open));
@@ -101,6 +143,34 @@ onBeforeUnmount(() => window.removeEventListener(MEGURI_COMPANION_OPEN_EVENT, op
 </script>
 
 <style scoped>
+.ordinary-companion-panel {
+  width: min(280px, calc(100vw - 36px));
+  margin-bottom: 12px;
+  padding: 16px;
+  border-radius: 16px;
+  background: var(--theme-panel-surface-elevated);
+  box-shadow: var(--theme-shadow-soft);
+}
+.ordinary-companion-panel header { display: flex; align-items: center; justify-content: space-between; }
+.ordinary-companion-panel p { margin: 12px 0 16px; line-height: 1.6; }
+.ordinary-companion-panel button {
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 8px;
+  color: inherit;
+  background: var(--theme-input-surface);
+  cursor: pointer;
+}
+.ordinary-companion-panel nav { display: flex; flex-wrap: wrap; gap: 8px; }
+.ordinary-companion-panel button:hover { background: var(--theme-surface-soft); }
+.companion-cat { width: 48px; height: 48px; overflow: visible; }
+.cat-body { fill: var(--theme-panel-surface-elevated); stroke: currentColor; stroke-width: 2; }
+.cat-ears { fill: var(--theme-accent); opacity: 0.6; }
+.cat-face { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.ordinary-launcher:hover .companion-cat { transform: translateY(-3px) rotate(-4deg); }
+.companion-cat { transition: transform 180ms ease-out; }
+@media (prefers-reduced-motion: reduce) { .companion-cat { transition: none; } }
+.ordinary-companion-panel button:focus-visible, .companion-launcher:focus-visible { outline: 2px solid var(--theme-accent); outline-offset: 3px; }
 .site-companion {
   position: fixed;
   right: max(18px, env(safe-area-inset-right));

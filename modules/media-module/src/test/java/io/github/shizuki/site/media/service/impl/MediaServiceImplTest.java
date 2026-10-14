@@ -146,6 +146,80 @@ class MediaServiceImplTest {
     }
 
     @Test
+    void shouldDenyAsmrPlaybackBeforeReadingSharedCache() {
+        LoginUserContext.set(new LoginUser(7L, Set.of("FRIEND"), Set.of()));
+        MusicResolvePlaybackRequest request = new MusicResolvePlaybackRequest();
+        request.setProvider("asmr");
+        request.setTrackId("1001:secret-hash");
+        MusicTrackCacheEntity cache = new MusicTrackCacheEntity();
+        cache.setSourceUrl("https://audio.example.com/private.mp3");
+        Mockito.when(musicTrackCacheMapper.selectOne(Mockito.any())).thenReturn(cache);
+
+        BusinessException error = Assertions.assertThrows(BusinessException.class,
+            () -> mediaService.resolvePlaybackTrack(request));
+        Assertions.assertEquals(ErrorCode.FORBIDDEN, error.getErrorCode());
+        Mockito.verifyNoInteractions(musicTrackCacheMapper, asmrMusicProvider);
+    }
+
+    @Test
+    void shouldDenyVirtualVoicePlaylistWithoutGrant() {
+        LoginUserContext.set(new LoginUser(7L, Set.of("USER"), Set.of()));
+        BusinessException error = Assertions.assertThrows(BusinessException.class,
+            () -> mediaService.getMusicPlaylistBundle("vh_asmr_work_1001"));
+        Assertions.assertEquals(ErrorCode.FORBIDDEN, error.getErrorCode());
+        Mockito.verifyNoInteractions(asmrMusicProvider);
+    }
+
+    @Test
+    void shouldOmitVoiceProviderAndDenyItsGuideForVisitors() {
+        Assertions.assertTrue(mediaService.listMusicProviders().stream()
+            .noneMatch(item -> "asmr".equals(item.provider())));
+        BusinessException error = Assertions.assertThrows(BusinessException.class,
+            () -> mediaService.getMusicKeyGuide("asmr"));
+        Assertions.assertEquals(ErrorCode.FORBIDDEN, error.getErrorCode());
+    }
+
+    @Test
+    void shouldExcludeVoiceFromDefaultAndPublicPlaylists() {
+        var ordinary = new io.github.shizuki.site.media.entity.MusicPlaylistEntity();
+        ordinary.setTrackId("music-1"); ordinary.setProviderCode("netease");
+        var voice = new io.github.shizuki.site.media.entity.MusicPlaylistEntity();
+        voice.setTrackId("voice-1"); voice.setProviderCode("asmr");
+        Mockito.when(musicPlaylistMapper.selectList(Mockito.any())).thenReturn(List.of(ordinary, voice));
+        Assertions.assertEquals(List.of("music-1"), mediaService.listDefaultMusicPlaylist().stream()
+            .map(MusicTrackResponse::trackId).toList());
+
+        UserMusicPlaylistEntity playlist = new UserMusicPlaylistEntity();
+        playlist.setPlaylistCode("public-mixed"); playlist.setUserId(1L);
+        playlist.setPublicFlag(true); playlist.setName("Sensitive playlist");
+        UserMusicPlaylistTrackEntity track = new UserMusicPlaylistTrackEntity();
+        track.setProviderCode("asmr"); track.setTrackId("voice-1");
+        Mockito.when(userMusicPlaylistMapper.selectList(Mockito.any())).thenReturn(List.of(playlist));
+        Mockito.when(userMusicPlaylistMapper.selectOne(Mockito.any())).thenReturn(playlist);
+        Mockito.when(userMusicPlaylistTrackMapper.selectList(Mockito.any())).thenReturn(List.of(track));
+        Assertions.assertTrue(mediaService.getMusicLibraryHome().featuredPlaylists().isEmpty());
+        Assertions.assertEquals(ErrorCode.NOT_FOUND, Assertions.assertThrows(BusinessException.class,
+            () -> mediaService.getMusicPlaylistBundle("public-mixed")).getErrorCode());
+        LoginUserContext.set(new LoginUser(2L, Set.of("APPROVED"), Set.of("music.asmr.access")));
+        Assertions.assertEquals(1, mediaService.getMusicPlaylistBundle("public-mixed").tracks().size());
+    }
+
+    @Test
+    void shouldSanitizeHistoricalSharedHomeCacheEvenForAdmin() {
+        var cache = Mockito.mock(io.github.shizuki.site.media.cache.MusicLibraryHomeCacheStore.class);
+        org.springframework.test.util.ReflectionTestUtils.setField(mediaService, "musicLibraryHomeCacheStore", cache);
+        Mockito.when(cache.isEnabled()).thenReturn(true);
+        var voice = new MusicTrackResponse("voice-1", "asmr", "private", "", "", "", "", 0, true, "", Map.of());
+        var playlist = new io.github.shizuki.site.media.response.MusicPlaylistSummaryResponse(
+            "vh_asmr_work_1001", "private", "", "", "CUSTOM", 1L, true, 1, "asmr");
+        Mockito.when(cache.read()).thenReturn(new io.github.shizuki.site.media.response.MusicLibraryHomeResponse(
+            List.of(playlist), List.of(voice)));
+        LoginUserContext.set(new LoginUser(1L, Set.of("ADMIN"), Set.of("music.asmr.access")));
+        Assertions.assertTrue(mediaService.getMusicLibraryHome().featuredTracks().isEmpty());
+        Assertions.assertTrue(mediaService.getMusicLibraryHome().featuredPlaylists().isEmpty());
+    }
+
+    @Test
     void shouldUnlikeCloudLikedTrackThroughLegacyPlaylistRoute() {
         LoginUserContext.set(new LoginUser(3L, Set.of("USER"), Set.of()));
         Mockito.when(userMusicClient.getSourceAccountCookiePlaintext(3L, "netease")).thenReturn("MUSIC_U=fixture");

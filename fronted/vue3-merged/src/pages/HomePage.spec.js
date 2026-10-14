@@ -13,6 +13,7 @@ import {
 } from '../utils/homeTimeStageState';
 import { LIGHT_APP_WINDOW_OPEN_EVENT } from '../utils/lightAppWindowBus';
 import HomePage from './HomePage.vue';
+import { resetCompanionMode } from '../composables/useCompanionMode';
 
 const mockAuth = vi.hoisted(() => ({
   isAuthenticated: { value: true },
@@ -68,6 +69,7 @@ async function mountPage({
 
 describe('HomePage time stage', () => {
   beforeEach(() => {
+    resetCompanionMode();
     window.localStorage.clear();
     __resetFocusSessionForTests();
     __resetHomeAppearanceForTests();
@@ -192,26 +194,26 @@ describe('HomePage time stage', () => {
     wrapper.unmount();
   });
 
-  it('uses the existing login flow for guests', async () => {
+  it('opens the ordinary companion for guests without requiring login', async () => {
     mockAuth.isAuthenticated.value = false;
     mockAuth.user.value = null;
     const { wrapper } = await mountPage();
 
-    expect(wrapper.get('[data-testid="home-companion-action"]').text()).toContain('登录后回家');
+    expect(wrapper.get('[data-testid="home-companion-action"]').text()).toContain('小猫陪伴');
     await wrapper.get('[data-testid="home-companion-action"]').trigger('click');
 
-    expect(mockAuth.redirectToAuth).toHaveBeenCalledWith('login_required', '/');
+    expect(mockAuth.redirectToAuth).not.toHaveBeenCalled();
     wrapper.unmount();
   });
 
-  it('shows a locked companion state to authenticated non-ADMIN users', async () => {
+  it('shows an ordinary companion without restricted feature teasers', async () => {
     mockAuth.user.value = { userId: 2, groups: ['USER'] };
     const { wrapper } = await mountPage();
     const action = wrapper.get('[data-testid="home-companion-action"]');
 
-    expect(action.attributes('disabled')).toBeDefined();
-    expect(action.text()).toContain('伴聊未开放');
-    expect(action.text()).toContain('当前仅限 ADMIN');
+    expect(action.attributes('disabled')).toBeUndefined();
+    expect(action.text()).toContain('小猫陪伴');
+    expect(action.text()).not.toMatch(/ADMIN|未开放|爱莉/);
     wrapper.unmount();
   });
 

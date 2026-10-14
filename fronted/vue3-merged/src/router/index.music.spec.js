@@ -64,6 +64,12 @@ describe('music voice routing', () => {
     expect(routePathByKey['music-library']).toBe('/music-library/music');
   });
 
+  it('denies voice detail routes when permission lookup fails', async () => {
+    listMusicProvidersMock.mockRejectedValueOnce(new Error('offline'));
+    await router.push('/music-library/voice/work/1001');
+    expect(router.currentRoute.value.path).toBe('/music-library/music');
+  });
+
   it('routes native current-queue returns to the shared playlist detail view', async () => {
     await router.push('/music-library/queue');
 

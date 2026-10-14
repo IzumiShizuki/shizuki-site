@@ -388,7 +388,10 @@ describe('WallpaperDiscoveryPanel', () => {
   });
 
   it('falls back through preview candidates and can retry the proxy preview', async () => {
-    const wrapper = mountPanel();
+    const createUrl = vi.fn().mockReturnValue('blob:private-preview');
+    vi.stubGlobal('URL', Object.assign(URL, { createObjectURL: createUrl, revokeObjectURL: vi.fn() }));
+    const raw = vi.fn().mockResolvedValue({ ok: true, blob: async () => new Blob(['image']) });
+    const wrapper = mountPanel({ authorizedRawFetch: raw });
     await flushPromises();
 
     const firstCard = wrapper.findAll('.discovery-item')[0];
@@ -396,8 +399,9 @@ describe('WallpaperDiscoveryPanel', () => {
     expect(preview.attributes('src')).toBe('https://img.example/1.jpg');
 
     await preview.trigger('error');
-    await wrapper.vm.$nextTick();
-    expect(firstCard.find('img').attributes('src')).toBe('/preview/workshop/2141505896');
+    await flushPromises();
+    expect(raw).toHaveBeenCalledWith('/api/v1/home-wallpapers/discovery/preview/workshop/2141505896', expect.objectContaining({ method: 'GET' }));
+    expect(firstCard.find('img').attributes('src')).toBe('blob:private-preview');
 
     await firstCard.find('img').trigger('error');
     await wrapper.vm.$nextTick();
@@ -406,20 +410,16 @@ describe('WallpaperDiscoveryPanel', () => {
     await firstCard.find('.preview-retry').trigger('click');
     await wrapper.vm.$nextTick();
     expect(firstCard.find('img').attributes('src')).toBe('https://img.example/1.jpg');
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:private-preview');
+    wrapper.unmount();
   });
 
-  it('keeps online discovery available to guests while protecting import actions', async () => {
+  it('makes no discovery request for guests', async () => {
     const wrapper = mountPanel({ authorizedFetch: null, isAuthenticated: false });
     await flushPromises();
 
-    expect(searchWorkshopWallpapers).toHaveBeenCalledWith(
-      expect.objectContaining({ page: 1, sort: 'trend' }),
-      null,
-      { forceRefresh: false }
-    );
-    expect(wrapper.find('.discovery-item')).toBeTruthy();
-    await wrapper.find('.discovery-item').trigger('click');
-    await flushPromises();
-    expect(wrapper.find('.import-button').attributes('disabled')).toBeDefined();
+    expect(searchWorkshopWallpapers).not.toHaveBeenCalled();
+    expect(wrapper.find('.discovery-item').exists()).toBe(false);
+    wrapper.unmount();
   });
 });

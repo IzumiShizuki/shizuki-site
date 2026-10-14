@@ -33,6 +33,7 @@ function mountDialog(props = {}) {
         busy: false
       },
       isAuthenticated: true,
+      canDiscoverWallpapers: true,
       packageDropActive: false,
       activeBackground: {
         id: 'wp-3001',
@@ -80,6 +81,15 @@ function mountDialog(props = {}) {
 }
 
 describe('BackgroundPickerDialog unified wallpaper workspace', () => {
+  it('hides external sources and never mounts discovery without a grant', async () => {
+    const wrapper = mountDialog({ canDiscoverWallpapers: false, pickerMode: 'acquire' });
+    expect(wrapper.findComponent(WallpaperDiscoveryPanel).exists()).toBe(false);
+    expect(wrapper.find('.installed-workspace').exists()).toBe(true);
+    expect(wrapper.findAll('.workspace-tab').map((item) => item.text())).toEqual(['我的壁纸']);
+    await wrapper.get('.head-action').trigger('click');
+    expect(wrapper.text()).not.toContain('Workshop 链接');
+    wrapper.unmount();
+  });
   it('renders installed wallpaper cards and the selected detail preview', () => {
     const wrapper = mountDialog();
 

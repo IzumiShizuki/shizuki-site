@@ -2,6 +2,7 @@ import { flushPromises, mount } from '@vue/test-utils';
 import { defineComponent, ref } from 'vue';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import AiHubPage from './AiHubPage.vue';
+import { resetCompanionMode, useCompanionMode } from '../composables/useCompanionMode';
 
 const mocked = vi.hoisted(() => ({
   route: { query: {} },
@@ -108,6 +109,17 @@ function createAuth(groups = ['USER']) {
   };
 }
 
+function enableOwnerMode() {
+  const helper = mount(defineComponent({
+    setup() {
+      const mode = useCompanionMode(mocked.auth);
+      for (let i = 0; i < 5; i++) mode.registerActivation();
+      return () => null;
+    }
+  }));
+  helper.unmount();
+}
+
 function createSceneSummary(sceneCode, title) {
   return {
     sceneCode,
@@ -181,6 +193,7 @@ function findButtonByText(wrapper, text) {
 
 describe('AiHubPage', () => {
   beforeEach(() => {
+    resetCompanionMode();
     mocked.route = { query: {} };
     mocked.auth = createAuth(['USER']);
     mocked.createAdminTownNpcSession.mockReset();
@@ -389,8 +402,18 @@ describe('AiHubPage', () => {
   it('opens the Meguri deep link after owner authentication is ready', async () => {
     mocked.route = { query: { mode: 'meguri' } };
     mocked.auth = createAuth(['ADMIN']);
+    enableOwnerMode();
     const wrapper = await mountPage();
     expect(wrapper.findComponent(MeguriPageStub).exists()).toBe(true);
+    wrapper.unmount();
+  });
+
+  it('does not reveal the role tab or honor its URL for ADMIN in ordinary mode', async () => {
+    mocked.route = { query: { mode: 'meguri' } };
+    mocked.auth = createAuth(['ADMIN']);
+    const wrapper = await mountPage();
+    expect(wrapper.findComponent(MeguriPageStub).exists()).toBe(false);
+    expect(wrapper.text()).not.toContain('爱莉伴聊');
     wrapper.unmount();
   });
 
@@ -412,6 +435,7 @@ describe('AiHubPage', () => {
 
   it('exposes and activates the owner-only Meguri companion for admin users', async () => {
     mocked.auth = createAuth(['ADMIN']);
+    enableOwnerMode();
 
     const wrapper = await mountPage();
     const companionButton = findButtonByText(wrapper, '爱莉伴聊');
@@ -426,6 +450,11 @@ describe('AiHubPage', () => {
     expect(companion.props('embedded')).toBe(true);
     expect(wrapper.text()).toContain('当前陪伴 · 爱莉');
     expect(wrapper.get('.workspace-grid').classes()).toContain('conversation');
+
+    await findButtonByText(wrapper, '返回普通模式').trigger('click');
+    await flushPromises();
+    expect(wrapper.findComponent(MeguriPageStub).exists()).toBe(false);
+    expect(wrapper.text()).not.toContain('爱莉伴聊');
 
     expect(conversationButton).toBeTruthy();
     await conversationButton.trigger('click');

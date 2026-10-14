@@ -2,6 +2,9 @@ package io.github.shizuki.site.media.service.impl;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.shizuki.common.core.error.BusinessException;
+import io.github.shizuki.common.core.error.ErrorCode;
+import io.github.shizuki.common.security.context.LoginUserContext;
+import io.github.shizuki.common.security.model.LoginUser;
 import io.github.shizuki.site.media.config.MediaStorageProperties;
 import io.github.shizuki.site.media.config.WallpaperDiscoveryProperties;
 import io.github.shizuki.site.media.config.WallpaperWorkshopProperties;
@@ -9,6 +12,8 @@ import io.github.shizuki.site.media.request.WallhavenImportCreateRequest;
 import io.github.shizuki.site.media.response.WallhavenSearchItemResponse;
 import io.github.shizuki.site.media.service.WallpaperService;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -24,6 +29,7 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -36,9 +42,39 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 
 class WallpaperDiscoveryServiceImplTest {
+    @BeforeEach
+    void authorizeSourceFixtures() {
+        LoginUserContext.set(new LoginUser(1L, Set.of("ADMIN"), Set.of()));
+    }
+
+    @AfterEach
+    void clearAuthorization() {
+        LoginUserContext.clear();
+    }
+
+    @Test
+    void deniesAllExternalReadsBeforeContactingUpstream() {
+        HttpClient client = Mockito.mock(HttpClient.class);
+        WallpaperService wallpapers = Mockito.mock(WallpaperService.class);
+        var service = discoveryService(client, wallpapers);
+        LoginUserContext.set(new LoginUser(5L, Set.of("FRIEND"), Set.of()));
+        assertEquals(ErrorCode.FORBIDDEN, assertThrows(BusinessException.class,
+            () -> service.searchWallhaven("", 1, "111", "111", "", "", "", "")).getErrorCode());
+        assertThrows(BusinessException.class, () -> service.searchWorkshop("", 1, "", ""));
+        assertThrows(BusinessException.class, () -> service.getWorkshopItem("2141505896"));
+        assertThrows(BusinessException.class, () -> service.getWallhavenItem("pomle9"));
+        assertThrows(BusinessException.class, () -> service.fetchPreview("wallhaven", "pomle9"));
+        assertThrows(BusinessException.class, () -> service.fetchPreview("workshop", "2141505896"));
+        assertThrows(BusinessException.class, () -> service.importWallhaven(new WallhavenImportCreateRequest()));
+        LoginUserContext.clear();
+        assertEquals(ErrorCode.UNAUTHORIZED, assertThrows(BusinessException.class,
+            () -> service.fetchPreview("wallhaven", "pomle9")).getErrorCode());
+        Mockito.verifyNoInteractions(client, wallpapers);
+    }
 
     @Test
     void aggregatesWallhavenBatchesAndHandlesFinalPartialPage() throws Exception {
+        LoginUserContext.set(new LoginUser(5L, Set.of("CUSTOM"), Set.of("media.wallpaper.discovery")));
         HttpClient client = Mockito.mock(HttpClient.class);
         Mockito.doAnswer(invocation -> {
             java.net.http.HttpRequest request = invocation.getArgument(0);
