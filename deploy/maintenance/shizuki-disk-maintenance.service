@@ -7,6 +7,7 @@ ConditionPathIsDirectory=/opt/shizuki-site
 [Service]
 Type=oneshot
 Environment=PRUNE_SNAPSHOTS=0
+Environment=PRUNE_IMAGES=0
 EnvironmentFile=-/etc/default/shizuki-disk-maintenance
 ExecStart=/usr/local/sbin/shizuki-disk-maintenance
 Nice=10

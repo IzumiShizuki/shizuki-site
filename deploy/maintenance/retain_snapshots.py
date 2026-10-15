@@ -17,7 +17,7 @@ AUDIT_ROOT = Path('/var/log/shizuki-disk-maintenance')
 SNAPSHOT_NAME = re.compile(r'snapshot-\d{8}-\d{6}-[0-9a-f]{12}')
 VOLUME_NAME = re.compile(r'[a-zA-Z0-9][a-zA-Z0-9_.-]*')
 REQUIRED = ('READY', 'app.tar.gz', 'database.dump', 'volumes.list')
-KEEP_DAYS = 14
+KEEP_DAYS = 7
 KEEP_COUNT = 3
 
 

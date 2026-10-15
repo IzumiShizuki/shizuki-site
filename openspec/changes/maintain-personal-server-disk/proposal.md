@@ -6,8 +6,9 @@ The personal website server at `111.228.35.186` has a 99 GiB root filesystem at 
 
 - Audit usage and reclaim unused build cache, old dangling images, and archived system journals without restarting application containers.
 - Install a daily maintenance timer and bounded journal retention.
-- Preview snapshot retention and make snapshot deletion explicitly opt-in: keep every snapshot from the last 14 days and at least the three newest complete snapshots.
-- Record before/after disk capacity and service health, preserving databases, uploads, named volumes, tagged images, and stopped containers.
+- Preview snapshot retention and make snapshot deletion explicitly opt-in: keep every snapshot from the last seven days and at least the three newest complete snapshots. This replaces the initial 14-day window following the user's request to shorten retention.
+- Record before/after disk capacity and service health, preserving databases, uploads, named volumes, and stopped containers.
+- Following the user's request for deeper cleanup, reclaim unused generated website images older than seven days while preserving container references, the newest three versions per repository, and all image IDs referenced by retained backup records. Remove explicitly inventoried obsolete downloadable images once, and tighten the build-cache budget.
 
 ## Capabilities
 

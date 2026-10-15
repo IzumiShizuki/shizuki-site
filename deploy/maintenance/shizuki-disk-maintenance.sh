@@ -11,9 +11,15 @@ fi
 printf '\nDisk before maintenance\n'
 df -hT /
 docker image prune --force --filter until=168h
-docker buildx prune --all --force --filter until=24h --reserved-space=2GB --max-used-space=3GB
+docker buildx prune --all --force --filter until=6h --reserved-space=1GB --max-used-space=2GB
 journalctl --rotate
 journalctl --vacuum-time=14d --vacuum-size=512M
+
+if [[ "${PRUNE_IMAGES:-0}" == 1 ]]; then
+    python3 /usr/local/lib/shizuki-disk-maintenance/retain_images.py --apply
+else
+    python3 /usr/local/lib/shizuki-disk-maintenance/retain_images.py
+fi
 
 if [[ "${PRUNE_SNAPSHOTS:-0}" == 1 ]]; then
     python3 /usr/local/lib/shizuki-disk-maintenance/retain_snapshots.py --apply
@@ -23,7 +29,7 @@ fi
 
 # Retention audit records contain paths and byte counts only.
 find /var/log/shizuki-disk-maintenance -maxdepth 1 -type f \
-    -name 'snapshot-retention-*.json' -mtime +90 -delete
+    \( -name 'snapshot-retention-*.json' -o -name 'image-retention-*.json' \) -mtime +90 -delete
 printf '\nDisk after maintenance\n'
 df -hT /
 journalctl --disk-usage

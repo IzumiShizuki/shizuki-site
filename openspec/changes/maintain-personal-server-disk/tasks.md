@@ -14,8 +14,16 @@
 - [x] 3.1 Check measured disk recovery, unchanged application container identities, HTTP health, timer status, and retention idempotence.
 - [x] 3.2 Write the operational verification report, pass strict OpenSpec validation, and commit only this change locally.
 
+## 4. Requested deeper cleanup
+
+- [x] 4.1 Inventory remaining disk usage and select obsolete images with explicit protection for containers and backup references.
+- [x] 4.2 Add opt-in generated-image retention with safety tests, and tighten the recurring build-cache budget.
+- [x] 4.3 Apply the second cleanup pass, verify actual recovery and unchanged service state, update the report, and commit locally.
+
 ## Follow-up outside this change
 
-`infra-kafka` was already continuously restarting before maintenance (Docker reported the failure as two months old). Diagnose that service separately. Tagged rollback images and stopped containers remain protected; the 14-day backup window and retained Docker artifacts are not hard capacity quotas.
+`infra-kafka` was already continuously restarting before maintenance (Docker reported the failure as two months old). Diagnose that service separately. Protected rollback images and all stopped containers remain preserved; the seven-day backup window and retained Docker artifacts are not hard capacity quotas.
 
-Local temporary diagnostics remain in `C:\Users\IzumiShizuki\AppData\Local\Temp\shizuki-disk-maintenance-20261015`: automatic approval rejected both recursive and individually validated file cleanup commands with `blocked by policy`, without a more specific reason. The 14 small files do not affect the completed server maintenance.
+Local temporary diagnostics remain in `C:\Users\IzumiShizuki\AppData\Local\Temp\shizuki-disk-maintenance-20261015`: during the first pass, automatic approval rejected both recursive and individually validated file cleanup commands with `blocked by policy`, without a more specific reason. The original 14 files and follow-up diagnostics do not affect the completed server maintenance.
+
+The remaining 8.4 GiB of backups include repeated full program and Steam Workshop data archives. Separating these backup frequencies would require updating the corresponding restore process; current retention is seven days with at least three complete snapshots, as agreed in the follow-up conversation.

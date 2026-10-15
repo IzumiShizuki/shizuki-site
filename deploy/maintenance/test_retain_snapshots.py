@@ -34,7 +34,7 @@ class RetentionSafetyTests(unittest.TestCase):
         return path
 
     def seed(self):
-        return [self.snapshot(n, age) for n, age in enumerate((1, 2, 3, 13, 20), 1)]
+        return [self.snapshot(n, age) for n, age in enumerate((1, 2, 3, 6, 20), 1)]
 
     def test_preview_keeps_recent_and_does_not_change_files(self):
         paths = self.seed()
@@ -51,6 +51,13 @@ class RetentionSafetyTests(unittest.TestCase):
         protected, candidates = retention.plan_retention(self.root, self.now)
         self.assertEqual([item.path for item in protected], paths[:3])
         self.assertEqual([item.path for item in candidates], paths[3:])
+
+    def test_preserves_snapshot_exactly_at_seven_day_cutoff(self):
+        paths = self.seed()
+        cutoff = self.now - 7 * 86400
+        os.utime(paths[3] / 'READY', (cutoff, cutoff))
+        _, candidates = retention.plan_retention(self.root, self.now)
+        self.assertEqual([item.path for item in candidates], paths[-1:])
 
     def test_fewer_than_three_complete_snapshots_never_deletes(self):
         self.snapshot(1, 90)
