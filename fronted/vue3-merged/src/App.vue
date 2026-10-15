@@ -1,6 +1,9 @@
 <template>
   <MotionConfig reduced-motion="never">
     <div class="app-shell">
+      <!-- Accessibility: Skip to content link -->
+      <a href="#main-content" class="skip-to-content">跳转到主要内容</a>
+
       <!-- 增强视觉效果 - 粒子背景 -->
       <ParticleBackground v-if="!reducedMotion" />
       <!-- 增强视觉效果 - 流体背景 -->
@@ -94,6 +97,7 @@
         }"
       >
         <main
+          id="main-content"
           ref="routeContentRef"
           class="route-content"
           :class="{
@@ -3925,6 +3929,30 @@ button:not([disabled]) {
 }
 
 /* ================================ Accessibility Enhancements ================================ */
+
+/* Skip to content link - only visible on keyboard focus */
+.skip-to-content {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: 9999;
+  padding: var(--space-3) var(--space-5);
+  background: rgba(var(--accent-rgb), 0.95);
+  color: white;
+  text-decoration: none;
+  font-size: var(--text-base);
+  font-weight: var(--font-semibold);
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  transition: transform var(--duration-base) var(--ease-smooth);
+}
+
+.skip-to-content:focus {
+  left: var(--space-4);
+  outline: 2px solid rgba(255, 255, 255, 0.9);
+  outline-offset: 2px;
+  transform: translateY(0);
+}
 
 /* Focus ring for keyboard navigation */
 :focus-visible {

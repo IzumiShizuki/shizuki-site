@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WCAG Contrast Audit - Shizuki Site</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      padding: 2rem;
+      background: #f5f5f5;
+      line-height: 1.6;
+    }
+
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+      background: white;
+      padding: 2rem;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+
+    h1 {
+      margin-bottom: 0.5rem;
+      color: #1a1a1a;
+    }
+
+    .subtitle {
+      color: #666;
+      margin-bottom: 2rem;
+      font-size: 0.9rem;
+    }
+
+    .mode-toggle {
+      margin-bottom: 2rem;
+      display: flex;
+      gap: 1rem;
+    }
+
+    .mode-toggle button {
+      padding: 0.5rem 1rem;
+      border: 1px solid #ddd;
+      background: white;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .mode-toggle button.active {
+      background: #3b82f6;
+      color: white;
+      border-color: #3b82f6;
+    }
+
+    .section {
+      margin-bottom: 2rem;
+    }
+
+    .section-title {
+      font-size: 1.1rem;
+      font-weight: 600;
+      margin-bottom: 1rem;
+      color: #333;
+      border-bottom: 2px solid #e5e7eb;
+      padding-bottom: 0.5rem;
+    }
+
+    .contrast-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 1rem;
+    }
+
+    .contrast-item {
+      border: 1px solid #e5e7eb;
+      border-radius: 6px;
+      padding: 1rem;
+      transition: box-shadow 0.2s;
+    }
+
+    .contrast-item:hover {
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+
+    .contrast-item.pass {
+      border-left: 4px solid #22c55e;
+    }
+
+    .contrast-item.fail {
+      border-left: 4px solid #ef4444;
+    }
+
+    .swatch-row {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .swatch {
+      width: 80px;
+      height: 60px;
+      border-radius: 4px;
+      border: 1px solid #d1d5db;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.875rem;
+      font-weight: 500;
+    }
+
+    .combo-info {
+      flex: 1;
+    }
+
+    .combo-label {
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: #374151;
+      margin-bottom: 0.25rem;
+    }
+
+    .combo-colors {
+      font-size: 0.75rem;
+      color: #6b7280;
+      font-family: 'Courier New', monospace;
+    }
+
+    .ratio-display {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .ratio-value {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: #1f2937;
+    }
+
+    .ratio-badge {
+      padding: 0.25rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    .ratio-badge.pass {
+      background: #d1fae5;
+      color: #065f46;
+    }
+
+    .ratio-badge.fail {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+
+    .wcag-levels {
+      display: flex;
+      gap: 0.5rem;
+      font-size: 0.75rem;
+    }
+
+    .wcag-level {
+      padding: 0.2rem 0.4rem;
+      border-radius: 3px;
+      background: #f3f4f6;
+      color: #6b7280;
+    }
+
+    .wcag-level.pass {
+      background: #d1fae5;
+      color: #065f46;
+    }
+
+    .summary {
+      background: #f9fafb;
+      padding: 1.5rem;
+      border-radius: 6px;
+      margin-bottom: 2rem;
+      border-left: 4px solid #3b82f6;
+    }
+
+    .summary-stats {
+      display: flex;
+      gap: 2rem;
+      flex-wrap: wrap;
+    }
+
+    .stat {
+      text-align: center;
+    }
+
+    .stat-value {
+      font-size: 2rem;
+      font-weight: 700;
+      color: #1f2937;
+    }
+
+    .stat-label {
+      font-size: 0.875rem;
+      color: #6b7280;
+      margin-top: 0.25rem;
+    }
+
+    .recommendations {
+      background: #fef3c7;
+      border: 1px solid #fbbf24;
+      border-radius: 6px;
+      padding: 1rem;
+      margin-top: 1rem;
+    }
+
+    .recommendations h3 {
+      color: #92400e;
+      font-size: 0.9rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .recommendations ul {
+      margin-left: 1.5rem;
+      color: #78350f;
+      font-size: 0.875rem;
+    }
+
+    .recommendations li {
+      margin-bottom: 0.25rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🎨 WCAG 对比度审计</h1>
+    <p class="subtitle">Shizuki Site - Frontend UI Redesign</p>
+
+    <div class="mode-toggle">
+      <button id="dayModeBtn" class="active" onclick="setMode('day')">☀️ Day Mode</button>
+      <button id="nightModeBtn" onclick="setMode('night')">🌙 Night Mode</button>
+    </div>
+
+    <div id="summary" class="summary"></div>
+    <div id="results"></div>
+  </div>
+
+  <script>
+    // Color definitions from design-system.css
+    const colors = {
+      day: {
+        bg: '#f9fafb',                    // gray-50
+        fg: '#111827',                    // gray-900
+        textPrimary: '#111827',           // gray-900
+        textSecondary: '#4b5563',         // gray-600
+        textTertiary: '#9ca3af',          // gray-400
+        textDisabled: 'rgba(0,0,0,0.4)',
+        panelSurface: 'rgba(255,255,255,0.95)',
+        surfaceBase: 'rgba(255,255,255,0.95)',
+        border: 'rgba(0,0,0,0.1)',
+        accent: '#3b82f6',                // blue-500
+        success: '#22c55e',               // green-500
+        warning: '#fb923c',               // orange-400
+        error: '#ef4444',                 // red-500
+      },
+      night: {
+        bg: '#030712',                    // gray-950
+        fg: '#f9fafb',                    // gray-50
+        textPrimary: '#f9fafb',           // gray-50
+        textSecondary: '#9ca3af',         // gray-400
+        textTertiary: '#4b5563',          // gray-600
+        textDisabled: 'rgba(255,255,255,0.4)',
+        panelSurface: 'rgba(20,20,30,0.8)',
+        surfaceBase: 'rgba(35,35,50,0.8)',
+        border: 'rgba(255,255,255,0.1)',
+        accent: '#3b82f6',                // blue-500
+        success: '#22c55e',               // green-500
+        warning: '#fb923c',               // orange-400
+        error: '#ef4444',                 // red-500
+      }
+    };
+
+    let currentMode = 'day';
+
+    function hexToRgb(hex) {
+      if (hex.startsWith('rgba')) {
+        const match = hex.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/);
+        if (match) {
+          return { r: parseInt(match[1]), g: parseInt(match[2]), b: parseInt(match[3]), a: parseFloat(match[4] || 1) };
+        }
+      }
+      const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+      return result ? {
+        r: parseInt(result[1], 16),
+        g: parseInt(result[2], 16),
+        b: parseInt(result[3], 16),
+        a: 1
+      } : null;
+    }
+
+    function getLuminance(r, g, b) {
+      const [rs, gs, bs] = [r, g, b].map(c => {
+        c = c / 255;
+        return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+      });
+      return 0.2126 * rs + 0.7152 * gs + 0.0722 * bs;
+    }
+
+    function getContrastRatio(color1, color2) {
+      const rgb1 = hexToRgb(color1);
+      const rgb2 = hexToRgb(color2);
+
+      if (!rgb1 || !rgb2) return 1;
+
+      const lum1 = getLuminance(rgb1.r, rgb1.g, rgb1.b);
+      const lum2 = getLuminance(rgb2.r, rgb2.g, rgb2.b);
+
+      const lighter = Math.max(lum1, lum2);
+      const darker = Math.min(lum1, lum2);
+
+      return (lighter + 0.05) / (darker + 0.05);
+    }
+
+    function checkWCAG(ratio) {
+      return {
+        normalAA: ratio >= 4.5,
+        normalAAA: ratio >= 7,
+        largeAA: ratio >= 3,
+        largeAAA: ratio >= 4.5,
+      };
+    }
+
+    function setMode(mode) {
+      currentMode = mode;
+      document.getElementById('dayModeBtn').classList.toggle('active', mode === 'day');
+      document.getElementById('nightModeBtn').classList.toggle('active', mode === 'night');
+      runAudit();
+    }
+
+    function runAudit() {
+      const palette = colors[currentMode];
+
+      // Define critical color combinations
+      const combinations = [
+        { fg: palette.textPrimary, bg: palette.bg, label: '主文本 on 背景', key: 'textPrimary-bg' },
+        { fg: palette.textPrimary, bg: palette.panelSurface, label: '主文本 on 面板', key: 'textPrimary-panel' },
+        { fg: palette.textSecondary, bg: palette.bg, label: '次要文本 on 背景', key: 'textSecondary-bg' },
+        { fg: palette.textSecondary, bg: palette.panelSurface, label: '次要文本 on 面板', key: 'textSecondary-panel' },
+        { fg: palette.textTertiary, bg: palette.bg, label: '三级文本 on 背景', key: 'textTertiary-bg', large: true },
+        { fg: palette.textTertiary, bg: palette.panelSurface, label: '三级文本 on 面板', key: 'textTertiary-panel', large: true },
+        { fg: '#ffffff', bg: palette.accent, label: '白色 on Accent', key: 'white-accent' },
+        { fg: '#ffffff', bg: palette.success, label: '白色 on Success', key: 'white-success' },
+        { fg: '#ffffff', bg: palette.error, label: '白色 on Error', key: 'white-error' },
+        { fg: palette.warning, bg: palette.bg, label: 'Warning on 背景', key: 'warning-bg' },
+        { fg: palette.accent, bg: palette.bg, label: 'Accent on 背景', key: 'accent-bg' },
+        { fg: palette.accent, bg: palette.panelSurface, label: 'Accent on 面板', key: 'accent-panel' },
+      ];
+
+      const results = combinations.map(combo => {
+        const ratio = getContrastRatio(combo.fg, combo.bg);
+        const wcag = checkWCAG(ratio);
+        const targetAA = combo.large ? wcag.largeAA : wcag.normalAA;
+        const targetAAA = combo.large ? wcag.largeAAA : wcag.normalAAA;
+
+        return {
+          ...combo,
+          ratio: ratio.toFixed(2),
+          wcag,
+          pass: targetAA,
+        };
+      });
+
+      renderResults(results);
+    }
+
+    function renderResults(results) {
+      const passed = results.filter(r => r.pass).length;
+      const failed = results.filter(r => !r.pass).length;
+      const total = results.length;
+      const passRate = ((passed / total) * 100).toFixed(0);
+
+      // Render summary
+      document.getElementById('summary').innerHTML = `
+        <h2 style="margin-bottom: 1rem; color: #1f2937;">📊 审计摘要 (${currentMode === 'day' ? 'Day Mode' : 'Night Mode'})</h2>
+        <div class="summary-stats">
+          <div class="stat">
+            <div class="stat-value" style="color: #22c55e;">${passed}</div>
+            <div class="stat-label">通过</div>
+          </div>
+          <div class="stat">
+            <div class="stat-value" style="color: #ef4444;">${failed}</div>
+            <div class="stat-label">失败</div>
+          </div>
+          <div class="stat">
+            <div class="stat-value">${total}</div>
+            <div class="stat-label">总计</div>
+          </div>
+          <div class="stat">
+            <div class="stat-value" style="color: ${passRate >= 80 ? '#22c55e' : '#fb923c'};">${passRate}%</div>
+            <div class="stat-label">通过率</div>
+          </div>
+        </div>
+        ${failed > 0 ? `
+        <div class="recommendations">
+          <h3>⚠️ 改进建议</h3>
+          <ul>
+            ${results.filter(r => !r.pass).map(r => `
+              <li><strong>${r.label}</strong>: 当前对比度 ${r.ratio}:1，需要 ${r.large ? '3.0' : '4.5'}:1</li>
+            `).join('')}
+          </ul>
+        </div>
+        ` : ''}
+      `;
+
+      // Render detailed results
+      const failedItems = results.filter(r => !r.pass);
+      const passedItems = results.filter(r => r.pass);
+
+      document.getElementById('results').innerHTML = `
+        ${failedItems.length > 0 ? `
+        <div class="section">
+          <div class="section-title">❌ 未通过 WCAG AA (${failedItems.length})</div>
+          <div class="contrast-grid">
+            ${failedItems.map(renderContrastItem).join('')}
+          </div>
+        </div>
+        ` : ''}
+
+        <div class="section">
+          <div class="section-title">✅ 通过 WCAG AA (${passedItems.length})</div>
+          <div class="contrast-grid">
+            ${passedItems.map(renderContrastItem).join('')}
+          </div>
+        </div>
+      `;
+    }
+
+    function renderContrastItem(result) {
+      return `
+        <div class="contrast-item ${result.pass ? 'pass' : 'fail'}">
+          <div class="swatch-row">
+            <div class="swatch" style="background: ${result.bg}; color: ${result.fg};">Aa</div>
+            <div class="combo-info">
+              <div class="combo-label">${result.label}</div>
+              <div class="combo-colors">FG: ${result.fg}<br/>BG: ${result.bg}</div>
+            </div>
+          </div>
+
+          <div class="ratio-display">
+            <span class="ratio-value">${result.ratio}:1</span>
+            <span class="ratio-badge ${result.pass ? 'pass' : 'fail'}">${result.pass ? 'Pass' : 'Fail'}</span>
+          </div>
+
+          <div class="wcag-levels">
+            <span class="wcag-level ${result.wcag.normalAA ? 'pass' : ''}">AA Normal ${result.wcag.normalAA ? '✓' : '✗'}</span>
+            <span class="wcag-level ${result.wcag.normalAAA ? 'pass' : ''}">AAA Normal ${result.wcag.normalAAA ? '✓' : '✗'}</span>
+            <span class="wcag-level ${result.wcag.largeAA ? 'pass' : ''}">AA Large ${result.wcag.largeAA ? '✓' : '✗'}</span>
+          </div>
+        </div>
+      `;
+    }
+
+    // Run initial audit
+    runAudit();
+  </script>
+</body>
+</html>
