@@ -17,3 +17,5 @@
 ## Follow-up outside this change
 
 `infra-kafka` was already continuously restarting before maintenance (Docker reported the failure as two months old). Diagnose that service separately. Tagged rollback images and stopped containers remain protected; the 14-day backup window and retained Docker artifacts are not hard capacity quotas.
+
+Local temporary diagnostics remain in `C:\Users\IzumiShizuki\AppData\Local\Temp\shizuki-disk-maintenance-20261015`: automatic approval rejected both recursive and individually validated file cleanup commands with `blocked by policy`, without a more specific reason. The 14 small files do not affect the completed server maintenance.
