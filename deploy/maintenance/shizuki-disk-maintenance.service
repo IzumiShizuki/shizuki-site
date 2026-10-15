@@ -1,0 +1,15 @@
+[Unit]
+Description=Personal website disk cache and snapshot maintenance
+After=docker.service
+Requires=docker.service
+ConditionPathIsDirectory=/opt/shizuki-site
+
+[Service]
+Type=oneshot
+Environment=PRUNE_SNAPSHOTS=0
+EnvironmentFile=-/etc/default/shizuki-disk-maintenance
+ExecStart=/usr/local/sbin/shizuki-disk-maintenance
+Nice=10
+IOSchedulingClass=idle
+TimeoutStartSec=1h
+UMask=0027

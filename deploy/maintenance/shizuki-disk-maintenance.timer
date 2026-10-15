@@ -1,0 +1,10 @@
+[Unit]
+Description=Daily personal website disk maintenance
+
+[Timer]
+OnCalendar=*-*-* 04:30:00 Asia/Shanghai
+RandomizedDelaySec=15m
+Persistent=true
+
+[Install]
+WantedBy=timers.target
