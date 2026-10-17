@@ -1,5 +1,5 @@
 <template>
-  <section class="about-overview-premium" aria-labelledby="about-overview-title">
+  <section class="about-overview about-overview-premium" aria-labelledby="about-overview-title">
     <!-- 封面区域 - 保留并增强 -->
     <div
       class="hero-cover-section"
@@ -51,12 +51,12 @@
 
             <!-- 状态 + 快速信息 -->
             <div class="hero-meta animate-slide-up" style="--delay: 0.3s">
-              <span class="hero-status" :class="{ offline: !enabled }">
+              <span class="hero-status about-overview-status" :class="{ offline: !enabled }">
                 <span class="status-pulse" aria-hidden="true"></span>
                 {{ enabled ? activityStatus : '暂时离线' }}
               </span>
               <div class="quick-tags">
-                <span v-for="fact in compactFacts" :key="fact.label" class="quick-tag">
+                <span v-for="fact in compactFacts" :key="fact.label" class="quick-tag about-overview-fact">
                   <i :class="fact.icon" aria-hidden="true"></i>
                   {{ fact.value }}
                 </span>
@@ -111,7 +111,7 @@
         <div
           v-for="(skill, index) in visibleSkills"
           :key="skill"
-          class="skill-card magnetic-card"
+          class="skill-card magnetic-card about-skill-chip"
           :style="{ '--skill-index': index }"
           :data-skill-index="index"
           @mouseenter="handleSkillHover($event, index)"
@@ -119,35 +119,6 @@
         >
           <span class="skill-text">{{ skill }}</span>
           <div class="skill-shimmer" aria-hidden="true"></div>
-        </div>
-      </div>
-    </div>
-
-    <!-- 作品展示区 - 图片画廊 -->
-    <div class="gallery-section section-reveal" data-reveal-index="2">
-      <h2 class="section-title">
-        <i class="fas fa-images"></i>
-        作品展示
-      </h2>
-      <div class="gallery-grid">
-        <div
-          v-for="i in 6"
-          :key="i"
-          class="gallery-item"
-          :style="{ '--gallery-delay': `${i * 0.08}s` }"
-        >
-          <div class="gallery-frame">
-            <div class="gallery-image-placeholder">
-              <i class="fas fa-image"></i>
-              <span>图片 {{ i }}</span>
-            </div>
-            <div class="gallery-frame-border" aria-hidden="true"></div>
-            <div class="gallery-reflection" aria-hidden="true"></div>
-          </div>
-          <div class="gallery-caption">
-            <strong>作品标题 {{ i }}</strong>
-            <small>作品描述文字</small>
-          </div>
         </div>
       </div>
     </div>
@@ -163,7 +134,7 @@
           v-for="portal in portals"
           :key="portal.key"
           type="button"
-          class="portal-glass-card ripple-trigger"
+          class="portal-glass-card ripple-trigger about-portal-link"
           @click="$emit('select-portal', portal)"
           @mouseenter="handlePortalHover"
         >
@@ -213,6 +184,7 @@ const activityStatus = computed(() => String(props.identity?.activityStatus || '
 const compactFacts = computed(() => {
   const facts = [];
   if (props.identity?.role) facts.push({ label: '角色', value: props.identity.role, icon: 'fas fa-briefcase' });
+  if (props.identity?.major) facts.push({ label: '专业', value: props.identity.major, icon: 'fas fa-book' });
   if (props.identity?.location) facts.push({ label: '位置', value: props.identity.location, icon: 'fas fa-location-dot' });
   else if (props.identity?.school) facts.push({ label: '学校', value: props.identity.school, icon: 'fas fa-graduation-cap' });
   return facts.slice(0, 3);
@@ -304,19 +276,24 @@ function animateNumber(element, target) {
 
 // Intersection Observer - 滚动触发动画
 let observer = null;
+let numberAnimationTimer = null;
 onMounted(() => {
-  // 平滑滚动
-  document.documentElement.style.scrollBehavior = 'smooth';
+  const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
 
   // 数字动画
-  setTimeout(() => {
+  numberAnimationTimer = setTimeout(() => {
     document.querySelectorAll('.stat-number').forEach(el => {
       const target = parseInt(el.dataset.target) || 0;
-      animateNumber(el, target);
+      if (reducedMotion) el.textContent = String(target);
+      else animateNumber(el, target);
     });
-  }, 500);
+  }, reducedMotion ? 0 : 500);
 
   // 交叠式reveal
+  if (reducedMotion || typeof IntersectionObserver !== 'function') {
+    document.querySelectorAll('.section-reveal').forEach(el => el.classList.add('revealed'));
+    return;
+  }
   observer = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
       if (entry.isIntersecting) {
@@ -329,6 +306,7 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
+  clearTimeout(numberAnimationTimer);
   if (observer) observer.disconnect();
 });
 </script>
@@ -652,7 +630,6 @@ onUnmounted(() => {
 
 .stats-section,
 .skills-section,
-.gallery-section,
 .portals-section {
   padding: var(--space-8) var(--space-6);
   border-radius: var(--radius-2xl);
@@ -842,119 +819,6 @@ onUnmounted(() => {
 }
 
 /* ============================================================
-   作品展示 - 图片画廊
-   ============================================================ */
-
-.gallery-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: var(--space-6);
-}
-
-.gallery-item {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  animation: gallery-reveal 0.6s ease-out backwards;
-  animation-delay: var(--gallery-delay);
-}
-
-@keyframes gallery-reveal {
-  from {
-    opacity: 0;
-    transform: translateY(30px) scale(0.9);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-
-.gallery-frame {
-  position: relative;
-  aspect-ratio: 4 / 3;
-  border-radius: var(--radius-xl);
-  overflow: hidden;
-  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.gallery-frame:hover {
-  transform: translateY(-8px) scale(1.02);
-}
-
-.gallery-image-placeholder {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-2);
-  background: linear-gradient(
-    135deg,
-    rgba(var(--accent-rgb), 0.1),
-    rgba(147, 197, 253, 0.1)
-  );
-  color: rgba(255, 255, 255, 0.5);
-  font-size: 14px;
-}
-
-.gallery-image-placeholder i {
-  font-size: 48px;
-  opacity: 0.3;
-}
-
-.gallery-frame-border {
-  position: absolute;
-  inset: 0;
-  border: 3px solid rgba(255, 255, 255, 0.1);
-  border-radius: inherit;
-  pointer-events: none;
-  transition: all 0.3s ease;
-}
-
-.gallery-frame:hover .gallery-frame-border {
-  border-color: rgba(var(--accent-rgb), 0.6);
-  box-shadow:
-    inset 0 0 30px rgba(var(--accent-rgb), 0.2),
-    0 0 30px rgba(var(--accent-rgb), 0.3);
-}
-
-.gallery-reflection {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    135deg,
-    rgba(255, 255, 255, 0.2) 0%,
-    transparent 50%
-  );
-  opacity: 0;
-  transition: opacity 0.3s ease;
-  pointer-events: none;
-}
-
-.gallery-frame:hover .gallery-reflection {
-  opacity: 1;
-}
-
-.gallery-caption {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.gallery-caption strong {
-  font-size: 15px;
-  font-weight: 600;
-  color: rgba(255, 255, 255, 0.95);
-}
-
-.gallery-caption small {
-  font-size: 13px;
-  color: rgba(255, 255, 255, 0.6);
-}
-
-/* ============================================================
    快捷入口 - 玻璃态
    ============================================================ */
 
@@ -1078,9 +942,6 @@ onUnmounted(() => {
     grid-template-columns: repeat(2, 1fr);
   }
 
-  .gallery-grid {
-    grid-template-columns: 1fr;
-  }
 }
 
 /* ============================================================

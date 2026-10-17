@@ -32,9 +32,17 @@
         </div>
         <template v-else-if="album">
           <header class="album-detail-hero">
+            <RouterLink class="back-link-inline" to="/albums">
+              <i class="fas fa-arrow-left" aria-hidden="true"></i>
+              返回相册
+            </RouterLink>
             <span class="eyebrow">PHOTO ALBUM</span>
             <h1>{{ album.title }}</h1>
-            <p>{{ album.summary }}</p>
+            <div class="album-meta-row">
+              <time :datetime="album.publishedAt">{{ formatPublishedAt(album.publishedAt) }}</time>
+              <span>{{ album.photos.length }} 张照片</span>
+            </div>
+            <p v-if="album.summary" class="album-summary">{{ album.summary }}</p>
             <div class="album-detail-actions">
               <ContentShareButton
                 kind="album"
@@ -89,9 +97,9 @@
       <template #right>
         <StickyCardStack>
           <aside class="album-detail-side privacy-note">
-            <span class="eyebrow">MEDIA PRIVACY</span>
-            <h2>展示的是安全派生图</h2>
-            <p>页面不会直接暴露原图存储地址。无法授权的照片会诚实地保持不可用。</p>
+            <span class="eyebrow">VIEWING NOTES</span>
+            <h2>慢慢看，也可以放大看</h2>
+            <p>点开照片查看大图，在画廊中切换。按 Esc 或点击关闭按钮返回相册。</p>
           </aside>
         </StickyCardStack>
       </template>
@@ -115,6 +123,7 @@ import StickyCardStack from '../components/content/StickyCardStack.vue';
 import ThreeColumnContentShell from '../components/content/ThreeColumnContentShell.vue';
 import { useMotionPreference } from '../composables/useMotionPreference';
 import { usePageRobots } from '../composables/usePageRobots';
+import { usePublicContentMetadata } from '../composables/usePublicContentMetadata';
 import { useAsyncResource } from '../composables/useAsyncResource';
 import {
   resolveMemoryLensName,
@@ -133,6 +142,10 @@ const albumResource = useAsyncResource(
 );
 const { data: album, loading, error, refresh } = albumResource;
 usePageRobots(computed(() => Boolean(album.value?.noIndex)));
+usePublicContentMetadata(() => !loading.value && !error.value && album.value ? {
+  kind: 'album', identifier: album.value.publicSlug, title: album.value.title,
+  description: album.value.summary, image: album.value.photos[0]?.media?.display?.url
+} : null);
 const memoryLensStyle = computed(() => ({
   viewTransitionName: effectiveMode.value === 'immersive'
     ? resolveMemoryLensName(route.params.publicSlug)
@@ -288,17 +301,50 @@ watch(() => route.params.publicSlug, loadAlbum, { immediate: true });
   text-align: center;
 }
 
-.album-detail-hero h1 {
-  margin: 8px 0 10px;
-  font-family: var(--font-display, 'Zen Maru Gothic', 'LXGW WenKai', sans-serif);
-  font-size: clamp(34px, 6vw, 66px);
-  letter-spacing: 0.06em;
+.back-link-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--theme-text-secondary);
+  text-decoration: none;
+  font-size: 14px;
+  margin-bottom: 16px;
+  transition: color var(--dur-fast) var(--ease-out);
 }
 
-.album-detail-hero p {
-  max-width: 600px;
-  margin: 0 auto;
+.back-link-inline:hover {
+  color: rgb(var(--accent-readable-rgb, var(--accent-strong-rgb)));
+}
+
+.album-detail-hero h1 {
+  margin: 12px 0 10px;
+  font-family: var(--font-display, 'Zen Maru Gothic', 'LXGW WenKai', sans-serif);
+  font-size: clamp(28px, 5.5vw, 54px);
+  font-weight: 720;
+  letter-spacing: 0.04em;
+  line-height: 1.25;
+}
+
+.album-meta-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 10px 0 14px;
+  font-size: 14px;
   color: var(--theme-text-secondary);
+}
+
+.album-meta-row time {
+  font-weight: 540;
+}
+
+.album-summary {
+  max-width: 640px;
+  margin: 0 auto 18px;
+  color: var(--theme-text-secondary);
+  font-size: 15px;
   line-height: 1.7;
 }
 
@@ -446,6 +492,41 @@ watch(() => route.params.publicSlug, loadAlbum, { immediate: true });
 @media (max-width: 680px) {
   .photo-field {
     grid-template-columns: 1fr;
+  }
+
+  .album-detail-hero {
+    padding: 20px 16px;
+    text-align: left;
+  }
+
+  .back-link-inline {
+    margin-bottom: 12px;
+  }
+
+  .album-detail-hero h1 {
+    font-size: clamp(24px, 8vw, 36px);
+    text-align: left;
+  }
+
+  .album-meta-row {
+    justify-content: flex-start;
+    margin: 8px 0 12px;
+    font-size: 13px;
+  }
+
+  .album-summary {
+    text-align: left;
+    font-size: 14px;
+  }
+
+  .album-detail-actions {
+    justify-content: flex-start;
+    margin-top: 14px;
+  }
+
+  .album-detail-page {
+    padding-left: max(4px, env(safe-area-inset-left));
+    padding-right: max(4px, env(safe-area-inset-right));
   }
 }
 </style>

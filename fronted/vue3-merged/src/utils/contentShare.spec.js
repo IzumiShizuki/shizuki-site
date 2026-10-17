@@ -2,13 +2,30 @@ import { describe, expect, it, vi } from 'vitest';
 import { buildContentShareUrl, shareContentLink } from './contentShare';
 
 describe('contentShare', () => {
-  it('builds only a clean hash route and removes existing queries or media secrets', () => {
+  it('builds a stable reader URL and removes existing paths, queries or media secrets', () => {
     const url = buildContentShareUrl('album', 'album_ABCDEFGHIJKLMNOPQRSTUVWXYZ', {
       locationTarget: 'https://site.example/app/?capability=secret#/albums/old?signature=leak'
     });
 
-    expect(url).toBe('https://site.example/app/#/albums/album_ABCDEFGHIJKLMNOPQRSTUVWXYZ');
+    expect(url).toBe('https://site.example/read/albums/album_ABCDEFGHIJKLMNOPQRSTUVWXYZ');
     expect(url).not.toMatch(/capability|signature|secret|media\/med_/i);
+  });
+
+  it('shares article identifiers and uses the configured web site from the desktop protocol', () => {
+    expect(buildContentShareUrl('post', '42', { locationTarget: 'https://site.example/#/blog/42?draft=true' }))
+      .toBe('https://site.example/read/posts/42');
+    expect(buildContentShareUrl('moment', 'mom_safe', { locationTarget: 'app://shizuki/index.html#/moments/mom_safe' }))
+      .toBe('https://site.shizuki.online/read/moments/mom_safe');
+  });
+
+  it('accepts a stable reader URL and rejects executable schemes or token-bearing links', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    const result = await shareContentLink({ title: '文章', url: 'https://site.example/read/posts/42', navigatorTarget: { clipboard: { writeText } } });
+    expect(result.status).toBe('copied');
+    for (const url of ['javascript:alert(1)#/blog/42', 'https://site.example/read/posts/42?token=secret', 'https://user:password@site.example/read/posts/42']) {
+      await expect(shareContentLink({ title: 'x', url, navigatorTarget: { clipboard: { writeText } } })).rejects.toThrow();
+    }
+    expect(writeText).toHaveBeenCalledTimes(1);
   });
 
   it('uses Web Share when available and passes title plus sanitized content URL only', async () => {

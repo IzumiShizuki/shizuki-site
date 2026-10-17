@@ -1,6 +1,9 @@
+import { publicSiteOrigin } from './publicContentMetadata';
+
 const CONTENT_PATHS = Object.freeze({
-  album: '/albums',
-  moment: '/moments'
+  post: '/read/posts',
+  album: '/read/albums',
+  moment: '/read/moments'
 });
 
 function normalizedIdentifier(value) {
@@ -14,7 +17,7 @@ function normalizedIdentifier(value) {
 function locationHref(locationTarget) {
   if (typeof locationTarget === 'string') return locationTarget;
   if (typeof locationTarget?.href === 'string') return locationTarget.href;
-  return 'https://localhost/';
+  return '';
 }
 
 export function buildContentShareUrl(kind, publicIdentifier, {
@@ -23,18 +26,15 @@ export function buildContentShareUrl(kind, publicIdentifier, {
   const routeBase = CONTENT_PATHS[String(kind || '').trim().toLowerCase()];
   if (!routeBase) throw new TypeError('Unsupported share content kind');
   const identifier = normalizedIdentifier(publicIdentifier);
-  const url = new URL(locationHref(locationTarget), 'https://localhost/');
-  url.username = '';
-  url.password = '';
-  url.search = '';
-  url.hash = `#${routeBase}/${encodeURIComponent(identifier)}`;
+  const url = new URL(`${routeBase}/${encodeURIComponent(identifier)}`, publicSiteOrigin(locationHref(locationTarget)));
   return url.href;
 }
 
 function assertSafeContentUrl(value) {
   const url = new URL(String(value || ''));
-  const safeHash = /^#\/(albums|moments)\/[^/?#]+$/.test(url.hash);
-  if (!safeHash || url.search || url.username || url.password) {
+  const safeHash = /^#\/(blog|albums|moments)\/[A-Za-z0-9_-]+$/.test(url.hash);
+  const safePath = /^\/read\/(posts|albums|moments)\/[A-Za-z0-9_-]+$/.test(url.pathname) && !url.hash;
+  if ((!safeHash && !safePath) || !['https:', 'http:'].includes(url.protocol) || url.search || url.username || url.password) {
     throw new TypeError('Share URL must be a sanitized site content route');
   }
   return url.href;

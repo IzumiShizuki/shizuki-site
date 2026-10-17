@@ -167,6 +167,22 @@
                     <i class="fas fa-arrow-left"></i>
                   </button>
                   <div class="detail-action-right">
+                    <ContentShareButton
+                      v-if="detailState.post.visibility === 'PUBLIC' && detailState.post.statusCode === 'PUBLISHED'"
+                      kind="post"
+                      :public-id="String(detailState.post.postId)"
+                      :title="detailState.post.displayTitle"
+                    />
+                    <button
+                      v-if="isMobileLike && visibleTocTreeHeadings.length > 0"
+                      type="button"
+                      class="icon-circle-btn ripple-trigger mobile-toc-trigger"
+                      aria-label="打开目录"
+                      title="打开目录"
+                      @click="openMobileToc"
+                    >
+                      <i class="fas fa-list-ul"></i>
+                    </button>
                     <button
                       v-if="detailPresentationReady"
                       type="button"
@@ -248,13 +264,72 @@
         <div v-else class="editor-view">
           <div class="editor-topbar liquid-material">
             <div class="editor-topbar-main">
-              <h3>文章编辑</h3>
-              <span class="editor-topbar-mode">{{ editorMode === 'wysiwyg' ? '富文本模式' : 'Markdown 源码模式' }}</span>
-              <span class="editor-save-state" :class="{ 'editor-save-state--dirty': editorHasUnsavedChanges }">
-                {{ editorHasUnsavedChanges ? '有未保存更改' : '更改已保存' }}
-              </span>
+              <div class="editor-context">
+                <div v-if="writerState.editor.title || writerState.editor.coverImageUrl" class="editor-context-preview">
+                  <span v-if="writerState.editor.coverImageUrl" class="editor-cover-thumb">
+                    <img :src="writerState.editor.coverImageUrl" alt="封面" />
+                  </span>
+                  <div class="editor-context-text">
+                    <h3 v-if="writerState.editor.title" class="editor-context-title">{{ writerState.editor.title }}</h3>
+                    <span v-else class="editor-context-placeholder">新建文章</span>
+                    <span class="editor-context-mode">{{ editorMode === 'wysiwyg' ? '富文本模式' : 'Markdown 源码模式' }}</span>
+                  </div>
+                </div>
+                <div v-else class="editor-context-simple">
+                  <h3>文章编辑</h3>
+                  <span class="editor-context-mode">{{ editorMode === 'wysiwyg' ? '富文本模式' : 'Markdown 源码模式' }}</span>
+                </div>
+              </div>
+              <div class="editor-status-group">
+                <ContentStatusBadge
+                  v-if="writerState.publishing"
+                  variant="saving"
+                  label="正在更新发布状态"
+                  icon="fas fa-circle-notch fa-spin"
+                />
+                <ContentStatusBadge
+                  v-else-if="writerState.saving"
+                  variant="saving"
+                  label="正在保存"
+                  icon="fas fa-circle-notch fa-spin"
+                  elevated
+                />
+                <ContentStatusBadge
+                  v-else-if="!writerState.editor.postId && !editorHasUnsavedChanges"
+                  variant="draft"
+                  label="新建草稿"
+                  icon="fas fa-file"
+                />
+                <ContentStatusBadge
+                  v-else-if="editorHasUnsavedChanges"
+                  variant="draft"
+                  label="有未保存更改"
+                  icon="fas fa-circle"
+                />
+                <ContentStatusBadge
+                  v-else-if="!writerState.error"
+                  variant="saved"
+                  label="更改已保存"
+                  icon="fas fa-check-circle"
+                />
+                <ContentStatusBadge
+                  v-if="writerState.error"
+                  variant="error"
+                  :label="writerState.error.length > 20 ? '操作未完成' : writerState.error"
+                  icon="fas fa-exclamation-circle"
+                />
+              </div>
             </div>
             <div class="editor-topbar-actions">
+              <button
+                type="button"
+                class="mini-btn ripple-trigger editor-topbar-btn editor-save-primary"
+                :disabled="writerState.saving || writerState.publishing || deleteDialogState.submitting || editorReadOnlyBecauseNotion"
+                @click="saveDraftFromToolbar"
+              >
+                <i class="fas fa-check" aria-hidden="true"></i>
+                {{ writerState.saving ? '正在保存…' : '保存草稿' }}
+              </button>
               <div ref="insertMenuWrapRef" class="insert-menu-wrap">
                 <button
                   type="button"
@@ -359,7 +434,7 @@
                 type="button"
                 class="mini-btn ripple-trigger"
                 :disabled="writerState.saving || deleteDialogState.submitting || editorReadOnlyBecauseNotion"
-                @click="handleSaveDraft"
+                @click="saveDraftFromToolbar"
               >
                 保存草稿
               </button>
@@ -674,6 +749,25 @@
         </div>
       </section>
     </div>
+
+    <MobileTableOfContents v-model:open="mobileTocOpen" title="文章目录">
+      <button
+        v-for="heading in visibleTocTreeHeadings"
+        :key="heading.id"
+        type="button"
+        class="mobile-toc-item"
+        :class="{
+          active: heading.id === activeHeadingId,
+          ancestor: heading.isAncestor
+        }"
+        :style="{ paddingLeft: `${Math.max(0, heading.level - 1) * 14 + 16}px` }"
+        @click="handleMobileTocItemClick(heading.id)"
+      >
+        <span class="mobile-toc-level">H{{ heading.level }}</span>
+        <span class="mobile-toc-label">{{ heading.text }}</span>
+      </button>
+      <p v-if="!visibleTocTreeHeadings.length" class="mobile-toc-empty">当前内容暂无可展示目录。</p>
+    </MobileTableOfContents>
   </section>
 </template>
 
@@ -681,6 +775,10 @@
 import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { onBeforeRouteLeave, onBeforeRouteUpdate, useRoute, useRouter } from 'vue-router';
 import SubtleScrollArea from '../components/SubtleScrollArea.vue';
+import ContentStatusBadge from '../components/content/ContentStatusBadge.vue';
+import MobileTableOfContents from '../components/content/MobileTableOfContents.vue';
+import ContentShareButton from '../components/content/ContentShareButton.vue';
+import { usePublicContentMetadata } from '../composables/usePublicContentMetadata';
 import BlogEditorWorkspace from '../components/blog/BlogEditorWorkspace.vue';
 import BlogReaderWorkspace from '../components/blog/BlogReaderWorkspace.vue';
 import { useAppScrollRoot } from '../composables/useAppScrollRoot';
@@ -848,6 +946,8 @@ const whiteboardImportState = reactive({
 const insertMenuState = reactive({
   open: false
 });
+
+const mobileTocOpen = ref(false);
 
 const INSERT_BLOCK_TEMPLATES = Object.freeze([
   {
@@ -1975,6 +2075,10 @@ async function handleSaveDraft(options = {}) {
   }
 }
 
+function saveDraftFromToolbar() {
+  void handleSaveDraft().catch(() => {}); // The editor keeps the draft and displays the error.
+}
+
 async function handlePublish() {
   if (!canPublish.value || !writerState.editor.postId) return;
   writerState.publishing = true;
@@ -2842,6 +2946,16 @@ function handleTocItemClick(headingId) {
   richEditorRef.value?.focus?.();
 }
 
+function openMobileToc() {
+  mobileTocOpen.value = true;
+}
+
+function handleMobileTocItemClick(headingId) {
+  if (!headingId) return;
+  scrollToHeading(headingId);
+  mobileTocOpen.value = false;
+}
+
 function scrollToTop() {
   const root = resolveScrollRoot();
   if (!root) return;
@@ -3158,6 +3272,13 @@ onBeforeUnmount(() => {
   releaseWhiteboardEmbedHydration();
   teardownReadingScroll();
   clearEditorPresentationPollTimer();
+});
+usePublicContentMetadata(() => {
+  const post = detailState.post;
+  if (viewMode.value !== 'detail' || detailState.loading || !post
+      || post.visibility !== 'PUBLIC' || post.statusCode !== 'PUBLISHED') return null;
+  return { kind: 'post', identifier: post.postId, title: post.displayTitle,
+    description: post.summary, image: post.coverImageUrl };
 });
 </script>
 
@@ -3715,9 +3836,95 @@ onBeforeUnmount(() => {
 
 .editor-topbar-main {
   min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.editor-context {
+  min-width: 0;
+  flex: 1 1 0;
+}
+
+.editor-context-preview {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.editor-cover-thumb {
+  flex: 0 0 auto;
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--theme-surface-soft, rgba(255, 255, 255, 0.08));
+  border: 1px solid var(--theme-border-subtle, rgba(255, 255, 255, 0.12));
+}
+
+.editor-cover-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.editor-context-text {
+  min-width: 0;
+  flex: 1;
+  display: grid;
+  gap: 2px;
+}
+
+.editor-context-simple {
   display: grid;
   gap: 3px;
   align-content: center;
+}
+
+.editor-context-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 640;
+  line-height: 1.3;
+  color: var(--theme-text-primary, rgba(244, 248, 255, 0.98));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.editor-context-placeholder {
+  font-size: 15px;
+  font-weight: 640;
+  color: var(--theme-text-tertiary, rgba(205, 214, 235, 0.7));
+}
+
+.editor-context-simple h3 {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.25;
+  color: var(--theme-text-primary, rgba(239, 245, 255, 0.96));
+}
+
+.editor-context-mode {
+  font-size: 12px;
+  color: var(--theme-text-secondary, rgba(211, 223, 248, 0.9));
+}
+
+.editor-status-group {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.editor-save-primary {
+  min-height: 44px;
+  color: var(--accent-surface-text);
+  background: var(--accent-mode-fill-strong);
+  border-color: var(--accent-mode-border-strong);
 }
 
 .editor-topbar-main h3 {
@@ -4349,6 +4556,81 @@ onBeforeUnmount(() => {
   font-size: 12px;
 }
 
+.icon-circle-btn.mobile-toc-trigger {
+  display: none;
+}
+
+@media (max-width: 980px) {
+  .icon-circle-btn.mobile-toc-trigger {
+    display: inline-grid;
+  }
+}
+
+.mobile-toc-item {
+  border: none;
+  min-height: 44px;
+  border-radius: 0;
+  background: transparent;
+  color: var(--theme-text-secondary, rgba(222, 234, 255, 0.93));
+  text-align: left;
+  font-size: 15px;
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  transition: background-color var(--dur-fast) var(--ease-out);
+  cursor: pointer;
+  width: 100%;
+}
+
+.mobile-toc-item:hover {
+  background: rgba(var(--accent-rgb), 0.08);
+  color: var(--theme-text-primary, rgba(246, 252, 255, 0.98));
+}
+
+.mobile-toc-item.active {
+  background: rgba(var(--accent-rgb), 0.14);
+  color: var(--theme-text-primary, rgba(255, 255, 255, 0.99));
+  font-weight: 640;
+}
+
+.mobile-toc-level {
+  flex: 0 0 auto;
+  min-width: 32px;
+  font-size: 13px;
+  font-weight: 660;
+  letter-spacing: 0.02em;
+  color: rgba(var(--accent-rgb), 0.88);
+  text-align: center;
+}
+
+.mobile-toc-item.active .mobile-toc-level {
+  color: rgba(var(--accent-rgb), 0.98);
+}
+
+.mobile-toc-label {
+  min-width: 0;
+  flex: 1;
+  font-weight: 530;
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.mobile-toc-item.active .mobile-toc-label {
+  font-weight: 640;
+}
+
+.mobile-toc-empty {
+  padding: var(--space-4);
+  text-align: center;
+  font-size: 14px;
+  color: var(--theme-text-secondary, rgba(208, 220, 246, 0.88));
+}
+
 .error-text {
   font-size: 13px;
   color: rgba(165, 70, 86, 0.96);
@@ -4502,6 +4784,57 @@ onBeforeUnmount(() => {
   border: 1px solid var(--blog-code-border);
   color: var(--theme-text-primary, rgba(232, 240, 255, 0.95));
   overflow: auto;
+  /* Mobile: horizontal scroll for long code */
+  max-width: 100%;
+  overscroll-behavior-x: contain;
+}
+
+@media (max-width: 640px) {
+  .markdown-body :deep(pre) {
+    margin-left: calc(var(--space-3) * -1);
+    margin-right: calc(var(--space-3) * -1);
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+  }
+
+  /* Mobile reading: comfortable line length and spacing */
+  .markdown-body {
+    font-size: 1.0625rem;
+    line-height: 1.75;
+  }
+
+  .markdown-body :deep(h1) {
+    font-size: 1.75rem;
+    line-height: 1.2;
+  }
+
+  .markdown-body :deep(h2) {
+    font-size: 1.5rem;
+    line-height: 1.25;
+  }
+
+  .markdown-body :deep(h3) {
+    font-size: 1.25rem;
+    line-height: 1.3;
+  }
+
+  /* Safe area for mobile notches */
+  .detail-scroll {
+    padding-left: max(14px, env(safe-area-inset-left));
+    padding-right: max(14px, env(safe-area-inset-right));
+    padding-bottom: max(14px, env(safe-area-inset-bottom));
+  }
+
+  .detail-head {
+    padding-top: var(--space-2);
+  }
+
+  /* Mobile table scroll hint */
+  .markdown-body :deep(.md-table-wrap) {
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--theme-border-subtle);
+  }
 }
 
 .markdown-body :deep(code) {

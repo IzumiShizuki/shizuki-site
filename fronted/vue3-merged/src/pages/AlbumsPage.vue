@@ -198,8 +198,8 @@ function loadFirstPage() {
 }
 
 .life-page-hero {
-  margin-bottom: 24px;
-  padding: clamp(22px, 4vw, 42px);
+  margin-bottom: 28px;
+  padding: clamp(24px, 4vw, 48px) clamp(22px, 4vw, 42px);
   border-bottom: 1px solid var(--theme-border-subtle);
 }
 
@@ -208,14 +208,17 @@ function loadFirstPage() {
   font-size: 10px;
   font-weight: 760;
   letter-spacing: 0.17em;
+  display: block;
+  margin-bottom: 10px;
 }
 
 .life-page-hero h1 {
-  margin: 6px 0 8px;
+  margin: 0 0 12px;
   font-family: var(--font-display, 'Zen Maru Gothic', 'LXGW WenKai', sans-serif);
-  font-size: clamp(34px, 5vw, 64px);
-  font-weight: 650;
-  letter-spacing: 0.08em;
+  font-size: clamp(32px, 5.2vw, 58px);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  line-height: 1.2;
 }
 
 .life-page-hero p,
@@ -227,6 +230,8 @@ function loadFirstPage() {
 
 .life-page-hero p {
   margin: 0;
+  font-size: 15px;
+  max-width: 560px;
 }
 
 .life-side-card,
@@ -415,19 +420,29 @@ function loadFirstPage() {
   padding: 14px 6px 0;
 }
 
-.album-caption small,
-.album-caption span {
+.album-caption small {
   color: var(--theme-text-tertiary);
   font-size: 11px;
   line-height: 1.45;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+
+.album-caption span {
+  color: var(--theme-text-secondary);
+  font-size: 13px;
+  line-height: 1.5;
 }
 
 .album-caption strong {
   overflow: hidden;
   font-family: var(--font-display, 'Zen Maru Gothic', sans-serif);
   font-size: 18px;
+  font-weight: 620;
   text-overflow: ellipsis;
   white-space: nowrap;
+  color: var(--theme-text-primary);
+  letter-spacing: 0.01em;
 }
 
 .life-state {
@@ -487,6 +502,21 @@ function loadFirstPage() {
 @media (max-width: 899.98px) {
   .life-index-page {
     padding-top: 12px;
+    padding-left: max(4px, env(safe-area-inset-left));
+    padding-right: max(4px, env(safe-area-inset-right));
+  }
+
+  .life-page-hero {
+    padding: 20px 16px 24px;
+    margin-bottom: 24px;
+  }
+
+  .life-page-hero h1 {
+    font-size: clamp(28px, 7vw, 42px);
+  }
+
+  .life-page-hero p {
+    font-size: 14px;
   }
 
   .album-grid {
@@ -497,6 +527,10 @@ function loadFirstPage() {
 @media (max-width: 560px) {
   .album-grid {
     grid-template-columns: 1fr;
+  }
+
+  .life-page-hero {
+    padding: 16px 12px 20px;
   }
 }
 </style>

@@ -41,6 +41,22 @@ class AuthEntryFilterTest {
         "/api/v1/media/med_012345678901234567890123456/variants/DISPLAY_WEBP";
 
     @Test
+    void shouldAllowPublicReaderAndDiscoveryDocumentsWithoutCredentials() throws Exception {
+        AuthService authService = Mockito.mock(AuthService.class);
+        AuthEntryFilter filter = newFilter(authService, configuredGuestPaths(), configuredPublicPaths(),
+            new GuestAuthorTokenService("test-guest-author-secret", 3600L));
+        for (String path : List.of("/read", "/read/", "/read/posts/42", "/read/albums/photo-book",
+            "/read/moments/a_moment", "/sitemap.xml", "/robots.txt")) {
+            MockHttpServletResponse response = new MockHttpServletResponse();
+            AtomicBoolean invoked = new AtomicBoolean(false);
+            filter.doFilter(new MockHttpServletRequest("GET", path), response, (request, result) -> invoked.set(true));
+            assertThat(invoked).as(path).isTrue();
+            assertThat(response.getStatus()).as(path).isEqualTo(200);
+        }
+        Mockito.verifyNoInteractions(authService);
+    }
+
+    @Test
     void shouldAllowGuestResolvePlaybackWithoutToken() throws Exception {
         AuthService authService = Mockito.mock(AuthService.class);
         AuthEntryFilter filter = newFilter(authService, List.of(RESOLVE_PLAYBACK_PATH));

@@ -115,7 +115,8 @@ async function mountPage(initialPath = '/blog', { playerBridge = null } = {}) {
   await router.push(initialPath);
   await router.isReady();
 
-  const wrapper = mount(BlogListPage, {
+  const wrapper = mount({ template: '<router-view />' }, {
+    attachTo: document.body,
     global: {
       plugins: [router],
       provide: playerBridge ? { [PLAYER_BRIDGE_KEY]: playerBridge } : {},
@@ -195,6 +196,7 @@ describe('BlogListPage category panel', () => {
   const mountedWrappers = [];
 
   beforeEach(() => {
+    window.sessionStorage.clear();
     originalMatchMedia = window.matchMedia;
     originalPointerCapture = Element.prototype.setPointerCapture;
     originalReleasePointerCapture = Element.prototype.releasePointerCapture;
@@ -559,4 +561,31 @@ describe('BlogListPage category panel', () => {
     expect(mocked.listBlogCategoryMetas).not.toHaveBeenCalled();
     expect(wrapper.findAll('.category-panel-card')).toHaveLength(1);
   });
+  it('restores a searched page and its scroll position after an article round trip', async () => {
+    const payload = createListPayload();
+    payload.total = 25;
+    payload.items[0].searchExcerpt = '正文里的月光倒影与相机记录';
+    mocked.listPosts.mockResolvedValue(payload);
+    const { wrapper, router } = await mountPage();
+    mountedWrappers.push(wrapper);
+    await wrapper.findAll('button').find(button => button.text().includes('搜索')).trigger('click');
+    await wrapper.get('input[type="search"]').setValue('月光倒影');
+    await wrapper.get('.search-form').trigger('submit');
+    await settle();
+    expect(wrapper.findAll('mark').map(mark => mark.text())).toContain('月光倒影');
+    await wrapper.findAll('.page-btn').find(button => button.text() === '2').trigger('click');
+    await settle();
+    wrapper.get('.main-column').element.scrollTop = 360;
+    await wrapper.get('.feed-card').trigger('click');
+    await settle();
+    expect(router.currentRoute.value.name).toBe('blog-detail');
+    expect(JSON.parse(sessionStorage.getItem('shizuki.blog.reading-context.v1')).scrollTop).toBe(360);
+    router.back();
+    await settle();
+    await new Promise(resolve => requestAnimationFrame(resolve));
+    expect(wrapper.get('input[type="search"]').element.value).toBe('月光倒影');
+    expect(mocked.listPosts.mock.calls.at(-1)[0]).toMatchObject({ keyword: '月光倒影', pageNo: 2 });
+    expect(wrapper.get('.main-column').element.scrollTop).toBe(360);
+  });
+
 });

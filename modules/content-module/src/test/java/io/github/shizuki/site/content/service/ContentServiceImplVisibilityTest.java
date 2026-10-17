@@ -1,6 +1,9 @@
 package io.github.shizuki.site.content.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.baomidou.mybatisplus.core.MybatisConfiguration;
+import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
+import org.apache.ibatis.builder.MapperBuilderAssistant;
 import io.github.shizuki.common.core.response.PageResponse;
 import io.github.shizuki.common.security.context.LoginUserContext;
 import io.github.shizuki.common.security.model.LoginUser;
@@ -11,6 +14,7 @@ import io.github.shizuki.site.content.response.PostSummary;
 import io.github.shizuki.site.content.entity.PostCategoryPolicyEntity;
 import io.github.shizuki.site.content.entity.PostCategoryPolicyGroupEntity;
 import io.github.shizuki.site.content.entity.PostEntity;
+import io.github.shizuki.site.content.entity.PostContentEntity;
 import io.github.shizuki.site.content.mapper.AppGroupAclMapper;
 import io.github.shizuki.site.content.mapper.AppMapper;
 import io.github.shizuki.site.content.mapper.AuthorProfileMapper;
@@ -37,6 +41,7 @@ import java.util.concurrent.Executor;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -101,6 +106,11 @@ class ContentServiceImplVisibilityTest {
     private Executor notionSyncExecutor;
 
     private ContentServiceImpl contentService;
+
+    @BeforeAll
+    static void initializeProjectionMetadata() {
+        TableInfoHelper.initTableInfo(new MapperBuilderAssistant(new MybatisConfiguration(), ""), PostContentEntity.class);
+    }
 
     @BeforeEach
     void setUp() {
@@ -223,6 +233,61 @@ class ContentServiceImplVisibilityTest {
 
         Assertions.assertEquals(1L, response.total());
         Mockito.verify(postMapper).selectAuthorPosts(-42L);
+    }
+
+    @Test
+    void bodySearchMatchesTermsAcrossFieldsAndReturnsAnEscapedTextContext() {
+        PostEntity article = publishedPost(1L, 11L, "相机旅行", "life", "PUBLIC", LocalDateTime.of(2026, 10, 16, 8, 0));
+        PostEntity other = publishedPost(2L, 12L, "相机散记", "life", "PUBLIC", article.getPublishedAt());
+        Mockito.when(postMapper.selectList(Mockito.any())).thenReturn(List.of(article, other));
+        PostContentEntity body = new PostContentEntity();
+        body.setPostId(1L);
+        body.setMarkdownCache("# 记录\n" + "前文 ".repeat(150) + "星空曝光 <img src=x onerror=alert(1)> 后文");
+        Mockito.when(postContentMapper.selectList(Mockito.any())).thenReturn(List.of(body));
+
+        var response = contentService.listPosts(1, 10, "相机 星空曝光", null, null);
+
+        org.assertj.core.api.Assertions.assertThat(response.items()).extracting(PostSummary::postId).containsExactly(1L);
+        org.assertj.core.api.Assertions.assertThat(response.items().get(0).searchExcerpt())
+            .contains("星空曝光").doesNotContain("<img").hasSizeLessThanOrEqualTo(222);
+        Mockito.verifyNoInteractions(objectStorageClient);
+    }
+
+    @Test
+    void bodySearchReflectsTextUpdatesAndDoesNotIncludePrivateOrDraftArticles() {
+        PostEntity article = publishedPost(1L, 11L, "记录", "life", "PUBLIC", LocalDateTime.of(2026, 10, 16, 8, 0));
+        PostEntity hidden = publishedPost(2L, 12L, "隐藏", "life", "PRIVATE", article.getPublishedAt());
+        PostEntity draft = publishedPost(3L, 13L, "草稿", "life", "PUBLIC", article.getPublishedAt());
+        draft.setStatusCode("DRAFT");
+        Mockito.when(postMapper.selectList(Mockito.any())).thenReturn(List.of(article, hidden, draft));
+        PostContentEntity before = new PostContentEntity();
+        before.setPostId(1L);
+        before.setMarkdownCache("只在正文里的月光倒影");
+        PostContentEntity after = new PostContentEntity();
+        after.setPostId(1L);
+        after.setMarkdownCache("正文已经更新");
+        Mockito.when(postContentMapper.selectList(Mockito.any())).thenReturn(List.of(before), List.of(after));
+
+        org.assertj.core.api.Assertions.assertThat(contentService.listPosts(1, 10, "月光倒影", null, null).items())
+            .extracting(PostSummary::postId).containsExactly(1L);
+        org.assertj.core.api.Assertions.assertThat(contentService.listPosts(1, 10, "月光倒影", null, null).items()).isEmpty();
+    }
+
+    @Test
+    void discoverableCatalogUsesGuestPoliciesEvenForAdministratorRequests() {
+        LoginUserContext.set(new LoginUser(12L, Set.of("ADMIN"), Set.of()));
+        PostEntity publicPost = publishedPost(1L, 11L, "公开", "life", "PUBLIC", LocalDateTime.of(2026, 10, 16, 8, 0));
+        PostEntity privatePost = publishedPost(2L, 12L, "私密", "life", "PRIVATE", publicPost.getPublishedAt());
+        PostEntity restricted = publishedPost(3L, 12L, "受限", "secret", "PUBLIC", publicPost.getPublishedAt());
+        Mockito.when(postMapper.selectList(Mockito.any())).thenReturn(List.of(publicPost, privatePost, restricted));
+        Mockito.when(postCategoryPolicyMapper.selectOne(Mockito.any())).thenReturn(null, enabledPolicy("secret"));
+        Mockito.when(postCategoryPolicyGroupMapper.selectList(Mockito.any())).thenReturn(List.of(group("secret", "ADMIN")));
+
+        org.assertj.core.api.Assertions.assertThat(contentService.listDiscoverablePosts())
+            .extracting(io.github.shizuki.site.content.response.PublicPostDocument::postId).containsExactly(1L);
+        Mockito.when(postMapper.selectById(2L)).thenReturn(privatePost);
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> contentService.getDiscoverablePost(2L))
+            .isInstanceOf(io.github.shizuki.common.core.error.BusinessException.class);
     }
 
     private PostEntity publishedPost(

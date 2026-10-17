@@ -166,7 +166,7 @@ describe('MomentsPage photo group lightbox', () => {
     await wrapper.get('.content-share button').trigger('click');
     await flushPromises();
     const copiedUrl = writeText.mock.calls[0][0];
-    expect(copiedUrl).toContain(`#/moments/${directId}`);
+    expect(copiedUrl).toContain(`/read/moments/${directId}`);
     expect(copiedUrl).not.toMatch(/capability|signature|media\/med_|bucket/i);
 
     wrapper.unmount();

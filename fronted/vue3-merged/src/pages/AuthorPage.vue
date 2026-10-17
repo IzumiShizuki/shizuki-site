@@ -234,6 +234,12 @@
           </div>
 
           <div v-else-if="isAdminConsoleTab" class="content-block admin-console-block">
+            <header class="workspace-active-heading">
+              <div class="workspace-heading-copy">
+                <h2 class="workspace-title">{{ activeWorkspaceTitle }}</h2>
+                <p class="workspace-subtitle">{{ activeWorkspaceSubtitle }}</p>
+              </div>
+            </header>
             <!-- 不再按子标签 key 重挂载：管理台在子标签之间保持存活，由内部按需加载数据 -->
             <AdminPage embedded :forced-tab="activeAdminTab" />
           </div>
@@ -1009,6 +1015,33 @@ const isPublicAboutTab = computed(() => activeTab.value === AuthorTabKey.ABOUT &
 const isPublicExperienceTab = computed(() => !isAdminConsoleTab.value && activeTab.value === AuthorTabKey.ABOUT);
 const authorRailItems = computed(() => tabs.value);
 const authorRailActiveKey = computed(() => isPublicExperienceTab.value ? activePublicSection.value : activeTab.value);
+
+const activeWorkspaceTitle = computed(() => {
+  if (isAdminConsoleTab.value) {
+    const adminTab = eligibleAdminTabs.value.find(t => t.key === activeAdminTab.value);
+    return adminTab?.label || '管理台';
+  }
+  const tab = tabs.value.find(t => t.key === activeTab.value);
+  return tab?.label || '工作区';
+});
+
+const activeWorkspaceSubtitle = computed(() => {
+  if (isAdminConsoleTab.value) {
+    const subtitles = {
+      [AdminTabKey.ALBUMS]: '整理照片、编排相册与发布影像',
+      [AdminTabKey.MOMENTS]: '记录片刻、管理草稿与公开动态',
+      [AdminTabKey.USERS]: '用户账号与权限管理',
+      [AdminTabKey.GROUPS]: '用户组与角色配置',
+      [AdminTabKey.QUOTA]: '资源配额与限流策略'
+    };
+    return subtitles[activeAdminTab.value] || '内容与站点管理';
+  }
+  const subtitles = {
+    [AuthorTabKey.ABOUT]: '关于网站与个人经历',
+    [AuthorTabKey.SITE_SETTINGS]: '站点配置与视觉资源'
+  };
+  return subtitles[activeTab.value] || '工作空间';
+});
 // 管理台的所有子标签共用同一个 key：在 Users / Groups / Quota 之间切换时
 // 滚动容器与玻璃面板不再销毁重建，避免整块内容闪烁和重复请求。
 const contentPanelRenderKey = computed(() => (activeAdminTab.value ? 'admin-console' : activeTab.value));
@@ -2412,6 +2445,53 @@ onBeforeUnmount(() => {
   gap: 12px;
   min-width: 0;
   max-width: 100%;
+}
+
+.workspace-active-heading {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 20px;
+  margin: -14px -16px 18px;
+  border-bottom: 1px solid var(--theme-border, rgba(255, 255, 255, 0.12));
+  background: linear-gradient(135deg, rgba(var(--accent-rgb), 0.05), transparent 60%);
+}
+
+.workspace-heading-copy {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.workspace-title {
+  margin: 0;
+  color: var(--theme-text-primary, rgba(244, 248, 255, 0.98));
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  line-height: 1.3;
+}
+
+.workspace-subtitle {
+  margin: 0;
+  color: var(--theme-text-secondary, rgba(184, 203, 224, 0.72));
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  line-height: 1.4;
+}
+
+@media (max-width: 640px) {
+  .workspace-active-heading {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+  }
+}
+
+.admin-console-block {
+  display: grid;
+  gap: 0;
+  min-height: 0;
 }
 
 .site-settings-card {

@@ -109,7 +109,7 @@ describe('AlbumDetailPage lightbox integration', () => {
     await wrapper.get('.content-share button').trigger('click');
     await flushPromises();
     expect(writeText).toHaveBeenCalledOnce();
-    expect(writeText.mock.calls[0][0]).toContain('#/albums/album_ABCDEFGHIJKLMNOPQRSTUVWXYZ');
+    expect(writeText.mock.calls[0][0]).toContain('/read/albums/album_ABCDEFGHIJKLMNOPQRSTUVWXYZ');
     expect(writeText.mock.calls[0][0]).not.toMatch(/capability|FULL_SANITIZED|media\/med_|bucket/i);
     wrapper.unmount();
   });

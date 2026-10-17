@@ -75,6 +75,9 @@ import io.github.shizuki.site.content.support.PostPresentationGeneratorClient;
 import io.github.shizuki.site.content.support.PostNotionSyncService;
 import io.github.shizuki.site.content.support.PostPresentationTemplateService;
 import io.github.shizuki.site.content.support.PostPresentationTemplateService.PresentationDeck;
+import io.github.shizuki.site.content.support.PostSearchText;
+import io.github.shizuki.site.content.support.PublicMarkdown;
+import io.github.shizuki.site.content.response.PublicPostDocument;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -250,12 +253,18 @@ public class ContentServiceImpl implements ContentService {
         String normalizedTag = normalizeTagCode(tagCode);
         PublishedRange range = resolvePublishedRange(publishedFrom, publishedTo);
         Map<Long, List<String>> tagCache = new HashMap<>();
-
-        List<PostEntity> filtered = candidates.stream()
-            .filter(post -> matchesKeyword(post, normalizedKeyword, tagCache))
+        List<String> searchTerms = PostSearchText.terms(normalizedKeyword);
+        List<PostEntity> scopedCandidates = candidates.stream()
             .filter(post -> matchesCategory(post, normalizedCategory))
             .filter(post -> matchesTag(post.getId(), normalizedTag, tagCache))
             .filter(post -> matchesPublishedRange(post, range))
+            .toList();
+        Map<Long, String> searchBodies = loadSearchBodies(scopedCandidates, searchTerms, tagCache);
+
+        List<PostEntity> filtered = scopedCandidates.stream()
+            .filter(post -> searchTerms.isEmpty() || PostSearchText.matches(searchTerms, post.getTitle(), post.getSummary(),
+                post.getCategoryCode(), String.join(" ", loadPostTags(post.getId(), tagCache)),
+                searchBodies.get(post.getId())))
             .sorted(
                 Comparator.comparing(this::resolvePostPublishTimeForSort, Comparator.reverseOrder())
                     .thenComparing(PostEntity::getId, Comparator.reverseOrder())
@@ -280,12 +289,42 @@ public class ContentServiceImpl implements ContentService {
                     summaryMetrics.wordCount(),
                     summaryMetrics.readingMinutes(),
                     post.getLikeCount() == null ? 0L : post.getLikeCount(),
-                    resolvePostPublishTimeForDisplay(post)
+                    resolvePostPublishTimeForDisplay(post),
+                    PostSearchText.excerpt(
+                        StringUtils.hasText(searchBodies.get(post.getId()))
+                            ? searchBodies.get(post.getId()) : post.getSummary(), searchTerms)
                 );
             })
             .toList();
 
         return PageResponse.of(items, total, normalizedPageNo, normalizedPageSize);
+    }
+
+    @Override
+    public List<PublicPostDocument> listDiscoverablePosts() {
+        ViewerContext guest = new ViewerContext(null, Set.of("GUEST"), false, false, Set.of());
+        return loadPublishedPostCandidates(guest).stream()
+            .filter(post -> normalizeVisibility(post.getVisibility()) == ContentVisibilityEnum.PUBLIC)
+            .filter(post -> post.getDeleted() == null || post.getDeleted() == 0)
+            .map(post -> publicPostDocument(post, ""))
+            .toList();
+    }
+
+    @Override
+    public PublicPostDocument getDiscoverablePost(Long postId) {
+        PostEntity post = postId == null || postId <= 0 ? null : postMapper.selectById(postId);
+        ViewerContext guest = new ViewerContext(null, Set.of("GUEST"), false, false, Set.of());
+        if (post == null || (post.getDeleted() != null && post.getDeleted() != 0)
+            || normalizeVisibility(post.getVisibility()) != ContentVisibilityEnum.PUBLIC
+            || !canAccessPublishedPost(post, guest)) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "Post not found");
+        }
+        return publicPostDocument(post, readPostMarkdown(post));
+    }
+
+    private PublicPostDocument publicPostDocument(PostEntity post, String markdown) {
+        return new PublicPostDocument(post.getId(), normalizePostTitle(post.getTitle()), post.getSummary(),
+            post.getCoverImageUrl(), post.getCategoryCode(), resolvePostPublishTimeForDisplay(post), markdown);
     }
 
     @Override
@@ -2536,16 +2575,35 @@ public class ContentServiceImpl implements ContentService {
     }
 
     private boolean matchesKeyword(PostEntity post, String keyword, Map<Long, List<String>> tagCache) {
-        if (!StringUtils.hasText(keyword)) {
-            return true;
+        if (!StringUtils.hasText(keyword)) return true;
+        return PostSearchText.matches(PostSearchText.terms(keyword), post.getTitle(), post.getSummary(),
+            String.join(" ", loadPostTags(post.getId(), tagCache)));
+    }
+
+    private Map<Long, String> loadSearchBodies(List<PostEntity> candidates, List<String> terms,
+                                              Map<Long, List<String>> tagCache) {
+        Map<Long, String> bodies = new HashMap<>();
+        if (terms.isEmpty() || candidates.isEmpty()) return bodies;
+        final int batchSize = 200;
+        List<Long> ids = candidates.stream().map(PostEntity::getId).toList();
+        for (int offset = 0; offset < ids.size(); offset += batchSize) {
+            List<Long> batch = ids.subList(offset, Math.min(offset + batchSize, ids.size()));
+            for (PostContentEntity content : postContentMapper.selectList(
+                new LambdaQueryWrapper<PostContentEntity>().select(PostContentEntity::getPostId, PostContentEntity::getMarkdownCache)
+                    .eq(PostContentEntity::getDeleted, 0)
+                    .in(PostContentEntity::getPostId, batch))) {
+                bodies.put(content.getPostId(), PublicMarkdown.text(content.getMarkdownCache()));
+            }
         }
-        String normalized = keyword.toLowerCase(Locale.ROOT);
-        if (readString(post.getTitle(), "").toLowerCase(Locale.ROOT).contains(normalized)
-            || readString(post.getSummary(), "").toLowerCase(Locale.ROOT).contains(normalized)) {
-            return true;
+        for (PostEntity post : candidates) {
+            if (StringUtils.hasText(bodies.get(post.getId()))) continue;
+            // Only legacy cache-missing content needs storage; current articles are read in batches.
+            if (!PostSearchText.matches(terms, post.getTitle(), post.getSummary(), post.getCategoryCode(),
+                String.join(" ", loadPostTags(post.getId(), tagCache)))) {
+                bodies.put(post.getId(), PublicMarkdown.text(readPostMarkdownStorage(post)));
+            }
         }
-        return loadPostTags(post.getId(), tagCache).stream()
-            .anyMatch(tag -> readString(tag, "").toLowerCase(Locale.ROOT).contains(normalized));
+        return bodies;
     }
 
     private boolean matchesCategory(PostEntity post, String categoryCode) {
@@ -2932,6 +2990,11 @@ public class ContentServiceImpl implements ContentService {
         if (content != null && StringUtils.hasText(readString(content.getMarkdownCache(), ""))) {
             return content.getMarkdownCache();
         }
+        return readPostMarkdownStorage(post);
+    }
+
+    private String readPostMarkdownStorage(PostEntity post) {
+        if (post == null) return "";
         String bucket = readString(post.getMarkdownBucket(), "").trim();
         String key = readString(post.getMarkdownKey(), "").trim();
         if (StringUtils.hasText(bucket) && StringUtils.hasText(key)) {

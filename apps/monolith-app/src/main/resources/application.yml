@@ -422,6 +422,7 @@ shizuki:
       - bilibili.com
       - b23.tv
   content:
+    public-site-url: ${PUBLIC_SITE_URL:https://site.shizuki.online}
     public-cache:
       list-ttl: ${PUBLIC_CONTENT_LIST_CACHE_TTL:30s}
       featured-ttl: ${PUBLIC_CONTENT_FEATURED_CACHE_TTL:30s}
@@ -442,6 +443,10 @@ shizuki:
       cache-max-entries: ${AUTH_INTROSPECT_CACHE_MAX_ENTRIES:10000}
       guest-invalid-token-policy: ${AUTH_GUEST_INVALID_TOKEN_POLICY:downgrade}
       public-paths:
+      - /read
+      - /read/**
+      - /sitemap.xml
+      - /robots.txt
       - /api/v1/auth/tokens
       - /api/v1/auth/register/**
       - /api/v1/auth/oauth/**

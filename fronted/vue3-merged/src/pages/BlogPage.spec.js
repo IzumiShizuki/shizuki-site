@@ -214,6 +214,32 @@ describe('BlogPage reader/editor regression', () => {
     expect(document.activeElement).toBe(title.element);
   });
 
+  it('shares a published public reader URL and updates then restores document metadata', async () => {
+    const previousTitle = document.title;
+    mocked.api.getPostDetail.mockResolvedValue(postDetail(42, { statusCode: 'PUBLISHED' }));
+    const copy = vi.fn().mockResolvedValue();
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: copy } });
+    const { wrapper, router } = await mountRoute('/blog/42');
+    expect(document.title).toBe('文章 42 · Shizuki');
+    expect(document.querySelector('link[rel="canonical"]').getAttribute('href')).toMatch(/\/read\/posts\/42$/);
+    await wrapper.get('button[aria-label="分享文章 42"]').trigger('click');
+    await settle();
+    expect(copy).toHaveBeenCalledWith(expect.stringMatching(/\/read\/posts\/42$/));
+    expect(wrapper.text()).toContain('链接已复制');
+    await router.push('/blog');
+    await settle();
+    expect(document.title).toBe(previousTitle);
+    expect(document.querySelector('link[rel="canonical"]')).toBeNull();
+    delete navigator.clipboard;
+  });
+
+  it('does not advertise a draft or private post through sharing metadata', async () => {
+    mocked.api.getPostDetail.mockResolvedValue(postDetail(42, { statusCode: 'PUBLISHED', visibility: 'PRIVATE' }));
+    const { wrapper } = await mountRoute('/blog/42');
+    expect(wrapper.find('button[aria-label="分享文章 42"]').exists()).toBe(false);
+    expect(document.querySelector('link[rel="canonical"]')).toBeNull();
+  });
+
   it('keeps editor preview in author scope and marks the fixed workspace explicitly', async () => {
     const { wrapper, router } = await mountRoute('/blog/editor/12');
     const page = wrapper.findComponent(BlogPage);
@@ -246,5 +272,29 @@ describe('BlogPage reader/editor regression', () => {
     await router.push({ name: 'blog' });
     await settle();
     expect(router.currentRoute.value.name).toBe('blog');
+  });
+
+  it('keeps save reachable, shows pending and saved states, and preserves edits after a failure', async () => {
+    const { wrapper } = await mountRoute('/blog/editor/12');
+    const page = wrapper.findComponent(BlogPage);
+    const editor = page.get('[data-rich-editor]');
+    const save = page.get('.editor-save-primary');
+    await editor.setValue('# 新的正文');
+    let finishSave;
+    mocked.api.updateMyPost.mockImplementationOnce(() => new Promise(resolve => { finishSave = resolve; }));
+    await save.trigger('click');
+    expect(save.attributes('disabled')).toBeDefined();
+    expect(page.text()).toContain('正在保存');
+    finishSave(postDetail(12, { markdown: '# 新的正文' }));
+    await settle();
+    expect(page.text()).toContain('更改已保存');
+    await editor.setValue('# 还没保存的正文');
+    mocked.api.updateMyPost.mockRejectedValueOnce(new Error('连接中断，请重试'));
+    await save.trigger('click');
+    await settle();
+    expect(page.text()).toContain('连接中断，请重试');
+    expect(page.text()).toContain('有未保存更改');
+    expect(editor.element.value).toBe('# 还没保存的正文');
+    expect(save.attributes('disabled')).toBeUndefined();
   });
 });

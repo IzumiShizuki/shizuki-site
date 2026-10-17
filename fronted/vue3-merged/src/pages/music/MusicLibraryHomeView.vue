@@ -9,16 +9,19 @@
           <span class="te-section-count">{{ searchSummaryText }}</span>
         </header>
 
-        <p v-if="music.searchResult.value?.partial" class="state-text">
+        <p v-if="music.searchResult.value?.partial" class="state-text warn-subtle">
           部分平台返回失败：{{ failedProvidersText }}
         </p>
 
         <section v-if="showPlaylistResults" class="provider-block">
           <div class="provider-head te-provider-head">
             <h3>歌单</h3>
-            <span>{{ visibleSearchPlaylists.length }}</span>
+            <span class="te-count-badge">{{ visibleSearchPlaylists.length }}</span>
           </div>
-          <div v-if="!visibleSearchPlaylists.length" class="empty-state compact">暂无匹配歌单</div>
+          <div v-if="!visibleSearchPlaylists.length" class="empty-state compact helpful">
+            <i class="fas fa-music" aria-hidden="true"></i>
+            <span>暂无匹配歌单</span>
+          </div>
           <div
             ref="searchPlaylistRowRef"
             class="playlist-grid"
@@ -78,17 +81,20 @@
         <section v-if="showTrackResults" class="provider-block">
           <div class="provider-head te-provider-head">
             <h3>歌曲</h3>
-            <span>{{ visibleSearchTracks.length }}</span>
+            <span class="te-count-badge">{{ visibleSearchTracks.length }}</span>
           </div>
           <div class="table-head search-track-head te-track-head">
-            <span>#</span>
+            <span class="te-col-index">#</span>
             <span>歌曲</span>
             <span>歌手</span>
             <span>专辑</span>
             <span>时长</span>
-            <span>操作</span>
+            <span class="te-col-actions">操作</span>
           </div>
-          <div v-if="!visibleSearchTracks.length" class="empty-state compact">暂无匹配歌曲</div>
+          <div v-if="!visibleSearchTracks.length" class="empty-state compact helpful">
+            <i class="fas fa-compact-disc" aria-hidden="true"></i>
+            <span>暂无匹配歌曲</span>
+          </div>
           <article
             v-for="(item, index) in visibleSearchTracks"
             :key="`search-track-${item.trackId || item.id || index}`"
@@ -171,9 +177,12 @@
         <section v-if="showArtistResults" class="provider-block">
           <div class="provider-head te-provider-head">
             <h3>歌手</h3>
-            <span>{{ visibleSearchArtists.length }}</span>
+            <span class="te-count-badge">{{ visibleSearchArtists.length }}</span>
           </div>
-          <div v-if="!visibleSearchArtists.length" class="empty-state compact">暂无匹配歌手</div>
+          <div v-if="!visibleSearchArtists.length" class="empty-state compact helpful">
+            <i class="fas fa-microphone" aria-hidden="true"></i>
+            <span>暂无匹配歌手</span>
+          </div>
           <div class="artist-grid">
             <article v-for="item in visibleSearchArtists" :key="`search-artist-${item.name}`" class="artist-card">
               <p class="artist-name">{{ item.name }}</p>
@@ -335,7 +344,7 @@
           <h2>推荐歌单<span class="te-section-sub" aria-hidden="true">/ CURATED PLAYLISTS</span></h2>
           <span class="te-section-count">{{ filteredMetingPlaylists.length }} 个</span>
           <button
-            class="playlist-large-btn ripple-trigger"
+            class="playlist-large-btn te-tool-btn ripple-trigger"
             type="button"
             title="用 Folia 大屏网格浏览歌单"
             @click="openPlaylistLargeView"
@@ -345,8 +354,10 @@
           </button>
         </header>
 
-        <div v-if="!filteredMetingPlaylists.length && !music.homeLoading.value" class="empty-state">
-          暂无推荐歌单
+        <div v-if="!filteredMetingPlaylists.length && !music.homeLoading.value" class="empty-state helpful">
+          <i class="fas fa-list" aria-hidden="true"></i>
+          <p>暂无推荐歌单</p>
+          <p class="empty-hint">搜索或同步网易云后会显示</p>
         </div>
 
         <div class="playlist-grid">
@@ -385,8 +396,10 @@
           <span>操作</span>
         </div>
 
-        <div v-if="!filteredTracks.length && !music.homeLoading.value" class="empty-state">
-          暂无推荐歌曲
+        <div v-if="!filteredTracks.length && !music.homeLoading.value" class="empty-state helpful">
+          <i class="fas fa-music" aria-hidden="true"></i>
+          <p>暂无推荐歌曲</p>
+          <p class="empty-hint">推荐曲目会随机更新</p>
         </div>
 
         <article
@@ -456,8 +469,9 @@
             <h3>我创建的歌单</h3>
             <span>{{ userCreatedPlaylists.length }}</span>
           </div>
-          <div v-if="!userCreatedPlaylists.length" class="empty-state compact">
-            暂无自建歌单，可从左侧新建
+          <div v-if="!userCreatedPlaylists.length" class="empty-state compact helpful">
+            <i class="fas fa-folder-plus" aria-hidden="true"></i>
+            <span>暂无自建歌单，可从左侧新建</span>
           </div>
           <div class="playlist-grid">
             <button
@@ -485,8 +499,9 @@
             <h3>我收藏的歌单</h3>
             <span>{{ userCollectedPlaylists.length }}</span>
           </div>
-          <div v-if="!userCollectedPlaylists.length" class="empty-state compact">
-            暂无收藏歌单
+          <div v-if="!userCollectedPlaylists.length" class="empty-state compact helpful">
+            <i class="fas fa-heart" aria-hidden="true"></i>
+            <span>暂无收藏歌单</span>
           </div>
           <div class="playlist-grid">
             <button
@@ -514,8 +529,9 @@
             <h3>为你推荐</h3>
             <span>{{ filteredMetingPlaylists.length }}</span>
           </div>
-          <div v-if="!filteredMetingPlaylists.length && !music.homeLoading.value" class="empty-state compact">
-            暂无推荐歌单
+          <div v-if="!filteredMetingPlaylists.length && !music.homeLoading.value" class="empty-state compact helpful">
+            <i class="fas fa-star" aria-hidden="true"></i>
+            <span>暂无推荐歌单</span>
           </div>
           <div class="playlist-grid">
             <button
@@ -1208,10 +1224,20 @@ onBeforeUnmount(() => {
 .state-text {
   margin: 0;
   font-size: 13px;
+  padding: 8px 12px;
+  border-radius: 8px;
 }
 
 .state-text.error {
-  color: rgba(var(--accent-soft-rgb), 0.98);
+  color: var(--theme-danger);
+  background: color-mix(in srgb, var(--theme-danger) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--theme-danger) 24%, transparent);
+}
+
+.state-text.warn-subtle {
+  color: var(--theme-warning);
+  background: color-mix(in srgb, var(--theme-warning) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--theme-warning) 24%, transparent);
 }
 
 .panel {
@@ -1270,17 +1296,135 @@ onBeforeUnmount(() => {
 .panel-head h2 {
   margin: 0;
   font-size: 18px;
+  font-weight: 600;
   color: var(--theme-text-primary);
+  letter-spacing: 0.01em;
 }
 
-.panel-head span {
+.te-section-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 12px;
+}
+
+.te-section-sub {
+  margin-left: 8px;
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0.06em;
+  color: var(--theme-text-tertiary, rgba(164, 183, 204, 0.58));
+}
+
+.te-section-count {
   font-size: 12px;
-  color: var(--theme-text-tertiary);
+  font-weight: 500;
+  color: var(--theme-text-secondary, rgba(184, 203, 224, 0.72));
+  padding: 4px 10px;
+  border-radius: 12px;
+  background: rgba(var(--accent-rgb), 0.08);
+  border: 1px solid rgba(var(--accent-rgb), 0.16);
+}
+
+.te-tool-btn {
+  min-height: 32px;
+  padding: 0 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(var(--accent-rgb), 0.32);
+  background: rgba(var(--accent-rgb), 0.1);
+  color: rgba(var(--accent-soft-rgb), 0.96);
+  font-size: 12px;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: all 0.16s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.te-tool-btn:hover {
+  background: rgba(var(--accent-rgb), 0.18);
+  border-color: rgba(var(--accent-rgb), 0.48);
+  box-shadow: 0 2px 8px rgba(var(--accent-rgb), 0.15);
+}
+
+.te-tool-btn:focus-visible {
+  outline: 2px solid var(--theme-focus-ring, rgba(var(--accent-rgb), 0.72));
+  outline-offset: 2px;
+}
+
+.te-tool-btn:active {
+  transform: scale(0.96);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .te-tool-btn {
+    transition: none;
+  }
+  .te-tool-btn:active {
+    transform: none;
+  }
 }
 
 .provider-block {
   display: grid;
+  gap: 12px;
+}
+
+.provider-head {
+  display: flex;
+  align-items: center;
   gap: 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--theme-border, rgba(255, 255, 255, 0.1));
+}
+
+.te-provider-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+}
+
+.te-provider-head h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--theme-text-primary);
+  letter-spacing: 0.01em;
+}
+
+.te-count-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 11px;
+  background: rgba(var(--accent-rgb), 0.12);
+  border: 1px solid rgba(var(--accent-rgb), 0.24);
+  color: rgba(var(--accent-soft-rgb), 0.94);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.te-track-head {
+  color: var(--theme-text-secondary, rgba(184, 203, 224, 0.72));
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.te-col-index {
+  text-align: center;
+}
+
+.te-col-actions {
+  text-align: right;
 }
 
 .provider-head {
@@ -1731,17 +1875,96 @@ onBeforeUnmount(() => {
   border: 1px dashed var(--theme-border-strong);
   color: var(--theme-text-tertiary);
   min-height: 84px;
-  display: grid;
-  place-items: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 32px 20px;
+  text-align: center;
+}
+
+.empty-state.helpful {
+  gap: 8px;
+  border-style: solid;
+  border-color: rgba(var(--accent-rgb), 0.16);
+  background: rgba(var(--accent-rgb), 0.04);
+}
+
+.empty-state.helpful i {
+  font-size: 32px;
+  color: rgba(var(--accent-rgb), 0.4);
+  margin-bottom: 4px;
+}
+
+.empty-state.helpful p {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--theme-text-primary, rgba(244, 248, 255, 0.92));
+}
+
+.empty-state.helpful .empty-hint {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--theme-text-tertiary, rgba(164, 183, 204, 0.64));
+  margin-top: 2px;
 }
 
 .empty-state.compact {
   min-height: 68px;
+  padding: 20px 16px;
+  flex-direction: row;
+  gap: 10px;
+  justify-content: flex-start;
+}
+
+.empty-state.compact.helpful {
+  gap: 12px;
+}
+
+.empty-state.compact.helpful i {
+  font-size: 20px;
+  margin-bottom: 0;
+}
+
+.empty-state.compact.helpful span {
+  font-size: 13px;
+  color: var(--theme-text-secondary, rgba(184, 203, 224, 0.72));
 }
 
 @media (max-width: 900px) {
   .home-toolbar {
     grid-template-columns: 1fr;
+  }
+
+  .empty-state {
+    padding: 28px 16px;
+    min-height: 72px;
+  }
+
+  .empty-state.compact {
+    padding: 18px 12px;
+    min-height: 60px;
+  }
+
+  .te-section-head {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  .te-section-count {
+    grid-column: 1;
+    justify-self: start;
+  }
+
+  .te-tool-btn {
+    min-height: 44px;
+    width: 100%;
+  }
+
+  .provider-head {
+    flex-wrap: wrap;
   }
 
   .playlist-grid {

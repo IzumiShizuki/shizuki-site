@@ -9,6 +9,9 @@ export default defineConfig(({ mode }) => {
     plugins: [vue(), react()],
     server: {
       proxy: {
+        '/read': { target: apiTarget, changeOrigin: true },
+        '/sitemap.xml': { target: apiTarget, changeOrigin: true },
+        '/robots.txt': { target: apiTarget, changeOrigin: true },
         '/api': {
           target: apiTarget,
           changeOrigin: true,

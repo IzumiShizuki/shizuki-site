@@ -28,10 +28,17 @@ import io.github.shizuki.site.content.response.PostEditorPolicyResponse;
 import io.github.shizuki.site.content.response.PostSidebarResponse;
 import io.github.shizuki.site.content.response.PostPublicationCalendarResponse;
 import io.github.shizuki.site.content.response.PostSummary;
+import io.github.shizuki.site.content.response.PublicPostDocument;
 import io.github.shizuki.site.content.request.ReportRequest;
 import java.util.List;
 
 public interface ContentService {
+
+    /** Anonymous-only public catalog, independent of the requesting user's privileges. */
+    List<PublicPostDocument> listDiscoverablePosts();
+
+    /** Reads a published PUBLIC article under anonymous category policy rules. */
+    PublicPostDocument getDiscoverablePost(Long postId);
 
     /**
      * 分页查询帖子。

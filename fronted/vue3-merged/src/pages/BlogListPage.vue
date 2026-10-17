@@ -94,10 +94,23 @@
         :scrollable="!isMobileLike"
         :app-scroll-owner="!isMobileLike"
       >
+        <div v-if="contentMobileLayout && uiState.panel === 'read'" class="mobile-reading-tools">
+          <button type="button" class="mini-btn" :aria-expanded="searchState.open" @click="searchState.open = !searchState.open">搜索正文</button>
+        <button
+          type="button"
+          class="blog-auxiliary-trigger"
+          aria-haspopup="dialog"
+          :aria-expanded="blogAuxiliaryOpen"
+          @click="blogAuxiliaryOpen = true"
+        >
+          <i class="fas fa-sliders" aria-hidden="true"></i>
+          筛选与生活侧栏
+        </button>
+        </div>
         <transition name="search-slide">
           <div v-if="searchState.open && uiState.panel === 'read'" class="search-panel liquid-material">
             <form class="search-form" @submit.prevent="handleSearchSubmit">
-              <input v-model.trim="filters.keyword" class="search-input" type="text" placeholder="搜索标题 / 摘要 / 标签" />
+              <input v-model.trim="filters.keyword" class="search-input" type="search" maxlength="128" enterkeyhint="search" aria-label="搜索文章正文、标题或标签" placeholder="搜索正文 / 标题 / 标签" />
               <button type="submit" class="mini-btn ripple-trigger">搜索</button>
               <button type="button" class="mini-btn ripple-trigger" @click="clearArchiveFilter">清除归档</button>
               <button type="button" class="mini-btn ripple-trigger" @click="searchState.open = false">收起</button>
@@ -106,6 +119,10 @@
         </transition>
 
         <template v-if="uiState.panel === 'read'">
+          <div v-if="filters.keyword" class="calendar-active-filter" role="status">
+            <span>{{ listState.loading ? '正在搜索…' : `找到 ${listState.total} 篇文章` }} · {{ filters.keyword }}</span>
+            <button type="button" @click="clearKeywordSearch">清除搜索</button>
+          </div>
           <div v-if="selectedCalendarDate" class="calendar-active-filter" role="status">
             正在查看 {{ selectedCalendarDate }} 发布的文章
             <button type="button" @click="clearArchiveFilter">清除日期</button>
@@ -175,7 +192,8 @@
                     <span class="feed-hero-category">{{ featuredPost.categoryCode || 'uncategorized' }}</span>
                   </div>
                   <h2 class="feed-hero-title">{{ featuredPost.title }}</h2>
-                  <p class="feed-hero-summary">{{ resolveSummary(featuredPost.summary) }}</p>
+                  <SearchResultExcerpt v-if="filters.keyword && featuredPost.searchExcerpt" class="feed-hero-summary" :text="featuredPost.searchExcerpt" :query="filters.keyword" />
+                  <p v-else class="feed-hero-summary">{{ resolveSummary(featuredPost.summary) }}</p>
                   <div class="feed-hero-meta">
                     <span><i class="far fa-calendar" aria-hidden="true"></i> {{ formatDate(featuredPost.publishedAt) }}</span>
                     <span><i class="far fa-clock" aria-hidden="true"></i> {{ featuredPost.readingMinutes }} 分钟</span>
@@ -229,7 +247,8 @@
                     <span><i class="far fa-clock" aria-hidden="true"></i> {{ post.readingMinutes }} 分钟</span>
                     <span><i class="far fa-file-lines" aria-hidden="true"></i> {{ post.wordCount }} 字</span>
                   </div>
-                  <p class="summary">{{ resolveSummary(post.summary) }}</p>
+                  <SearchResultExcerpt v-if="filters.keyword && post.searchExcerpt" class="summary" :text="post.searchExcerpt" :query="filters.keyword" />
+                  <p v-else class="summary">{{ resolveSummary(post.summary) }}</p>
                   <div v-if="post.tags.length" class="tag-row">
                     <button
                       v-for="tag in post.tags"
@@ -261,8 +280,9 @@
                   <path d="M55 27h4.5a5.5 5.5 0 0 1 0 11H55" stroke="rgba(242,179,157,0.85)" stroke-width="1.6" fill="none" />
                   <path d="M27 9c0-2.4 2.2-2.4 2.2-4.6M35.5 9c0-2.4 2.2-2.4 2.2-4.6M44 9c0-2.4 2.2-2.4 2.2-4.6" stroke="rgba(231,211,196,0.7)" stroke-width="1.6" stroke-linecap="round" />
                 </svg>
-                <p class="empty-cozy-title">这里还很安静</p>
-                <p class="empty-cozy-sub">泡杯茶，写下第一篇文章吧 ✎</p>
+                <p class="empty-cozy-title">{{ filters.keyword ? '没有找到匹配的文章' : '这里还很安静' }}</p>
+                <p class="empty-cozy-sub">{{ filters.keyword ? '试试正文中的短词，或清除搜索后继续浏览。' : '泡杯茶，写下第一篇文章吧 ✎' }}</p>
+                <button v-if="filters.keyword" type="button" class="mini-btn" @click="clearKeywordSearch">清除搜索</button>
               </div>
 
               <footer v-if="pageCount > 1" class="pagination-wrap">
@@ -494,19 +514,7 @@
         </SubtleScrollArea>
       </template>
 
-      <template #auxiliary-trigger>
-        <button
-          v-if="uiState.panel === 'read' && contentMobileLayout"
-          type="button"
-          class="blog-auxiliary-trigger"
-          aria-haspopup="dialog"
-          :aria-expanded="blogAuxiliaryOpen"
-          @click="blogAuxiliaryOpen = true"
-        >
-          <i class="fas fa-sliders" aria-hidden="true"></i>
-          筛选与生活侧栏
-        </button>
-      </template>
+
     </ThreeColumnContentShell>
 
     <AuxiliaryDrawer v-if="contentMobileLayout" v-model="blogAuxiliaryOpen" title="博客筛选与生活侧栏">
@@ -574,7 +582,7 @@
 
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
+import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router';
 import SubtleScrollArea from '../components/SubtleScrollArea.vue';
 import AdminBlogCategoriesPanel from '../components/admin/AdminBlogCategoriesPanel.vue';
 import AuthorLifeCardRail from '../components/author/AuthorLifeCardRail.vue';
@@ -596,6 +604,8 @@ import { deleteBlogCategoryMeta, listBlogCategoryMetas, updateBlogCategoryMeta, 
 import { getFeaturedAlbums, getFeaturedMoments } from '../services/lifeContentApi';
 import { filterEnabledBlogCategories, mergeBlogCategoryCatalog } from '../utils/blogCategoryCatalog';
 import { readAuthorProfileCache } from './authorProfileCache';
+import SearchResultExcerpt from '../components/content/SearchResultExcerpt.vue';
+import { readBlogReadingContext, saveBlogReadingContext } from '../utils/blogReadingContext';
 
 const motionPreference = useMotionPreference();
 
@@ -607,6 +617,7 @@ const router = useRouter();
 const route = useRoute();
 const auth = useAuthSession();
 const appScrollRoot = useAppScrollRoot();
+const restoredReadingContext = readBlogReadingContext();
 const transitionNavigation = useViewTransitionNavigation({ router });
 const categoryStripRef = ref(null);
 const leftPanelCollapsed = ref(readPersistedLeftPanelCollapsed());
@@ -691,6 +702,21 @@ const listState = reactive({
   pageNo: 1,
   pageSize: PAGE_SIZE
 });
+if (restoredReadingContext) {
+  Object.assign(filters, restoredReadingContext.filters);
+  listState.pageNo = restoredReadingContext.pageNo;
+  searchState.open = Boolean(filters.keyword);
+}
+
+function listScrollElement() {
+  return appScrollRoot.element.value || document.querySelector('.blog-list-page .main-column');
+}
+
+function rememberReadingContext() {
+  saveBlogReadingContext({ filters: { ...filters }, pageNo: listState.pageNo, scrollTop: listScrollElement()?.scrollTop || 0 });
+}
+
+onBeforeRouteLeave(() => { if (uiState.panel === 'read') rememberReadingContext(); });
 
 const sidebarState = reactive({
   loading: false,
@@ -903,7 +929,8 @@ function setCalendarDateFilter(dateText) {
 }
 
 const initialRouteDate = normalizeCalendarDate(route.query.date);
-if (initialRouteDate) setCalendarDateFilter(initialRouteDate);
+const restoringSameDate = restoredReadingContext?.filters.archiveMonth === initialRouteDate;
+if (initialRouteDate && !restoringSameDate) setCalendarDateFilter(initialRouteDate);
 
 function normalizeTags(value) {
   if (!Array.isArray(value)) return [];
@@ -917,6 +944,7 @@ function normalizePostSummary(raw) {
     postId: Number(raw?.postId ?? raw?.post_id) || 0,
     title: normalizeString(raw?.title) || '未命名文章',
     summary: normalizeString(raw?.summary),
+    searchExcerpt: normalizeString(raw?.searchExcerpt ?? raw?.search_excerpt),
     coverImageUrl: normalizeString(raw?.coverImageUrl ?? raw?.cover_image_url),
     visibility: normalizeString(raw?.visibility, 'PUBLIC').toUpperCase(),
     categoryCode: normalizeString(raw?.categoryCode ?? raw?.category_code).toLowerCase(),
@@ -1353,7 +1381,13 @@ function goToPage(pageNo) {
 
 function handleSearchSubmit() {
   listState.pageNo = 1;
+  resetAppScrollPosition();
   loadPostList();
+}
+
+function clearKeywordSearch() {
+  filters.keyword = '';
+  handleSearchSubmit();
 }
 
 function applyCategoryFilter(categoryCode) {
@@ -1413,6 +1447,7 @@ function syncDateQuery(dateText) {
 function openPostDetail(postId, event) {
   const normalized = Number(postId) || 0;
   if (normalized <= 0) return;
+  rememberReadingContext();
   const sourceElement = event?.currentTarget instanceof HTMLElement ? event.currentTarget : null;
   return transitionNavigation.navigate(
     { name: 'blog-detail', params: { postId: normalized } },
@@ -1464,6 +1499,15 @@ onMounted(async () => {
     loadPostList(),
     uiState.panel === 'categories' ? loadCategoryPanelContext() : loadReadPanelContext()
   ]);
+  if (uiState.panel === 'read' && restoredReadingContext && (!initialRouteDate || restoringSameDate)) {
+    await nextTick();
+    const restoreScroll = () => {
+      const root = listScrollElement();
+      if (root) root.scrollTop = restoredReadingContext.scrollTop;
+    };
+    if (typeof requestAnimationFrame === 'function') requestAnimationFrame(restoreScroll);
+    else restoreScroll();
+  }
 });
 
 watch(
@@ -1606,6 +1650,17 @@ onBeforeUnmount(() => {
   max-height: 100%;
   min-height: 0;
   align-self: stretch;
+}
+
+.mobile-reading-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.mobile-reading-tools button {
+  min-height: 46px;
 }
 
 .blog-auxiliary-trigger {
@@ -2647,6 +2702,10 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 980px) {
+  .pagination-wrap {
+    position: static;
+  }
+
   .blog-list-page {
     height: auto;
     min-height: 100%;

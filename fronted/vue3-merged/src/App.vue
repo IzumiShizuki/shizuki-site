@@ -179,7 +179,7 @@
 
       <transition name="lyric-fade">
         <div
-          v-if="subtitleVisible && (!isMusicLibraryRoute || isFocusActive) && !isMobileShellRoute && !isDesktopHomeSurface"
+          v-if="subtitleVisible && player.currentTrack.value && (!isMusicLibraryRoute || isFocusActive) && !isMobileShellRoute && !isDesktopHomeSurface"
           class="global-lyric-bar liquid-material"
           :style="bottomFloatingStyle(lyricOffset)"
           @pointerdown="startDrag($event)"
@@ -3929,6 +3929,24 @@ button:not([disabled]) {
 }
 
 /* ================================ Accessibility Enhancements ================================ */
+@media (max-width: 600px) {
+  .workspace-shell:has(.blog-list-page),
+  .workspace-shell:has(.blog-page--public),
+  .workspace-shell:has(.life-index-page),
+  .workspace-shell:has(.album-detail-page),
+  .workspace-shell:has(.moments-page) {
+    padding-left: max(8px, env(safe-area-inset-left));
+    padding-right: max(8px, env(safe-area-inset-right));
+  }
+
+  .app-shell:has(.blog-list-page) .global-lyric-bar,
+  .app-shell:has(.blog-page--public) .global-lyric-bar,
+  .app-shell:has(.life-index-page) .global-lyric-bar,
+  .app-shell:has(.album-detail-page) .global-lyric-bar,
+  .app-shell:has(.moments-page) .global-lyric-bar {
+    pointer-events: none;
+  }
+}
 
 /* Skip to content link - only visible on keyboard focus */
 .skip-to-content {
