@@ -4,8 +4,8 @@ Verified locally on 2026-10-17 using the `openspec-verify-change` workflow. Plan
 
 | Dimension | Result |
 | --- | --- |
-| Completeness | 15 tasks; 11 requirements implemented across four capabilities |
-| Correctness | 160 frontend tests, 63 backend tests; production build passed |
+| Completeness | 19 tasks; 11 requirements implemented across four capabilities |
+| Correctness | Initial 160 frontend / 63 backend tests; follow-up 30 frontend / 36 backend tests; production builds passed |
 | Coherence | Existing Hash routing, theme tokens, editor/media engines, public visibility and local-only delivery preserved |
 
 ## Requirement and scenario evidence
@@ -44,3 +44,13 @@ The specs contain 11 named requirements (three discovery, two search, three pres
 - Existing user-owned port 5173 and unrelated files were preserved. Only this change is locally committed; no push/deployment/archive was requested or performed.
 
 All implementation checks passed. Change remains in the active OpenSpec directory for review.
+
+## Follow-up boundary verification (2026-10-17)
+
+- Reproduced a real `StringIndexOutOfBoundsException` with 500 dotted capital İ characters before a later search match. PostSearchText now maps ROOT-lowercased match offsets back to original code-point offsets. Four tests cover expansion before/inside the query, literal regex-like text, earliest-term context and intact supplementary characters.
+- Public reader media now prefers display variants, validates complete owned viewing routes and excludes query/capability routes. Album/moment tests cover display preference, thumbnail fallback and omitted sensitive variants.
+- Robots keeps the API exclusion while adding end-anchored allowances for the three viewing variants. Raw HTTP contract tests cover the exact allowances and retention of API/actuator restrictions. Rule matching was checked against the [official Google documentation](https://developers.google.com/crawling/docs/robots-txt/robots-txt-spec); no actual external crawler run is claimed.
+- ContentShareButton now reveals and selects a labelled readonly stable URL when automatic sharing/copying is unavailable or denied. Six tests cover absent APIs, denied APIs, a throwing document copy API, content changes, overlapping asynchronous attempts and quiet cancellation.
+- Follow-up frontend run: 30 tests across ContentShareButton, contentShare, BlogPage, AlbumDetailPage and MomentsPage. Backend run: 36 tests across PostSearchText, public discovery/controller, content visibility and album/moment queries. All passed; production build passed with the previously noted warnings.
+- Edge 360×800 inspection of the actual component with disabled share/copy APIs confirmed a focused, fully selected stable reader URL and no horizontal document overflow. This used a standalone local fixture on port 5179, without content API or production requests; the fixture/server/browser were removed or stopped after verification.
+- No new critical issues or warnings remain. The original unrelated files and user-owned preview server were preserved; this follow-up is delivered by a separate local commit without pushing or deploying.

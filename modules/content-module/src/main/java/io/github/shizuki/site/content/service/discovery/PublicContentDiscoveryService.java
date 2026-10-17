@@ -10,9 +10,11 @@ import io.github.shizuki.site.content.service.ContentService;
 import io.github.shizuki.site.content.service.album.PublicAlbumQueryService;
 import io.github.shizuki.site.content.service.moment.PublicMomentQueryService;
 import io.github.shizuki.site.content.support.PublicMarkdown;
+import io.github.shizuki.site.media.model.ImageVariantTypeEnum;
 import java.time.ZoneId;
 import java.time.temporal.TemporalAccessor;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import org.springframework.stereotype.Service;
@@ -52,6 +54,7 @@ public class PublicContentDiscoveryService {
         for (PublicAlbumPhotoResponse photo : album.photos()) {
             String path = photo.media() == null ? null : photo.media().variants().stream()
                 .filter(variant -> variant.capability() == null || variant.capability().isBlank())
+                .sorted(Comparator.comparingInt(variant -> variantPriority(variant.variant())))
                 .map(variant -> safeMediaPath(variant.path())).filter(Objects::nonNull).findFirst().orElse(null);
             if (path == null) continue; // Never place link-only media capabilities in HTML or image URLs.
             if (cover == null) cover = path;
@@ -73,7 +76,9 @@ public class PublicContentDiscoveryService {
         StringBuilder body = new StringBuilder(PublicMarkdown.html(moment.body()));
         String cover = null;
         for (var photo : moment.photos()) {
-            String path = photo.variants().stream().map(variant -> safeMediaPath(variant.path()))
+            String path = photo.variants().stream()
+                .sorted(Comparator.comparingInt(variant -> variantPriority(variant.variant())))
+                .map(variant -> safeMediaPath(variant.path()))
                 .filter(Objects::nonNull).findFirst().orElse(null);
             if (path == null) continue;
             if (cover == null) cover = path;
@@ -117,8 +122,18 @@ public class PublicContentDiscoveryService {
     }
 
     private static String safeMediaPath(String path) {
-        return path != null && path.startsWith("/api/v1/media/med_") && !path.contains("?")
-            && !path.contains("#") && !path.contains("\"") && !path.contains("<") ? path : null;
+        return path != null && path.matches("/api/v1/media/med_[A-Za-z0-9_-]{27}/variants/(DISPLAY_WEBP|DISPLAY_AVIF|THUMB_WEBP)")
+            ? path : null;
+    }
+
+    private static int variantPriority(ImageVariantTypeEnum type) {
+        if (type == null) return Integer.MAX_VALUE;
+        return switch (type) {
+            case DISPLAY_WEBP -> 0;
+            case DISPLAY_AVIF -> 1;
+            case THUMB_WEBP -> 2;
+            default -> Integer.MAX_VALUE;
+        };
     }
 
     private static void requireIdentifier(String value) {

@@ -12,6 +12,9 @@ import io.github.shizuki.site.content.controller.album.PublicAlbumMediaVariantRe
 import io.github.shizuki.site.content.controller.album.PublicAlbumPhotoResponse;
 import io.github.shizuki.site.content.controller.album.PublicAlbumSummaryResponse;
 import io.github.shizuki.site.content.response.PublicMomentResponse;
+import io.github.shizuki.site.content.response.PublicMomentDetailResponse;
+import io.github.shizuki.site.content.response.PublicMomentPhotoResponse;
+import io.github.shizuki.site.media.response.PublicMediaVariantRouteResponse;
 import io.github.shizuki.site.content.response.PublicPostDocument;
 import io.github.shizuki.site.content.service.ContentService;
 import io.github.shizuki.site.content.service.album.PublicAlbumQueryService;
@@ -79,5 +82,41 @@ class PublicContentDiscoveryServiceTest {
         assertThat(page.noIndex()).isTrue();
         assertThat(page.image()).isNull();
         assertThat(page.bodyHtml()).contains("站内相册").doesNotContain("private-capability", "med_safe", "<img");
+    }
+
+    @Test
+    void publicAlbumPrefersDisplayCoverAndExcludesCapabilityAndQueryRoutes() {
+        String base = "/api/v1/media/med_" + "A".repeat(27) + "/variants/";
+        var media = new PublicAlbumMediaResponse("med_public", "照片", List.of(
+            new PublicAlbumMediaVariantResponse(ImageVariantTypeEnum.THUMB_WEBP, base + "THUMB_WEBP", 320, 240, "webp", null),
+            new PublicAlbumMediaVariantResponse(ImageVariantTypeEnum.DISPLAY_WEBP, base + "DISPLAY_WEBP?capability=hidden", 1200, 900, "webp", null),
+            new PublicAlbumMediaVariantResponse(ImageVariantTypeEnum.DISPLAY_WEBP, base + "DISPLAY_WEBP", 1200, 900, "webp", "secret"),
+            new PublicAlbumMediaVariantResponse(ImageVariantTypeEnum.DISPLAY_AVIF, base + "DISPLAY_AVIF", 1200, 900, "avif", null),
+            new PublicAlbumMediaVariantResponse(ImageVariantTypeEnum.DISPLAY_WEBP, base + "DISPLAY_WEBP", 1200, 900, "webp", null)));
+        when(albums.detail("a_public")).thenReturn(new PublicAlbumDetailResponse("a_public", "公开相册", "摘要",
+            LifeContentVisibilityEnum.PUBLIC, Instant.parse("2026-10-17T00:00:00Z"), false, true, true, false,
+            List.of(new PublicAlbumPhotoResponse("照片", "照片描述", "说明", null, media))));
+
+        var page = service.album("a_public");
+
+        assertThat(page.image()).isEqualTo(base + "DISPLAY_WEBP");
+        assertThat(page.bodyHtml()).contains(base + "DISPLAY_WEBP").doesNotContain("THUMB_WEBP", "hidden", "secret", "DISPLAY_AVIF");
+    }
+
+    @Test
+    void momentPrefersDisplayAndUsesThumbnailWhenItIsTheOnlyPublicVariant() {
+        String base = "/api/v1/media/med_" + "B".repeat(27) + "/variants/";
+        var thumb = new PublicMediaVariantRouteResponse(ImageVariantTypeEnum.THUMB_WEBP, base + "THUMB_WEBP", 320, 240, "webp");
+        var display = new PublicMediaVariantRouteResponse(ImageVariantTypeEnum.DISPLAY_WEBP, base + "DISPLAY_WEBP", 1200, 900, "webp");
+        var now = Instant.parse("2026-10-17T00:00:00Z");
+        var full = new PublicMomentResponse("m_public", "动态", false, false, now,
+            List.of(new PublicMomentPhotoResponse("med_public", "照片", null, List.of(thumb, display), List.of())));
+        var fallback = new PublicMomentResponse("m_thumb", "动态", false, false, now,
+            List.of(new PublicMomentPhotoResponse("med_public", "照片", null, List.of(thumb), List.of())));
+        when(moments.detail("m_public")).thenReturn(new PublicMomentDetailResponse(full, false, false));
+        when(moments.detail("m_thumb")).thenReturn(new PublicMomentDetailResponse(fallback, false, false));
+
+        assertThat(service.moment("m_public").image()).isEqualTo(base + "DISPLAY_WEBP");
+        assertThat(service.moment("m_thumb").image()).isEqualTo(base + "THUMB_WEBP");
     }
 }

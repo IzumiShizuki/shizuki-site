@@ -28,6 +28,12 @@ See proposal.md and the four capability specs. The application uses Vue Hash his
 
 ## Migration Plan
 
+### Follow-up boundary corrections
+
+- Keep literal ROOT-lowercased search semantics and translate the matching offset back to the original text by code point before slicing; lowercase expansion must not shift substring indices or lose a query containing the expanding character.
+- Keep the general robots API exclusion, add a more-specific allowance for owned public image variants and exclude query-bearing media requests. Media authorization remains the access boundary. Prefer DISPLAY_WEBP, then DISPLAY_AVIF, then thumbnails for reader media.
+- When both sharing and automatic copying are unavailable, reveal the sanitized stable link in a labelled readonly input and select it for manual copying. Reset feedback when content changes and ignore results belonging to an older share attempt.
+
 1. Ship additive Java/API/frontend changes with no database migration.
 2. Supply the tracked canonical origin and proxy routes alongside existing deployment configuration; configure an origin override if needed.
 3. Existing links remain valid. New share actions generate `/read/...` on http(s), with the existing configured public origin for desktop contexts.

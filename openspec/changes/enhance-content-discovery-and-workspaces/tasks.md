@@ -24,3 +24,10 @@
 - [x] 4.2 Inspect representative desktop/mobile routes in a browser with controlled fixtures, including search, article round trip, media and author/editor states.
 - [x] 4.3 Run OpenSpec verification and strict validation, record deployment/operational verification boundaries and local command evidence.
 - [x] 4.4 Clean task temporary artifacts, review git diff/status and locally commit only this change without pushing.
+
+## 5. Follow-up boundary fixes
+
+- [x] 5.1 Prevent Unicode lowercase expansion from corrupting search excerpt offsets; cover real text and literal query terms.
+- [x] 5.2 Allow crawler access to public display-image routes without allowing private capability queries, and prefer display-quality reader covers.
+- [x] 5.3 Offer a selectable stable share URL when native sharing and clipboard APIs are unavailable, including route-change and async-result handling.
+- [x] 5.4 Run relevant regression tests/build, update verification and locally commit the follow-up.

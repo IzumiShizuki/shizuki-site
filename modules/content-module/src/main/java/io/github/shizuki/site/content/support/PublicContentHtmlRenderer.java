@@ -131,7 +131,11 @@ public class PublicContentHtmlRenderer {
     }
 
     public String robots() {
-        return "User-agent: *\nAllow: /read/\nDisallow: /api/\nDisallow: /actuator/\nSitemap: " + site.url("/sitemap.xml") + "\n";
+        return "User-agent: *\nAllow: /read/\nDisallow: /api/\n"
+            + "Allow: /api/v1/media/med_*/variants/DISPLAY_WEBP$\n"
+            + "Allow: /api/v1/media/med_*/variants/DISPLAY_AVIF$\n"
+            + "Allow: /api/v1/media/med_*/variants/THUMB_WEBP$\n"
+            + "Disallow: /actuator/\nSitemap: " + site.url("/sitemap.xml") + "\n";
     }
 
     private String json(Map<String, Object> value) {

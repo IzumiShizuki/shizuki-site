@@ -30,11 +30,30 @@ public final class PostSearchText {
         String source = text == null ? "" : text.replaceAll("(?U)\\s+", " ").trim();
         if (source.isBlank() || terms.isEmpty()) return null;
         String normalized = source.toLowerCase(Locale.ROOT);
-        int match = terms.stream().mapToInt(normalized::indexOf).filter(index -> index >= 0).min().orElse(0);
+        int foldedMatch = terms.stream().mapToInt(normalized::indexOf).filter(index -> index >= 0).min().orElse(0);
+        int match = originalOffset(source, foldedMatch);
         int start = Math.max(0, match - EXCERPT_LEADING_CONTEXT);
         if (start > 0 && Character.isLowSurrogate(source.charAt(start))) start--;
         int end = Math.min(source.length(), start + EXCERPT_LENGTH);
         if (end < source.length() && Character.isLowSurrogate(source.charAt(end))) end--;
         return (start > 0 ? "…" : "") + source.substring(start, end) + (end < source.length() ? "…" : "");
+    }
+
+    private static int originalOffset(String source, int foldedOffset) {
+        int consumed = 0;
+        for (int offset = 0; offset < source.length();) {
+            int codePoint = source.codePointAt(offset);
+            int units = Character.charCount(codePoint);
+            int foldedUnits = units;
+            // ROOT lowercasing may expand a non-ASCII capital (for example İ -> i + combining dot).
+            // Only lengths are needed; contextual changes such as Greek sigma keep their length.
+            if (codePoint >= 128 && (Character.isUpperCase(codePoint) || Character.isTitleCase(codePoint))) {
+                foldedUnits = source.substring(offset, offset + units).toLowerCase(Locale.ROOT).length();
+            }
+            if (consumed + foldedUnits > foldedOffset) return offset;
+            consumed += foldedUnits;
+            offset += units;
+        }
+        return source.length();
     }
 }

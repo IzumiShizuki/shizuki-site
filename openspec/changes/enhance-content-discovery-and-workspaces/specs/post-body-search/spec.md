@@ -25,3 +25,7 @@ Search results SHALL contain a bounded plain-text matching excerpt when applicab
 #### Scenario: Update and withdrawal
 - **WHEN** the matching text is removed or the article is unpublished
 - **THEN** subsequent searches no longer return the outdated match
+
+#### Scenario: Unicode text before a match
+- **WHEN** the body contains characters whose lowercase form expands before a later query match
+- **THEN** excerpt offsets refer to the original text, retain the matching context and never fail or split a surrogate pair

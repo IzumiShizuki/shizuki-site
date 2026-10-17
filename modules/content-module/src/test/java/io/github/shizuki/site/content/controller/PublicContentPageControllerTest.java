@@ -98,6 +98,18 @@ class PublicContentPageControllerTest {
     }
 
     @Test
+    void robotsAllowsOnlyQueryFreeViewingVariantsInsideTheApi() throws Exception {
+        String robots = mvc.perform(get("/robots.txt")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        assertThat(robots.lines().filter(line -> line.startsWith("Allow:")).toList()).containsExactly(
+            "Allow: /read/",
+            "Allow: /api/v1/media/med_*/variants/DISPLAY_WEBP$",
+            "Allow: /api/v1/media/med_*/variants/DISPLAY_AVIF$",
+            "Allow: /api/v1/media/med_*/variants/THUMB_WEBP$");
+        assertThat(robots).contains("Disallow: /api/", "Disallow: /actuator/")
+            .doesNotContain("FULL_SANITIZED", "Allow: /api/\n");
+    }
+
+    @Test
     void splitsLargeSitemapsWithoutDroppingRecords() {
         var entries = IntStream.rangeClosed(1, 50_001)
             .mapToObj(i -> new PublicDiscoveryLink("/read/posts/" + i, "文章", null)).toList();

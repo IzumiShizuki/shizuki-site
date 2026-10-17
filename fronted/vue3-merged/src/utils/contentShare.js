@@ -53,6 +53,8 @@ async function copyWithDocument(value, documentTarget) {
   let copied = false;
   try {
     copied = documentTarget.execCommand('copy') === true;
+  } catch {
+    copied = false;
   } finally {
     textarea.remove();
     if (returnFocus?.isConnected && typeof returnFocus.focus === 'function') {

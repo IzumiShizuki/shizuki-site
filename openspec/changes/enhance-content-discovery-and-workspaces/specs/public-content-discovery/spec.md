@@ -26,6 +26,10 @@ The system SHALL provide a sitemap and robots document using one configured cano
 - **WHEN** a visitor follows an existing link-only album or moment URL
 - **THEN** the direct public reader preserves its existing access semantics and responds with noindex and private no-store headers
 
+#### Scenario: Public preview image crawling
+- **WHEN** a crawler follows a public media image referenced by a reader or its sharing metadata
+- **THEN** robots rules permit the public image route while other API routes and capability-bearing queries remain disallowed, and a display variant is preferred over a thumbnail when available
+
 ### Requirement: Safe portable sharing
 The application SHALL offer share/copy actions using stable public URLs for published articles, albums and moments and SHALL preserve existing hash routes for interactive navigation and desktop compatibility.
 
@@ -36,3 +40,7 @@ The application SHALL offer share/copy actions using stable public URLs for publ
 #### Scenario: Untrusted content in HTML
 - **WHEN** article text, metadata or image addresses contain markup or executable URL schemes
 - **THEN** the generated document escapes metadata and structured data, disables raw executable HTML and rejects executable resource URLs
+
+#### Scenario: Clipboard and native sharing unavailable
+- **WHEN** a visitor cannot use native sharing, clipboard APIs or the document copy fallback
+- **THEN** the interface exposes a selectable sanitized stable URL, including in desktop file-protocol contexts, and a later content change cannot show a stale sharing result
