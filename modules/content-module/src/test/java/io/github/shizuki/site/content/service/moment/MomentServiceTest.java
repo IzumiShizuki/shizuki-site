@@ -106,6 +106,7 @@ class MomentServiceTest {
         assertThat(result.getBody()).isEqualTo("今晚的风很轻。");
         assertThat(result.getLifecycleStatus()).isEqualTo("DRAFT");
         assertThat(result.getVisibilityStatus()).isEqualTo("PRIVATE");
+        assertThat(result.getAuthorUserId()).isEqualTo(7L);
     }
 
     @Test
@@ -228,6 +229,9 @@ class MomentServiceTest {
     @Test
     void publishesTextOnlyOrReadyMomentAndEnablesPublicDelivery() {
         MomentEntity moment = moment(LifeContentLifecycleEnum.DRAFT, LifeContentVisibilityEnum.PUBLIC, 6);
+        moment.setAuthorUserId(7L);
+        var events = org.mockito.Mockito.mock(org.springframework.context.ApplicationEventPublisher.class);
+        service.setPublicationEvents(events);
         when(momentMapper.selectById(1L)).thenReturn(moment);
         when(publicationMediaMapper.selectPublicationBlockers(
             eq(1L), eq("PUBLIC_MATERIALIZED"), eq("v1"), anyList()
@@ -249,6 +253,19 @@ class MomentServiceTest {
             null
         );
         verify(momentPhotoMapper).updateDeliveryRevoked(1L, 0);
+        verify(events).publishEvent((Object) new io.github.shizuki.site.notification.WebsiteContentPublishedEvent("MOMENT", "1", 7L));
+    }
+
+    @Test
+    void legacyMomentWithoutKnownAuthorDoesNotGenerateNotification() {
+        MomentEntity moment = moment(LifeContentLifecycleEnum.DRAFT, LifeContentVisibilityEnum.PUBLIC, 6);
+        when(momentMapper.selectById(1L)).thenReturn(moment);
+        when(publicationMediaMapper.selectPublicationBlockers(anyLong(), anyString(), anyString(), anyList())).thenReturn(List.of());
+        when(momentMapper.updateLifecycle(anyLong(), anyInt(), anyString(), anyString(), any(), any(), any(), any())).thenReturn(1);
+        var events = org.mockito.Mockito.mock(org.springframework.context.ApplicationEventPublisher.class);
+        service.setPublicationEvents(events);
+        service.publish(1L, 6);
+        org.mockito.Mockito.verifyNoInteractions(events);
     }
 
     @Test

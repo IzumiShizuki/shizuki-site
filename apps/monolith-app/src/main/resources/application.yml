@@ -29,6 +29,12 @@ sa-token:
   token-style: jwt
   jwt-secret-key: ${shizuki.auth.jwt.secret}
 shizuki:
+  notifications:
+    wechat:
+      enabled: ${WECHAT_NOTIFICATIONS_ENABLED:false}
+      bridge-secret: ${WECHAT_NOTIFICATIONS_BRIDGE_SECRET:}
+      platform-ids: ${WECHAT_NOTIFICATIONS_PLATFORM_IDS:}
+      site-origin: ${WECHAT_NOTIFICATIONS_SITE_ORIGIN:https://site.shizuki.online}
   site:
     personal-content:
       enabled: ${SITE_PERSONAL_CONTENT_ENABLED:false}
@@ -455,6 +461,7 @@ shizuki:
       - /api/v1/auth/verifications/**
       - /api/v1/guest-author/sessions
       - /api/v1/internal/meguri/prompt-cache
+      - /api/v1/integrations/astrbot/**
       - /actuator/**
       guest-paths:
       - /api/v1/posts/**

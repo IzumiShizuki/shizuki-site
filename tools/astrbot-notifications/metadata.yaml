@@ -1,0 +1,6 @@
+name: astrbot_plugin_shizuki_notifications
+display_name: Shizuki 网站微信提醒
+desc: 私聊绑定网站账号，接收订阅分组成员的文章与动态更新。
+version: v1.0.0
+author: Izumi
+astrbot_version: ">=4.15.0,<5"

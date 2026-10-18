@@ -46,6 +46,13 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class MomentService {
 
+    private org.springframework.context.ApplicationEventPublisher publicationEvents;
+
+    @Autowired
+    public void setPublicationEvents(org.springframework.context.ApplicationEventPublisher publicationEvents) {
+        this.publicationEvents = publicationEvents;
+    }
+
     private static final String MANAGE_PERMISSION = "life.content.manage";
     private static final String PUBLIC_DELIVERY_SCOPE = "PUBLIC_MATERIALIZED";
     private static final String PRIVATE_DELIVERY_SCOPE = "PRIVATE_WORKING";
@@ -153,6 +160,7 @@ public class MomentService {
     public MomentEntity createDraft(String body, LifeContentVisibilityEnum visibility) {
         requireAdministrator();
         MomentEntity moment = new MomentEntity();
+        moment.setAuthorUserId(LoginUserContext.get().orElseThrow().getUserId());
         moment.setPublicId(identifierGenerator.generate(PublicContentType.MOMENT));
         moment.setBody(requireBody(body));
         moment.setLifecycleStatus(LifeContentLifecycleEnum.DRAFT.name());
@@ -308,6 +316,11 @@ public class MomentService {
         validatePublication(moment);
         LocalDateTime now = LocalDateTime.ofInstant(clock.instant(), clock.getZone());
         updateLifecycle(moment, expectedVersion, next, now);
+        if (publicationEvents != null && moment.getAuthorUserId() != null
+            && "PUBLIC".equals(moment.getVisibilityStatus()) && !"PUBLISHED".equals(moment.getLifecycleStatus())) {
+            publicationEvents.publishEvent(new io.github.shizuki.site.notification.WebsiteContentPublishedEvent(
+                "MOMENT", String.valueOf(momentId), moment.getAuthorUserId()));
+        }
         boolean visitorDelivery = parseVisibility(moment.getVisibilityStatus()) != LifeContentVisibilityEnum.PRIVATE;
         momentPhotoMapper.updateDeliveryRevoked(momentId, visitorDelivery ? 0 : 1);
         invalidate(moment);

@@ -306,6 +306,10 @@
               <p v-if="changePasswordError" class="error-text">{{ changePasswordError }}</p>
             </template>
 
+            <template #section-wechat-notifications>
+              <WechatNotificationsPanel />
+            </template>
+
             <template #section-music-auth>
               <div class="music-auth-grid">
                 <article class="music-auth-card">
@@ -649,6 +653,7 @@ import ProfileAvatarCropDialog from '../components/profile/ProfileAvatarCropDial
 import ProfileAvatarPreviewDialog from '../components/profile/ProfileAvatarPreviewDialog.vue';
 import ProfileHeroCard from '../components/profile/ProfileHeroCard.vue';
 import DailyArtPanel from '../components/profile/DailyArtPanel.vue';
+import WechatNotificationsPanel from '../components/profile/WechatNotificationsPanel.vue';
 import ProfileSectionAccordion from '../components/profile/ProfileSectionAccordion.vue';
 import { useUiPreferences } from '../composables/useUiPreferences';
 import { listMyPosts } from '../services/blogApi';
@@ -2041,6 +2046,12 @@ const profileSections = computed(() => [
 ]);
 
 const accountSections = computed(() => [
+  {
+    key: ProfileSectionKey.ACCOUNT.WECHAT_NOTIFICATIONS,
+    title: '微信提醒与订阅',
+    icon: 'fab fa-weixin',
+    summary: buildSectionSummary(ProfileSectionKey.ACCOUNT.WECHAT_NOTIFICATIONS)
+  },
   {
     key: ProfileSectionKey.ACCOUNT.AVATAR,
     title: '头像管理',

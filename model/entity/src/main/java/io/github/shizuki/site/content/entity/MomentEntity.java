@@ -10,6 +10,12 @@ import java.time.LocalDateTime;
 @TableName(value = "CTN_MOMENT", autoResultMap = true)
 public class MomentEntity extends BaseEntity {
 
+    @TableField("author_user_id")
+    private Long authorUserId;
+
+    public Long getAuthorUserId() { return authorUserId; }
+    public void setAuthorUserId(Long authorUserId) { this.authorUserId = authorUserId; }
+
     @TableField("public_id")
     private String publicId;
 

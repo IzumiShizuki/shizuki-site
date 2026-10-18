@@ -115,6 +115,13 @@ import org.springframework.util.StringUtils;
 @Service
 public class ContentServiceImpl implements ContentService {
 
+    private org.springframework.context.ApplicationEventPublisher publicationEvents;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public void setPublicationEvents(org.springframework.context.ApplicationEventPublisher publicationEvents) {
+        this.publicationEvents = publicationEvents;
+    }
+
     private static final String POST_STATUS_DRAFT = "DRAFT";
     private static final String POST_STATUS_PUBLISHED = "PUBLISHED";
     private static final String GUEST_AUTHOR_GROUP = "GUEST_AUTHOR";
@@ -1393,6 +1400,7 @@ public class ContentServiceImpl implements ContentService {
         }
 
         validatePostReadyForPublish(post);
+        boolean newlyPublished = !POST_STATUS_PUBLISHED.equals(post.getStatusCode());
 
         post.setStatusCode(POST_STATUS_PUBLISHED);
         if (post.getPublishedAt() == null) {
@@ -1401,6 +1409,10 @@ public class ContentServiceImpl implements ContentService {
         post.setUpdatedAt(LocalDateTime.now());
         postMapper.updateById(post);
         runSaveSync(post.getId());
+        if (newlyPublished && publicationEvents != null) {
+            publicationEvents.publishEvent(new io.github.shizuki.site.notification.WebsiteContentPublishedEvent(
+                "POST", String.valueOf(post.getId()), post.getUserId()));
+        }
         return toAuthorPostItemResponse(reloadPost(post.getId()));
     }
 

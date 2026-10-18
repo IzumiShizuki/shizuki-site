@@ -290,6 +290,26 @@ class ContentServiceImplVisibilityTest {
             .isInstanceOf(io.github.shizuki.common.core.error.BusinessException.class);
     }
 
+    @Test
+    void publishesNotificationIdentityOnlyOnTransition() {
+        LoginUserContext.set(new LoginUser(11L, Set.of("ADMIN"), Set.of("blog.post.publish")));
+        PostEntity post = publishedPost(1L, 11L, "新文章", "life", "PUBLIC", LocalDateTime.now());
+        post.setStatusCode("DRAFT");
+        PostContentEntity body = new PostContentEntity();
+        body.setPostId(1L);
+        body.setMarkdownCache("正文内容");
+        Mockito.when(postMapper.selectById(1L)).thenReturn(post);
+        Mockito.when(postContentMapper.selectOne(Mockito.any())).thenReturn(body);
+        var events = Mockito.mock(org.springframework.context.ApplicationEventPublisher.class);
+        contentService.setPublicationEvents(events);
+
+        contentService.publishMyPost(1L);
+        contentService.publishMyPost(1L);
+
+        Mockito.verify(events, Mockito.times(1)).publishEvent((Object)
+            new io.github.shizuki.site.notification.WebsiteContentPublishedEvent("POST", "1", 11L));
+    }
+
     private PostEntity publishedPost(
         Long id,
         Long userId,

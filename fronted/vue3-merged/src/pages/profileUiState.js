@@ -27,7 +27,8 @@ export const ProfileSectionKey = Object.freeze({
     EMAIL_BIND: 'email-bind',
     OAUTH_BIND: 'oauth-bind',
     CHANGE_PASSWORD: 'change-password',
-    MUSIC_AUTH: 'music-auth'
+    MUSIC_AUTH: 'music-auth',
+    WECHAT_NOTIFICATIONS: 'wechat-notifications'
   }),
   ARTICLES: Object.freeze({
     WORKSPACE: 'workspace',
@@ -128,6 +129,8 @@ export function buildSectionSummary(sectionKey, payload = {}) {
       return payload.email ? `邮箱：${payload.email}` : '查看用户名、邮箱与密码状态';
     case ProfileSectionKey.ACCOUNT.EMAIL_BIND:
       return payload.emailVerified ? '邮箱已验证，可更新绑定' : '绑定邮箱后可启用改密流程';
+    case ProfileSectionKey.ACCOUNT.WECHAT_NOTIFICATIONS:
+      return '绑定微信，订阅同组成员的文章与动态更新';
     case ProfileSectionKey.ACCOUNT.OAUTH_BIND:
       return payload.oauthBindingCount > 0 ? `已绑定 ${payload.oauthBindingCount} 个平台` : '绑定 GitHub / LinuxDo';
     case ProfileSectionKey.ACCOUNT.CHANGE_PASSWORD:

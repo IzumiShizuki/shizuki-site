@@ -1,0 +1,27 @@
+{
+  "enabled": {
+    "description": "启用微信提醒（完成网站与微信平台配置后开启）",
+    "type": "bool",
+    "default": false
+  },
+  "site_url": {
+    "description": "网站 HTTPS 地址",
+    "type": "string",
+    "default": "https://site.shizuki.online"
+  },
+  "bridge_secret": {
+    "description": "网站专用桥接密钥，与 WECHAT_NOTIFICATIONS_BRIDGE_SECRET 一致；勿用于聊天或截图",
+    "type": "string",
+    "default": ""
+  },
+  "platform_ids": {
+    "description": "允许的微信平台实例 ID（不是平台类型名称）",
+    "type": "list",
+    "default": []
+  },
+  "poll_seconds": {
+    "description": "轮询间隔秒数，至少 5 秒；网站另有每用户 60 秒间隔",
+    "type": "int",
+    "default": 10
+  }
+}
