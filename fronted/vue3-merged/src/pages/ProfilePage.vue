@@ -310,6 +310,10 @@
               <WechatNotificationsPanel />
             </template>
 
+            <template #section-contact-bindings>
+              <ContactBindingsPanel />
+            </template>
+
             <template #section-music-auth>
               <div class="music-auth-grid">
                 <article class="music-auth-card">
@@ -654,6 +658,7 @@ import ProfileAvatarPreviewDialog from '../components/profile/ProfileAvatarPrevi
 import ProfileHeroCard from '../components/profile/ProfileHeroCard.vue';
 import DailyArtPanel from '../components/profile/DailyArtPanel.vue';
 import WechatNotificationsPanel from '../components/profile/WechatNotificationsPanel.vue';
+import ContactBindingsPanel from '../components/profile/ContactBindingsPanel.vue';
 import ProfileSectionAccordion from '../components/profile/ProfileSectionAccordion.vue';
 import { useUiPreferences } from '../composables/useUiPreferences';
 import { listMyPosts } from '../services/blogApi';
@@ -2046,6 +2051,13 @@ const profileSections = computed(() => [
 ]);
 
 const accountSections = computed(() => [
+  {
+    key: ProfileSectionKey.ACCOUNT.CONTACT_BINDINGS,
+    title: 'QQ / 微信账号绑定',
+    icon: 'fas fa-address-book',
+    summary: buildSectionSummary(ProfileSectionKey.ACCOUNT.CONTACT_BINDINGS),
+    statusText: '共享 Todo 身份'
+  },
   {
     key: ProfileSectionKey.ACCOUNT.WECHAT_NOTIFICATIONS,
     title: '微信提醒与订阅',

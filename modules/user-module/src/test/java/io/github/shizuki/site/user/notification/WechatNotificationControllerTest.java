@@ -23,7 +23,7 @@ class WechatNotificationControllerTest {
         service=mock(WechatNotificationService.class);
         var mapper=new ObjectMapper().findAndRegisterModules().setPropertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE);
         mvc=MockMvcBuilders.standaloneSetup(new WechatNotificationController(service),
-            new AstrBotBridgeController(new WechatNotificationSettings(true,SECRET,"wechat","https://site.shizuki.online"),service))
+            new AstrBotBridgeController(new WechatNotificationSettings(true,SECRET,"wechat","https://site.shizuki.online"),null,service, null))
             .setMessageConverters(new MappingJackson2HttpMessageConverter(mapper))
             .setControllerAdvice(new GlobalExceptionHandler()).build();
     }

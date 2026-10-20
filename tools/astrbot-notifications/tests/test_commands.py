@@ -53,15 +53,27 @@ class CommandTests(unittest.IsolatedAsyncioTestCase):
         self.plugin.bridge = types.SimpleNamespace(post=AsyncMock(return_value=True))
 
     async def test_bind_stops_llm_before_network_and_uses_event_identity(self):
-        event = Event("/shizuki_bind single-use")
+        event = Event("/shizuki_bind WECHAT single-use")
         async def post(route, payload):
             self.assertTrue(event.stopped)
+            self.assertEqual(route, "/contact-bindings/confirm")
+            self.assertEqual(payload["platform"], "WECHAT")
             self.assertEqual(payload["sender"], {"platform_id": "wechat", "sender_id": "reader",
                                                 "origin": "wechat:FriendMessage:reader"})
             return True
         self.plugin.bridge.post.side_effect = post
         result = [r async for r in self.plugin.command(event)]
         self.assertIn("绑定成功", result[0])
+
+    async def test_legacy_binding_command_keeps_working(self):
+        event = Event("/shizuki_bind old-code")
+        result = [r async for r in self.plugin.command(event)]
+        self.assertIn("微信绑定成功", result[0])
+        self.plugin.bridge.post.assert_awaited_once_with("/bindings/confirm", {
+            "code": "old-code",
+            "sender": {"platform_id": "wechat", "sender_id": "reader",
+                       "origin": "wechat:FriendMessage:reader"}
+        })
 
     async def test_group_code_never_reaches_network_or_result(self):
         event = Event("/shizuki_bind private-secret", "wechat:GroupMessage:room")

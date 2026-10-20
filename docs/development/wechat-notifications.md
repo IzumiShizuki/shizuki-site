@@ -19,7 +19,9 @@
    | `WECHAT_NOTIFICATIONS_PLATFORM_IDS` | 空 | AstrBot 微信平台**实例 ID**，多个用英文逗号分隔 |
    | `WECHAT_NOTIFICATIONS_SITE_ORIGIN` | `https://site.shizuki.online` | 网站 HTTPS 根地址，不能带路径、用户信息、查询参数 |
 
-   配置映射为 `shizuki.notifications.wechat.*`。密钥放现有私密配置或环境，不进 Git，不与用户 JWT 混用。修改后重启后端。未启用、密钥太短、平台为空或 origin 无效时均不可调用桥接接口。
+   配置映射为 `shizuki.notifications.wechat.*`。账号级 QQ/微信绑定另外使用 `ACCOUNT_CONTACT_BINDINGS_ENABLED`、`ACCOUNT_CONTACT_BINDINGS_BRIDGE_SECRET`、`ACCOUNT_CONTACT_BINDINGS_PLATFORM_IDS` 和 `ACCOUNT_CONTACT_BINDINGS_SITE_ORIGIN`，其中允许的平台实例和桥接密钥应与插件一致。密钥放现有私密配置或环境，不进 Git，不与用户 JWT 混用。修改后重启后端。
+
+   账号绑定变量默认关闭；`ACCOUNT_CONTACT_BINDINGS_PLATFORM_IDS` 填实际 AstrBot 平台实例 ID，多个以英文逗号分隔。账号绑定和旧微信提醒可共用同一桥接密钥，但要分别配置各自的启用开关与允许实例。
 
 4. 使用本地插件源码：`tools/astrbot-notifications`。在该目录执行 `python build_plugin.py`，上传生成的 `dist/astrbot_plugin_shizuki_notifications.zip` 到 AstrBot，或复制源码到插件目录。安装说明见该目录 README。
 5. AstrBot 配置相同的 `site_url`、`bridge_secret` 与 `platform_ids`，再打开插件 `enabled`。需要支持私聊主动发送的微信适配器，不能据“已添加微信好友”推断适配器已经连接成功。插件仅需出站 HTTPS，无入站监听端口。
@@ -58,6 +60,11 @@ JSON 遵循项目现有 snake_case，响应使用 `ApiResponse.data`；错误使
 | DELETE `/api/v1/me/wechat-notifications/binding` | 网站用户 | 解绑并清空订阅 |
 | PUT `/api/v1/me/wechat-notifications/preferences` | 网站用户 | paused、quiet_start/end、subscriptions:[{group_code,kind}] |
 | POST `/api/v1/integrations/astrbot/bindings/confirm` | 桥接密钥 | code、sender:{platform_id,sender_id,origin} |
+| GET `/api/v1/me/contact-bindings` | 网站用户 | 账号绑定列表；只返回脱敏身份、Todo 操作/提醒开关 |
+| POST `/api/v1/me/contact-bindings/challenge` | 网站用户 | platform: QQ/WECHAT；返回 `/shizuki_bind <platform> <code>` |
+| PUT `/api/v1/me/contact-bindings/{id}/capabilities` | 网站用户 | todo_edit_enabled、todo_notify_enabled |
+| DELETE `/api/v1/me/contact-bindings/{id}` | 网站用户 | 解绑单个账号身份 |
+| POST `/api/v1/integrations/astrbot/contact-bindings/confirm` | 账号绑定桥接密钥 | platform、code、sender:{platform_id,sender_id,origin} |
 | POST `/api/v1/integrations/astrbot/controls` | 桥接密钥 | action: PAUSE/RESUME/UNBIND、sender |
 | POST `/api/v1/integrations/astrbot/deliveries/lease` | 桥接密钥 | platform_ids；返回 [{id,token}] 或 [] |
 | POST `/api/v1/integrations/astrbot/deliveries/{id}/authorize` | 桥接密钥 | token；返回 {send,origin,text}；send=false 不发送 |

@@ -61,16 +61,21 @@ class ShizukiNotifications(Star):
         # Stop before ANY await, including errors/group-chat attempts: binding codes must not reach an LLM.
         event.stop_event()
         if self.bridge is None:
-            yield event.plain_result("网站微信提醒尚未启用，请联系站长完成接入。")
+            yield event.plain_result("网站消息绑定与提醒尚未启用，请联系站长完成接入。")
             return
         try:
             sender = private_sender(str(event.get_platform_id()), str(event.get_sender_id()),
                                     str(event.unified_msg_origin), self.platforms)
             if parts[0] == "/shizuki_bind":
-                if len(parts) != 2 or len(parts[1]) > 64:
+                if len(parts) == 3 and parts[1] in {"QQ", "WECHAT"} and len(parts[2]) <= 64:
+                    await self.bridge.post("/contact-bindings/confirm", {
+                        "code": parts[2], "platform": parts[1], "sender": sender})
+                    message = f"{'QQ' if parts[1] == 'QQ' else '微信'}账号绑定成功，可回网站设置 Todo 操作与提醒权限。"
+                elif len(parts) == 2 and len(parts[1]) <= 64:
+                    await self.bridge.post("/bindings/confirm", {"code": parts[1], "sender": sender})
+                    message = "微信绑定成功。请回网站选择分组及文章、动态订阅；默认不推送。"
+                else:
                     raise ValueError("请在网站个人中心生成绑定码，复制完整绑定指令后私聊发送。")
-                await self.bridge.post("/bindings/confirm", {"code": parts[1], "sender": sender})
-                message = "微信绑定成功。请回网站选择分组及文章、动态订阅；默认不推送。"
             else:
                 if len(parts) != 1:
                     raise ValueError("请只发送指令本身。")

@@ -35,6 +35,12 @@ shizuki:
       bridge-secret: ${WECHAT_NOTIFICATIONS_BRIDGE_SECRET:}
       platform-ids: ${WECHAT_NOTIFICATIONS_PLATFORM_IDS:}
       site-origin: ${WECHAT_NOTIFICATIONS_SITE_ORIGIN:https://site.shizuki.online}
+  account:
+    contacts:
+      enabled: ${ACCOUNT_CONTACT_BINDINGS_ENABLED:false}
+      bridge-secret: ${ACCOUNT_CONTACT_BINDINGS_BRIDGE_SECRET:}
+      platform-ids: ${ACCOUNT_CONTACT_BINDINGS_PLATFORM_IDS:}
+      site-origin: ${ACCOUNT_CONTACT_BINDINGS_SITE_ORIGIN:https://site.shizuki.online}
   site:
     personal-content:
       enabled: ${SITE_PERSONAL_CONTENT_ENABLED:false}

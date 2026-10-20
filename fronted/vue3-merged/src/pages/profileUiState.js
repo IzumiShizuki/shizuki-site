@@ -28,6 +28,7 @@ export const ProfileSectionKey = Object.freeze({
     OAUTH_BIND: 'oauth-bind',
     CHANGE_PASSWORD: 'change-password',
     MUSIC_AUTH: 'music-auth',
+    CONTACT_BINDINGS: 'contact-bindings',
     WECHAT_NOTIFICATIONS: 'wechat-notifications'
   }),
   ARTICLES: Object.freeze({
@@ -141,6 +142,8 @@ export function buildSectionSummary(sectionKey, payload = {}) {
         ? `已接入 ${configuredCount} 项音乐授权能力`
         : '配置 Meting、Spotify 与三平台账号源授权';
     }
+    case ProfileSectionKey.ACCOUNT.CONTACT_BINDINGS:
+      return '绑定 QQ / 微信，统一用于 Todo 操作和提醒';
     case ProfileSectionKey.ARTICLES.WORKSPACE:
       return '草稿、发布与统计入口';
     case ProfileSectionKey.ARTICLES.ARCHIVE:

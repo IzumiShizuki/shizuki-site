@@ -13,9 +13,24 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api/v1/integrations/astrbot")
 public class AstrBotBridgeController {
     private final WechatNotificationSettings settings;
+    private final AccountContactBindingSettings contactSettings;
     private final WechatNotificationService service;
+    private final AccountContactBindingService contactBindings;
     public AstrBotBridgeController(WechatNotificationSettings settings, WechatNotificationService service) {
-        this.settings=settings; this.service=service;
+        this(settings, null, service, null);
+    }
+    public AstrBotBridgeController(WechatNotificationSettings settings, AccountContactBindingSettings contactSettings,
+                                   WechatNotificationService service,
+                                   AccountContactBindingService contactBindings) {
+        this.settings=settings; this.contactSettings=contactSettings; this.service=service; this.contactBindings=contactBindings;
+    }
+    @PostMapping("/contact-bindings/confirm")
+    public ResponseEntity<ApiResponse<Boolean>> confirmContact(@RequestHeader(value="Authorization",required=false) String auth,
+                                                               @Valid @RequestBody AccountContactModels.Confirmation input) {
+        if (contactSettings == null || contactBindings == null) throw new io.github.shizuki.common.core.error.BusinessException(
+            io.github.shizuki.common.core.error.ErrorCode.FEATURE_DISABLED, "Contact bindings unavailable");
+        contactSettings.authenticate(auth);
+        contactBindings.confirm(input); return result(true);
     }
     @PostMapping("/bindings/confirm")
     public ResponseEntity<ApiResponse<Boolean>> confirm(@RequestHeader(value="Authorization",required=false) String auth,

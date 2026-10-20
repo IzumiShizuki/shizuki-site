@@ -19,6 +19,10 @@
     </section>
 
     <section class="profile-section m-card">
+      <ContactBindingsPanel />
+    </section>
+
+    <section class="profile-section m-card">
       <h2 class="section-label">外观</h2>
       <div class="setting-row">
         <div class="row-main">
@@ -94,6 +98,7 @@ import { getApiBaseUrl, getDefaultApiBaseUrl, setApiBaseUrl } from '../../servic
 import { writeMobileShellPreference } from '../mobileMode';
 import { useMobileShell } from '../mobileShellContext';
 import DailyArtPanel from '../../components/profile/DailyArtPanel.vue';
+import ContactBindingsPanel from '../../components/profile/ContactBindingsPanel.vue';
 
 const router = useRouter();
 const shell = useMobileShell();
