@@ -13,7 +13,7 @@
   outline: none;
 }
 
-*:focus-visible {
+*:focus-visible:not(:where(.top-menu-root *, .atmo-panel *, .theme-color-studio *)) {
   outline: none !important;
 }
 
@@ -857,7 +857,7 @@ body {
   .pill-btn-box,
   .menu-label-text
 ) {
-  color: var(--theme-menu-text, var(--theme-text-primary, rgba(255, 242, 233, 0.96))) !important;
+  color: var(--menu-ink) !important;
 }
 
 .top-menu-root :is(
@@ -866,7 +866,7 @@ body {
   .avatar-box.anonymous,
   .pill-btn-box i
 ) {
-  color: var(--theme-icon-primary, var(--theme-menu-text, rgba(255, 242, 233, 0.96))) !important;
+  color: var(--menu-ink) !important;
 }
 
 .top-menu-root :is(.left-pill-group, .author-avatar-box, .avatar-box) {
@@ -886,7 +886,7 @@ body {
 }
 
 :root[data-theme-mode='day'] .top-menu-root .left-main-btn.active :is(.icon-minimal, .item-label) {
-  color: var(--theme-text-primary) !important;
+  color: var(--menu-on-selected) !important;
   text-shadow: none !important;
 }
 
@@ -1058,7 +1058,8 @@ body {
 
 /* —— 1. 键盘可达：统一温柔的桃色焦点环 ——
  * 只在键盘 :focus-visible 时出现，鼠标点击不打扰。 */
-:where(a, button, [role='button'], input, select, textarea, [tabindex]):focus-visible {
+/* Menus own opaque semantic focus colors; keep the shared pale ring elsewhere. */
+:where(a, button, [role='button'], input, select, textarea, [tabindex]):focus-visible:not(:where(.top-menu-root *, .atmo-panel *, .theme-color-studio *)) {
   outline: none !important;
   box-shadow: var(--focus-ring, 0 0 0 3px rgba(var(--accent-rgb), 0.36)) !important;
   border-radius: var(--radius-sm, 10px);

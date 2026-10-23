@@ -109,6 +109,18 @@
   /* 直接作为文字使用的主色（已按页面底色校正对比度，JS 写入）。 */
   --accent-readable-rgb: var(--accent-strong-rgb);
   --accent-press-overlay: rgba(var(--accent-rgb), 0.14);
+
+  /* Menu surfaces are opaque: wallpaper must not change text contrast. */
+  --menu-surface: var(--m3-surface-container, #30272b);
+  --menu-surface-raised: var(--m3-surface-container-high, #3a3135);
+  --menu-ink: var(--m3-on-surface, #f7ede8);
+  --menu-ink-muted: var(--m3-on-surface-variant, #d8c2ba);
+  --menu-selected-bg: var(--m3-primary-container, #68412f);
+  --menu-on-selected: var(--m3-on-primary-container, #ffdbc9);
+  --menu-action-bg: var(--m3-primary, #f2b39d);
+  --menu-on-action: var(--m3-on-primary, #492719);
+  --menu-border: var(--m3-outline-variant, #615048);
+  --menu-focus: var(--m3-primary, #f2b39d);
 }
 
 /* ============================================================
@@ -162,6 +174,16 @@
  * 组件优先消费这些令牌；已有的组件级 day 覆写保持兼容。
  * ============================================================ */
 :root[data-theme-mode='day'] {
+  --menu-surface: var(--m3-surface-container, #fff1ec);
+  --menu-surface-raised: var(--m3-surface-container-high, #fae4dd);
+  --menu-ink: var(--m3-on-surface, #3e2f2a);
+  --menu-ink-muted: var(--m3-on-surface-variant, #6d5b55);
+  --menu-selected-bg: var(--m3-primary-container, #f3a68b);
+  --menu-on-selected: var(--m3-on-primary-container, #5a2815);
+  --menu-action-bg: var(--m3-primary, #8b4f39);
+  --menu-on-action: var(--m3-on-primary, #fff7f5);
+  --menu-border: var(--m3-outline-variant, #c3ada6);
+  --menu-focus: var(--m3-primary, #8b4f39);
   --theme-surface: linear-gradient(155deg, rgba(255, 252, 248, 0.92), rgba(250, 242, 240, 0.88));
   --theme-surface-elevated: linear-gradient(145deg, rgba(255, 255, 255, 0.94), rgba(252, 244, 242, 0.9));
   --theme-surface-soft: rgba(120, 84, 80, 0.1);

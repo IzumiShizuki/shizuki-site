@@ -64,6 +64,7 @@
                 :key="scene.id"
                 class="scene-card ripple-trigger"
                 :class="{ active: activeSceneId === scene.id }"
+                :aria-pressed="activeSceneId === scene.id"
                 type="button"
                 :style="{ '--cover-bg': scene.cover }"
                 @click="applyScene(scene)"
@@ -1337,20 +1338,25 @@ function rangeFillStyle(value, min = 0, max = 1) {
 }
 
 .atmo-panel {
-  /* Enhanced warm glass aesthetic matching design system */
-  --ap-panel-bg: linear-gradient(160deg, rgba(26, 20, 20, 0.97), rgba(20, 16, 18, 0.96));
-  --ap-surface: rgba(255, 236, 230, 0.09);
-  --ap-surface-strong: rgba(255, 236, 230, 0.16);
-  --ap-border-strong: rgba(242, 179, 157, 0.22);
-  --ap-ink: rgba(255, 243, 238, 0.96);
-  --ap-ink-muted: rgba(230, 206, 202, 0.78);
-  --ap-control-ink: rgba(255, 246, 242, 0.92);
-  --ap-ink-subtle: rgba(210, 186, 186, 0.64);
-  --ap-warning-ink: rgba(255, 196, 128, 0.96);
-  --ap-danger-ink: rgba(255, 145, 132, 0.96);
-  --ap-success-ink: rgba(151, 232, 174, 0.96);
-  --ap-on-accent: rgba(255, 251, 247, 0.98);
-  --ap-scrollbar: rgba(242, 179, 157, 0.38);
+  /* Pair foregrounds with stable, wallpaper-independent surfaces. */
+  --ap-panel-bg: var(--menu-surface);
+  --ap-surface: var(--menu-surface);
+  --ap-surface-strong: var(--menu-surface-raised);
+  --ap-border-strong: var(--menu-border);
+  --ap-ink: var(--menu-ink);
+  --ap-ink-muted: var(--menu-ink-muted);
+  --ap-control-ink: var(--menu-ink);
+  --ap-ink-subtle: var(--menu-ink-muted);
+  --ap-warning-ink: var(--theme-warning);
+  --ap-danger-ink: var(--m3-error, var(--theme-danger));
+  --ap-success-ink: var(--theme-positive);
+  --ap-on-accent: var(--menu-on-action);
+  --ap-scrollbar: var(--menu-border);
+  /* Shared primary-button rules consume this local pair, including hover. */
+  --accent-mode-fill-strong: var(--menu-action-bg);
+  --accent-mode-fill-hover: var(--menu-action-bg);
+  --accent-surface-text: var(--menu-on-action);
+  --accent-surface-text-shadow: none;
 
   width: min(1040px, calc(100vw - 20px));
   max-height: min(86vh, 800px);
@@ -1365,12 +1371,7 @@ function rangeFillStyle(value, min = 0, max = 1) {
   /* Apply liquid material elevated style */
   @include liquid-material-elevated;
 
-  /* Override background with theme-specific gradient */
-  background:
-    linear-gradient(135deg,
-      rgba(255, 255, 255, 0.10),
-      rgba(255, 255, 255, 0.04)),
-    var(--ap-panel-bg);
+  background: var(--ap-panel-bg);
 }
 
 .atmo-scroll {
@@ -1426,8 +1427,8 @@ function rangeFillStyle(value, min = 0, max = 1) {
   display: grid;
   place-items: center;
   font-size: 18px;
-  color: rgba(255, 252, 248, 0.96);
-  background: linear-gradient(145deg, rgba(var(--accent-rgb), 0.95), rgba(var(--accent-strong-rgb), 0.9));
+  color: var(--menu-on-action);
+  background: var(--menu-action-bg);
   box-shadow:
     0 0 0 1px rgba(255, 255, 255, 0.12),
     0 8px 20px rgba(var(--accent-rgb), 0.36),
@@ -1469,9 +1470,9 @@ function rangeFillStyle(value, min = 0, max = 1) {
 }
 
 .status-chip.timer {
-  color: rgba(var(--accent-strong-rgb), 1);
+  color: var(--m3-primary, var(--menu-ink));
   font-variant-numeric: tabular-nums;
-  background: rgba(var(--accent-rgb), 0.12);
+  background: var(--ap-surface-strong);
   border-color: rgba(var(--accent-rgb), 0.28);
 }
 
@@ -1534,10 +1535,10 @@ function rangeFillStyle(value, min = 0, max = 1) {
 }
 
 .atmo-tab.active {
-  color: var(--ap-on-accent);
-  background: linear-gradient(135deg,
-    rgba(var(--accent-rgb), 0.92),
-    rgba(var(--accent-strong-rgb), 0.88));
+  color: var(--menu-on-selected);
+  background: var(--menu-selected-bg);
+  text-decoration: underline;
+  text-underline-offset: 5px;
   box-shadow:
     0 0 0 1px rgba(255, 255, 255, 0.12),
     0 4px 12px rgba(var(--accent-rgb), 0.32),
@@ -1645,9 +1646,7 @@ function rangeFillStyle(value, min = 0, max = 1) {
 
 .soft-btn.primary {
   border-color: transparent;
-  background: linear-gradient(135deg,
-    rgba(var(--accent-rgb), 0.94),
-    rgba(var(--accent-strong-rgb), 0.9));
+  background: var(--menu-action-bg);
   color: var(--ap-on-accent);
   box-shadow:
     0 0 0 1px rgba(255, 255, 255, 0.1),
@@ -1679,8 +1678,8 @@ function rangeFillStyle(value, min = 0, max = 1) {
 
 .chip.active {
   border-color: rgba(var(--accent-strong-rgb), 0.6);
-  background: rgba(var(--accent-rgb), 0.2);
-  color: rgba(var(--accent-strong-rgb), 1);
+  background: var(--ap-surface-strong);
+  color: var(--m3-primary, var(--menu-ink));
   font-weight: 600;
 }
 
@@ -1729,9 +1728,9 @@ function rangeFillStyle(value, min = 0, max = 1) {
   background:
     linear-gradient(
       90deg,
-      rgba(var(--accent-strong-rgb), 0.92) 0%,
-      rgba(var(--accent-rgb), 0.92) var(--fill, 50%),
-      rgba(255, 255, 255, 0.46) var(--fill, 50%)
+      var(--menu-action-bg) 0%,
+      var(--menu-action-bg) var(--fill, 50%),
+      var(--menu-border) var(--fill, 50%)
     );
 }
 
@@ -1741,8 +1740,8 @@ function rangeFillStyle(value, min = 0, max = 1) {
   height: 16px;
   margin-top: -5px;
   border-radius: 50%;
-  border: 2px solid rgba(255, 255, 255, 0.96);
-  background: rgb(var(--accent-strong-rgb));
+  border: 2px solid var(--menu-surface);
+  background: var(--menu-action-bg);
   box-shadow: var(--shadow-sm);
   transition: transform var(--duration-fast) var(--ease-out);
 }
@@ -1761,15 +1760,15 @@ function rangeFillStyle(value, min = 0, max = 1) {
 .atmo-range::-moz-range-progress {
   height: 6px;
   border-radius: var(--radius-full);
-  background: linear-gradient(90deg, rgba(var(--accent-strong-rgb), 0.92), rgba(var(--accent-rgb), 0.92));
+  background: var(--menu-action-bg);
 }
 
 .atmo-range::-moz-range-thumb {
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  border: 2px solid rgba(255, 255, 255, 0.96);
-  background: rgb(var(--accent-strong-rgb));
+  border: 2px solid var(--menu-surface);
+  background: var(--menu-action-bg);
   box-shadow: var(--shadow-sm);
 }
 
@@ -1815,9 +1814,7 @@ function rangeFillStyle(value, min = 0, max = 1) {
 .scene-glass {
   position: absolute;
   inset: 0;
-  background:
-    radial-gradient(circle at 18% 14%, rgba(255, 255, 255, 0.34), transparent 34%),
-    linear-gradient(180deg, rgba(10, 14, 22, 0), rgba(10, 14, 22, 0.42));
+  background: none;
   pointer-events: none;
 }
 
@@ -1836,7 +1833,8 @@ function rangeFillStyle(value, min = 0, max = 1) {
   display: grid;
   place-items: center;
   font-size: 16px;
-  background: rgba(255, 255, 255, 0.22);
+  background: var(--ap-surface-strong);
+  color: var(--ap-ink);
   border: 1px solid var(--ap-border-strong);
   backdrop-filter: blur(4px);
 }
@@ -1849,7 +1847,8 @@ function rangeFillStyle(value, min = 0, max = 1) {
   padding: 0 var(--space-2-5);
   border-radius: var(--radius-full);
   font-size: 11.5px;
-  background: rgba(12, 16, 24, 0.4);
+  background: var(--menu-selected-bg);
+  color: var(--menu-on-selected);
   border: 1px solid rgba(255, 255, 255, 0.32);
   backdrop-filter: blur(4px);
 }
@@ -1863,14 +1862,15 @@ function rangeFillStyle(value, min = 0, max = 1) {
 .scene-copy strong {
   font-size: var(--text-base);
   letter-spacing: 0.02em;
-  text-shadow: var(--shadow-text);
+  color: var(--ap-ink);
+  text-shadow: none;
 }
 
 .scene-copy small {
   font-size: var(--text-xs);
   line-height: 1.5;
-  color: var(--ap-on-accent);
-  text-shadow: var(--shadow-text-sm);
+  color: var(--ap-ink-muted);
+  text-shadow: none;
 }
 
 .scene-tags {
@@ -1888,7 +1888,8 @@ function rangeFillStyle(value, min = 0, max = 1) {
   padding: 0 var(--space-2);
   border-radius: var(--radius-full);
   font-size: 11px;
-  background: rgba(12, 16, 24, 0.36);
+  color: var(--ap-ink-muted);
+  background: var(--ap-surface-strong);
   border: 1px solid var(--ap-border-strong);
   backdrop-filter: blur(4px);
 }
@@ -1959,7 +1960,7 @@ function rangeFillStyle(value, min = 0, max = 1) {
 .timer-count {
   font-size: 12.5px;
   font-variant-numeric: tabular-nums;
-  color: rgba(var(--accent-strong-rgb), 1);
+  color: var(--m3-primary, var(--menu-ink));
   font-weight: 600;
 }
 
@@ -1995,7 +1996,7 @@ function rangeFillStyle(value, min = 0, max = 1) {
 
 .sound-tile.active {
   border-color: rgba(var(--accent-strong-rgb), 0.66);
-  background: rgba(var(--accent-rgb), 0.14);
+  background: var(--ap-surface-strong);
   box-shadow: 0 0 0 1px rgba(var(--accent-rgb), 0.2),
               var(--shadow-lg);
 }
@@ -2049,7 +2050,7 @@ function rangeFillStyle(value, min = 0, max = 1) {
 }
 
 .sound-tile.active .tile-copy small {
-  color: rgba(var(--accent-strong-rgb), 0.96);
+  color: var(--m3-primary, var(--menu-ink));
 }
 
 .tile-state {
@@ -2080,7 +2081,7 @@ function rangeFillStyle(value, min = 0, max = 1) {
   height: 16px;
   border-radius: 50%;
   border: 2px solid rgba(var(--accent-rgb), 0.3);
-  border-top-color: rgb(var(--accent-strong-rgb));
+  border-top-color: var(--menu-action-bg);
   animation: atmo-spin 0.8s linear infinite;
 }
 
@@ -2094,12 +2095,12 @@ function rangeFillStyle(value, min = 0, max = 1) {
 .tile-eq i {
   width: 3px;
   border-radius: 999px;
-  background: rgb(var(--accent-strong-rgb));
+  background: var(--menu-action-bg);
   animation: atmo-eq 1s ease-in-out infinite;
 }
 
 .tile-eq.light i {
-  background: rgba(255, 255, 255, 0.92);
+  background: currentColor;
 }
 
 .tile-eq i:nth-child(1) {
@@ -2151,7 +2152,7 @@ function rangeFillStyle(value, min = 0, max = 1) {
 }
 
 .tile-source-actions .inline-link:hover {
-  color: rgba(var(--accent-strong-rgb), 0.96);
+  color: var(--m3-primary, var(--menu-ink));
 }
 
 .tile-remove {
@@ -2316,8 +2317,8 @@ function rangeFillStyle(value, min = 0, max = 1) {
 }
 
 .license-toggle .chip.active {
-  background: rgba(var(--accent-rgb), 0.24);
-  color: rgba(var(--accent-strong-rgb), 0.96);
+  background: var(--ap-surface-strong);
+  color: var(--m3-primary, var(--menu-ink));
 }
 
 .online-grid {
@@ -2345,7 +2346,7 @@ function rangeFillStyle(value, min = 0, max = 1) {
 
 .online-card.added {
   border-color: rgba(var(--accent-strong-rgb), 0.6);
-  background: rgba(var(--accent-rgb), 0.12);
+  background: var(--ap-surface-strong);
 }
 
 .online-card-head {
@@ -2590,7 +2591,7 @@ function rangeFillStyle(value, min = 0, max = 1) {
 .fx-slider-name i {
   width: 14px;
   text-align: center;
-  color: rgba(var(--accent-strong-rgb), 0.9);
+  color: var(--m3-primary, var(--menu-ink));
 }
 
 .fx-slider-head strong {
@@ -2641,7 +2642,7 @@ function rangeFillStyle(value, min = 0, max = 1) {
   border-color: rgba(var(--accent-strong-rgb), 0.66);
   box-shadow: 0 0 0 1px rgba(var(--accent-rgb), 0.2),
               var(--shadow-lg);
-  background: rgba(var(--accent-rgb), 0.12);
+  background: var(--ap-surface-strong);
 }
 
 .fx-card-stage {
@@ -2664,8 +2665,8 @@ function rangeFillStyle(value, min = 0, max = 1) {
   display: grid;
   place-items: center;
   font-size: 11px;
-  color: rgba(255, 251, 247, 0.98);
-  background: linear-gradient(145deg, rgba(var(--accent-rgb), 0.98), rgba(var(--accent-strong-rgb), 0.95));
+  color: var(--menu-on-action);
+  background: var(--menu-action-bg);
   box-shadow: var(--shadow-md);
 }
 
@@ -2708,8 +2709,8 @@ function rangeFillStyle(value, min = 0, max = 1) {
   min-height: 24px;
   padding: 0 var(--space-2-5);
   border-radius: var(--radius-full);
-  background: rgba(15, 19, 28, 0.36);
-  color: rgba(248, 250, 255, 0.95);
+  background: var(--ap-surface-strong);
+  color: var(--ap-ink);
   display: inline-flex;
   align-items: center;
   font-size: 11px;
@@ -2938,7 +2939,7 @@ function rangeFillStyle(value, min = 0, max = 1) {
 
 .playlist-card.active {
   border-color: rgba(var(--accent-strong-rgb), 0.68);
-  background: rgba(var(--accent-rgb), 0.12);
+  background: var(--ap-surface-strong);
   box-shadow: 0 14px 24px rgba(var(--accent-rgb), 0.12);
 }
 
@@ -2972,7 +2973,7 @@ function rangeFillStyle(value, min = 0, max = 1) {
 
 .playlist-fallback,
 .track-cover-fallback {
-  background: linear-gradient(155deg, rgba(135, 191, 228, 0.38), rgba(255, 230, 197, 0.4));
+  background: var(--ap-surface-strong);
   color: var(--ap-ink-muted);
 }
 
@@ -2999,7 +3000,7 @@ function rangeFillStyle(value, min = 0, max = 1) {
 .track-sheet {
   border-radius: 16px;
   border: 1px solid rgba(255, 255, 255, 0.4);
-  background: rgba(255, 255, 255, 0.24);
+  background: var(--ap-surface-strong);
   padding: 12px;
   display: grid;
   gap: 10px;
@@ -3429,21 +3430,23 @@ function rangeFillStyle(value, min = 0, max = 1) {
   }
 }
 
-/* 日间模式：奶油暖白面板。 */
-:root[data-theme-mode='day'] .atmo-panel {
-  --ap-panel-bg: linear-gradient(160deg, rgba(255, 251, 247, 0.98), rgba(250, 241, 238, 0.97));
-  --ap-surface: rgba(255, 255, 255, 0.62);
-  --ap-surface-strong: rgba(255, 255, 255, 0.85);
-  --ap-border-strong: rgba(186, 124, 132, 0.3);
-  --ap-ink: rgba(64, 44, 42, 0.94);
-  --ap-ink-muted: rgba(122, 92, 88, 0.76);
-  --ap-control-ink: rgba(72, 48, 46, 0.9);
-  --ap-ink-subtle: rgba(132, 98, 96, 0.66);
-  --ap-warning-ink: rgba(145, 82, 30, 0.96);
-  --ap-danger-ink: rgba(177, 64, 54, 0.96);
-  --ap-success-ink: rgba(36, 112, 62, 0.96);
-  --ap-on-accent: rgba(255, 251, 247, 0.98);
-  --ap-scrollbar: rgba(186, 140, 140, 0.45);
-  --liquid-shadow: 0 24px 56px rgba(168, 120, 120, 0.22);
+/* Opaque focus indicators remain visible on both paper and charcoal. */
+.atmo-panel .ripple-trigger:active {
+  filter: none;
+}
+
+.atmo-panel :is(button, input, select, a):focus-visible {
+  outline: 3px solid var(--menu-focus);
+  outline-offset: 3px;
+}
+
+.atmo-panel input::placeholder {
+  color: var(--ap-ink-muted);
+  opacity: 1;
+}
+
+.atmo-tab.active :is(i, span),
+.soft-btn.primary :is(i, span) {
+  color: inherit;
 }
 </style>

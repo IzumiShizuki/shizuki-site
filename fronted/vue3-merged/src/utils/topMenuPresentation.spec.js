@@ -5,6 +5,13 @@ import {
 } from './topMenuPresentation';
 
 describe('top menu presentation', () => {
+  it('starts mobile navigation compact so the first disclosure opens it', () => {
+    const initial = resolveTopMenuPresentation({ mobile: true, scrollTop: 0 });
+    expect(initial).toMatchObject({ compact: true, full: false });
+    const opened = resolveTopMenuPresentation({ mobile: true, manualExpanded: !initial.full });
+    expect(opened).toMatchObject({ compact: false, full: true });
+    expect(resolveTopMenuPresentation({ mobile: true, manualCollapsed: opened.full })).toMatchObject({ compact: true, full: false });
+  });
   it('shows the full navigation at the page top', () => {
     expect(resolveTopMenuPresentation({ scrollTop: 0, manualExpanded: false })).toMatchObject({
       compact: false,

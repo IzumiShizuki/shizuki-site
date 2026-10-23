@@ -300,15 +300,29 @@ describe('TopMenu profile entry', () => {
   it('sources menu neutrals from semantic theme tokens', () => {
     const source = readFileSync(resolve(process.cwd(), 'src/components/TopMenu.vue'), 'utf8');
 
-    expect(source).toMatch(/--menu-mobile-chip-bg:\s*var\(--theme-surface-soft\)/);
+    expect(source).toMatch(/--menu-mobile-chip-bg:\s*var\(--menu-surface-raised\)/);
     expect(source).toMatch(/--menu-mobile-chip-border:\s*var\(--theme-border-strong\)/);
     expect(source).toMatch(/scrollbar-color:\s*var\(--theme-border-strong\)\s+transparent/);
   });
 
-  it('tints the full menu glass with the active accent token', () => {
+  it('uses an opaque semantic surface instead of mixing a gradient as a color', () => {
     const source = readFileSync(resolve(process.cwd(), 'src/components/TopMenu.vue'), 'utf8');
 
-    expect(source).toMatch(/--menu-glass-bg:\s*linear-gradient\([\s\S]*?rgba\(var\(--accent-rgb\)/);
-    expect(source).toMatch(/--menu-glass-bg:[\s\S]*?var\(--theme-panel-surface-elevated\)/);
+    expect(source).toMatch(/--menu-glass-bg:\s*var\(--menu-surface\)/);
+    expect(source).toMatch(/--liquid-fill:\s*var\(--menu-surface\)/);
+    expect(source).not.toContain('color-mix(in srgb, var(--menu-glass-bg)');
+  });
+
+  it('exposes every main route to keyboard users and announces the current page', async () => {
+    const { wrapper } = await mountTopMenu();
+    const routes = wrapper.findAll('.left-main-btn');
+    for (const item of routes) {
+      expect(item.attributes()).toMatchObject({ role: 'button', tabindex: '0' });
+    }
+    expect(wrapper.get('.left-main-btn.active').attributes('aria-current')).toBe('page');
+    const blog = routes.find(item => item.text() === 'Blog');
+    await blog.trigger('keydown', { key: 'Enter' });
+    await blog.trigger('keydown', { key: ' ' });
+    expect(wrapper.emitted('select-main-route')).toEqual([['blog'], ['blog']]);
   });
 });

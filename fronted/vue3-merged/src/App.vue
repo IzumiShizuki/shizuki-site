@@ -683,6 +683,7 @@ const activeRouteScrollSource = computed(() => (
 const routeContentOwnsScroll = computed(() => isAppScrollRoute.value && !nestedScrollOwner.element.value);
 const { scrollTop: routeScrollTop } = useActiveScrollSource(activeRouteScrollSource);
 const topMenuPresentation = computed(() => resolveTopMenuPresentation({
+  mobile: isMobileViewport.value,
   scrollTop: routeScrollTop.value,
   manualExpanded: menuExpanded.value,
   manualCollapsed: menuCollapsed.value

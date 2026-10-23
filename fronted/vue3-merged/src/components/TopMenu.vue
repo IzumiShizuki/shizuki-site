@@ -27,9 +27,10 @@
             :key="item.key"
             class="menu-item-stack left-main-btn ripple-trigger"
             :class="{ active: activeMainRoute === item.key }"
-            :role="item.key === 'home' ? 'button' : undefined"
-            :tabindex="item.key === 'home' ? 0 : undefined"
-            :aria-label="item.key === 'home' && isHomeRoute ? '打开主页外观设置' : undefined"
+            role="button"
+            tabindex="0"
+            :aria-current="activeMainRoute === item.key ? 'page' : undefined"
+            :aria-label="item.key === 'home' && isHomeRoute ? '打开主页外观设置' : item.label"
             :aria-controls="item.key === 'home' && isHomeRoute ? 'home-appearance-panel' : undefined"
             :aria-expanded="item.key === 'home' && isHomeRoute ? String(appearancePanelOpen) : undefined"
             :title="item.key === 'home' && isHomeRoute ? '再次点击 Home 调整主页外观' : undefined"
@@ -177,7 +178,15 @@
           </button>
         </div>
 
-        <div class="menu-item-stack ripple-trigger" @click="openBackgroundPicker">
+        <div
+          class="menu-item-stack ripple-trigger"
+          role="button"
+          tabindex="0"
+          aria-label="更换背景图片"
+          @click="openBackgroundPicker"
+          @keydown.enter.prevent="openBackgroundPicker"
+          @keydown.space.prevent="openBackgroundPicker"
+        >
           <div class="circle-icon-box liquid-material"><i class="far fa-image"></i></div>
           <span class="item-label">变换图片</span>
         </div>
@@ -187,7 +196,13 @@
         <div
           class="menu-item-stack ai-chat-item ripple-trigger"
           :class="{ disabled: aiChatDisabled }"
+          role="button"
+          tabindex="0"
+          aria-label="唤起 AI 对话"
+          :aria-disabled="aiChatDisabled"
           @click.stop="toggleAiChat"
+          @keydown.enter.prevent="toggleAiChat"
+          @keydown.space.prevent="toggleAiChat"
         >
           <div class="pill-btn-box liquid-material">
             <i class="fas fa-robot"></i>
@@ -214,7 +229,12 @@
           v-if="!isAuthenticated"
           class="menu-item-stack ripple-trigger user-profile-item login-entry"
           :class="{ 'route-active': isAuthRoute }"
+          aria-label="用户登录"
+          role="button"
+          tabindex="0"
           @click.stop="openAuth"
+          @keydown.enter.prevent="openAuth"
+          @keydown.space.prevent="openAuth"
         >
           <div class="avatar-box anonymous">
             <i class="fas fa-user"></i>
@@ -226,7 +246,12 @@
           v-else
           class="menu-item-stack ripple-trigger user-profile-item"
           :class="{ 'route-active': isProfileRoute }"
+          :aria-label="displayName || '个人页面'"
+          role="button"
+          tabindex="0"
           @click.stop="openProfileHome"
+          @keydown.enter.prevent="openProfileHome"
+          @keydown.space.prevent="openProfileHome"
         >
           <div class="avatar-box">
             <img class="avatar-image" :src="resolvedAvatarUrl" alt="user-avatar" @error="onAvatarError" />
@@ -419,6 +444,7 @@ const normalizedRouteScrollTop = computed(() => {
   return Number.isFinite(value) ? Math.max(0, Math.round(value)) : 0;
 });
 const menuPresentation = computed(() => resolveTopMenuPresentation({
+  mobile: isMobileViewport.value,
   scrollTop: normalizedRouteScrollTop.value,
   manualExpanded: menuExpanded.value,
   manualCollapsed: menuCollapsed.value
@@ -633,23 +659,38 @@ onBeforeUnmount(() => {
 <style scoped>
 .top-menu-root {
   /* Warm & Cozy Theme Variables */
-  --menu-glass-bg: var(--glass-bg-gradient), var(--glass-bg-warm);
+  --menu-glass-bg: var(--menu-surface);
   --menu-glass-border: var(--glass-border);
   --menu-glass-shadow: var(--shadow-lg);
-  --menu-hover-bg: var(--interactive-hover);
-  --menu-active-bg: var(--accent-fill-strong);
-  --menu-active-border: var(--accent-border-strong);
+  --menu-hover-bg: var(--menu-surface-raised);
+  --menu-active-bg: var(--menu-selected-bg);
+  --menu-active-border: var(--menu-focus);
   --menu-active-shadow: var(--shadow-accent-md);
-  --menu-icon-color: var(--icon-primary);
-  --menu-mobile-chip-bg: var(--surface-soft);
+  --menu-icon-color: var(--menu-ink);
+  --accent-surface-text: var(--menu-on-selected);
+  --accent-surface-text-shadow: none;
+  --menu-mobile-chip-bg: var(--menu-surface-raised);
   --menu-mobile-chip-border: var(--border-base);
-  --icon-hover-color: var(--accent-soft);
+  --icon-hover-color: var(--menu-ink);
+  /* Legacy control styles inherit the same opaque navigation surfaces. */
+  --surface-base: var(--menu-surface);
+  --surface-soft: var(--menu-surface-raised);
+  --surface-elevated: var(--menu-surface-raised);
   -webkit-font-smoothing: antialiased;
   text-rendering: geometricPrecision;
 }
 
 .top-menu-root i {
   color: inherit;
+}
+
+.top-menu-root .ripple-trigger:active {
+  filter: none;
+}
+
+.top-menu-root :is(button, [role="button"]):focus-visible {
+  outline: 3px solid var(--menu-focus);
+  outline-offset: 3px;
 }
 
 .top-menu-root .liquid-material {
@@ -708,9 +749,7 @@ onBeforeUnmount(() => {
 
   /* Enhanced glass morphism */
   background:
-    var(--gradient-glow),
-    var(--glass-bg-gradient),
-    var(--surface-elevated);
+    var(--menu-surface);
   border: 1px solid var(--glass-border-strong);
   box-shadow:
     var(--shadow-xl),
@@ -835,14 +874,7 @@ onBeforeUnmount(() => {
 }
 
 .left-main-btn.active {
-  background:
-    linear-gradient(135deg,
-      rgba(var(--accent-rgb), 0.32) 0%,
-      rgba(var(--accent-rgb), 0.22) 50%,
-      rgba(var(--accent-rgb), 0.18) 100%),
-    linear-gradient(180deg,
-      rgba(255, 255, 255, 0.1) 0%,
-      transparent 100%);
+  background: var(--menu-selected-bg);
   border: 1px solid rgba(var(--accent-rgb), 0.4);
   box-shadow:
     var(--shadow-accent-sm),
@@ -867,7 +899,7 @@ onBeforeUnmount(() => {
 }
 
 .left-main-btn[role='button']:focus-visible {
-  outline: 2px solid rgba(var(--accent-rgb), 0.6);
+  outline: 2px solid var(--menu-focus);
   outline-offset: 3px;
   box-shadow: 0 0 0 4px rgba(var(--accent-rgb), 0.15);
 }
@@ -897,7 +929,7 @@ onBeforeUnmount(() => {
   position: absolute;
   inset: -2px;
   border-radius: inherit;
-  background: var(--accent-fill);
+  background: transparent;
   opacity: 0;
   transition: opacity var(--duration-fast) var(--ease-smooth);
   z-index: -1;
@@ -905,7 +937,7 @@ onBeforeUnmount(() => {
 
 .icon-minimal:hover {
   transform: scale(1.12) translateY(-2px);
-  color: var(--accent-soft);
+  color: var(--menu-ink);
 }
 
 .icon-minimal:hover::before {
@@ -921,6 +953,8 @@ onBeforeUnmount(() => {
 .left-main-btn.active .item-label {
   display: block;
   font-weight: var(--font-weight-semibold);
+  text-decoration: underline;
+  text-underline-offset: 4px;
   color: var(--accent-surface-text);
   text-shadow: var(--accent-surface-text-shadow);
 }
@@ -973,11 +1007,7 @@ onBeforeUnmount(() => {
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  background:
-    linear-gradient(135deg,
-      rgba(var(--accent-rgb), 0.3) 0%,
-      rgba(var(--accent-rgb), 0.15) 50%,
-      transparent 100%);
+  background: transparent;
   opacity: 0;
   transition: opacity var(--duration-base) var(--ease-smooth);
 }
@@ -1001,15 +1031,11 @@ onBeforeUnmount(() => {
 }
 
 .circle-icon-box:hover i {
-  color: rgba(var(--accent-rgb), 1);
+  color: var(--menu-ink);
 }
 
 .menu-item-stack.active .circle-icon-box {
-  background:
-    linear-gradient(135deg,
-      rgba(var(--accent-rgb), 0.9) 0%,
-      rgba(var(--accent-rgb), 0.75) 100%),
-    var(--accent-fill-strong);
+  background: var(--menu-selected-bg);
   border-color: rgba(var(--accent-rgb), 0.6);
   box-shadow:
     var(--shadow-accent-md),
@@ -1039,7 +1065,7 @@ onBeforeUnmount(() => {
 }
 
 .menu-item-stack.active .item-label {
-  color: rgba(var(--accent-rgb), 1);
+  color: var(--menu-ink);
   font-weight: var(--font-semibold);
 }
 
@@ -1124,7 +1150,7 @@ onBeforeUnmount(() => {
 }
 
 .pill-btn-box:hover i {
-  color: var(--accent-soft);
+  color: var(--menu-ink);
 }
 
 .ai-chat-item.disabled {
@@ -1188,7 +1214,7 @@ button.author-info-item {
 }
 
 button.author-info-item:focus-visible {
-  outline: 2px solid var(--accent-base);
+  outline: 2px solid var(--menu-focus);
   outline-offset: 3px;
   box-shadow: 0 0 0 4px rgba(var(--accent-rgb), 0.2);
 }
@@ -1333,7 +1359,7 @@ button.author-info-item:focus-visible {
 
 .author-info-item.route-active .item-label,
 .user-profile-item.route-active .item-label {
-  color: var(--accent-soft);
+  color: var(--menu-ink);
   font-weight: var(--font-weight-semibold);
 }
 
@@ -1408,7 +1434,7 @@ button.author-info-item:focus-visible {
 }
 
 .toggle-tab:focus-visible {
-  outline: 2px solid var(--accent-base);
+  outline: 2px solid var(--menu-focus);
   outline-offset: 3px;
   box-shadow: 0 0 0 4px rgba(var(--accent-rgb), 0.2);
 }
@@ -1552,7 +1578,7 @@ button.author-info-item:focus-visible {
 }
 
 .theme-toggle-action:focus-visible .theme-toggle-box {
-  outline: 2px solid var(--accent-base);
+  outline: 2px solid var(--menu-focus);
   outline-offset: 3px;
   box-shadow: 0 0 0 4px rgba(var(--accent-rgb), 0.2);
 }
@@ -1679,7 +1705,7 @@ button.author-info-item:focus-visible {
 .appearance-popover-head strong {
   font-size: var(--text-lg);
   font-weight: var(--font-weight-bold);
-  color: var(--accent-soft);
+  color: var(--menu-ink);
 }
 
 .appearance-group {
@@ -1785,7 +1811,7 @@ button.author-info-item:focus-visible {
 }
 
 .appearance-segment button:focus-visible {
-  outline: 2px solid var(--accent-base);
+  outline: 2px solid var(--menu-focus);
   outline-offset: 2px;
 }
 
@@ -1807,11 +1833,7 @@ button.author-info-item:focus-visible {
    ======================================== */
 
 :root[data-theme-mode='day'] .top-menu-root {
-  --menu-glass-bg:
-    linear-gradient(135deg,
-      rgba(var(--accent-rgb), 0.05),
-      rgba(255, 255, 255, 0.60)),
-    var(--glass-bg-gradient);
+  --menu-glass-bg: var(--menu-surface);
   --menu-glass-border: var(--glass-border);
   --menu-glass-shadow: var(--shadow-md);
 }
@@ -1923,13 +1945,7 @@ button.author-info-item:focus-visible {
     scroll-behavior: smooth;
 
     /* Enhanced glassmorphic background */
-    background:
-      linear-gradient(135deg,
-        rgba(var(--accent-rgb), 0.06) 0%,
-        transparent 50%),
-      var(--gradient-glow),
-      var(--glass-bg-gradient),
-      var(--surface-elevated);
+    background: var(--menu-surface);
     border: 1px solid rgba(255, 255, 255, 0.15);
     box-shadow:
       var(--shadow-xl),
@@ -2028,7 +2044,7 @@ button.author-info-item:focus-visible {
   }
 
   .mobile-top-nav-item:focus-visible {
-    outline: 2px solid rgba(var(--accent-rgb), 0.6);
+    outline: 2px solid var(--menu-focus);
     outline-offset: 2px;
   }
 
@@ -2323,7 +2339,7 @@ button.author-info-item:focus-visible {
 }
 
 .pill-btn-box i {
-  color: var(--theme-icon-primary);
+  color: var(--menu-ink);
 }
 
 .menu-item-stack:hover .pill-btn-box {
@@ -2342,13 +2358,13 @@ button.author-info-item:focus-visible {
 }
 
 .ai-chat-item.disabled .pill-btn-box {
-  --liquid-bg: var(--theme-surface-soft);
+  --liquid-bg: var(--menu-surface-raised);
   color: var(--theme-menu-text-disabled);
 }
 
 .ai-chat-item.disabled:hover .pill-btn-box,
 .ai-chat-item.disabled .pill-btn-box:hover {
-  --liquid-bg: var(--theme-surface-soft);
+  --liquid-bg: var(--menu-surface-raised);
   transform: none;
   box-shadow: none;
 }
@@ -2385,7 +2401,7 @@ button.author-info-item {
 }
 
 button.author-info-item:focus-visible {
-  outline: 3px solid var(--theme-focus-ring);
+  outline: 3px solid var(--menu-focus);
   outline-offset: 3px;
 }
 
@@ -2394,7 +2410,7 @@ button.author-info-item:focus-visible {
   height: 44px;
   border-radius: 50%;
   overflow: hidden;
-  background: var(--theme-panel-surface-elevated);
+  background: var(--menu-surface-raised);
   border: 2px solid var(--theme-menu-avatar-border);
   box-shadow: var(--shadow-sm);
   transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
@@ -2428,7 +2444,7 @@ button.author-info-item:focus-visible {
   border: 2px solid var(--theme-menu-avatar-border);
   position: relative;
   overflow: hidden;
-  background: var(--theme-panel-surface-elevated);
+  background: var(--menu-surface-raised);
 }
 
 .avatar-image {
@@ -2444,7 +2460,7 @@ button.author-info-item:focus-visible {
   justify-content: center;
   filter: saturate(0.72);
   border-color: var(--theme-menu-avatar-border);
-  color: var(--theme-icon-primary);
+  color: var(--menu-ink);
   font-size: 16px;
 }
 
@@ -2527,7 +2543,7 @@ button.author-info-item:focus-visible {
 }
 
 .fixed-nav-wrapper.manual-collapsed .toggle-tab {
-  --liquid-bg: linear-gradient(155deg, rgba(var(--accent-rgb), 0.12), rgba(15, 14, 22, 0.85) 45%);
+  --liquid-bg: var(--menu-surface);
   --liquid-border: rgba(255, 255, 255, 0.16);
   --liquid-shadow: 0 10px 24px rgba(6, 8, 14, 0.35);
   width: 116px;
@@ -2538,7 +2554,7 @@ button.author-info-item:focus-visible {
   justify-content: center;
   border-radius: 0 0 14px 14px;
   border-top: 0;
-  background: rgba(15, 14, 22, 0.72);
+  background: var(--menu-surface);
   backdrop-filter: blur(24px) saturate(160%);
   -webkit-backdrop-filter: blur(24px) saturate(160%);
   box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.12), 0 10px 24px rgba(6, 8, 14, 0.35);
@@ -2560,7 +2576,7 @@ button.author-info-item:focus-visible {
 }
 
 .toggle-tab:active {
-  --liquid-bg: var(--menu-active-bg);
+  --liquid-bg: var(--menu-hover-bg);
   transform: scale(0.97);
 }
 
@@ -2575,7 +2591,7 @@ button.author-info-item:focus-visible {
 
 .bar-line {
   position: absolute;
-  background: var(--theme-menu-text);
+  background: var(--menu-ink);
   height: 2px;
   width: 24px;
   border-radius: 2px;
@@ -2594,7 +2610,7 @@ button.author-info-item:focus-visible {
 .menu-label-text {
   font-size: 10px;
   font-weight: 700;
-  color: var(--theme-menu-text);
+  color: var(--menu-ink);
   letter-spacing: 0.82px;
   transition: transform var(--dur-fast) ease, opacity var(--dur-fast) ease, filter var(--dur-fast) ease;
   text-shadow: var(--theme-contrast-text-shadow-strong);
@@ -2603,13 +2619,13 @@ button.author-info-item:focus-visible {
 
 .fixed-nav-wrapper.expanded .bar-line.top {
   transform: translateY(0) rotate(135deg);
-  background-color: var(--theme-menu-text);
+  background-color: var(--menu-ink);
   width: 20px;
 }
 
 .fixed-nav-wrapper.expanded .bar-line.bottom {
   transform: translateY(0) rotate(-135deg);
-  background-color: var(--theme-menu-text);
+  background-color: var(--menu-ink);
   width: 20px;
 }
 
@@ -2678,15 +2694,15 @@ button.author-info-item:focus-visible {
 }
 
 .theme-toggle-box.day i {
-  color: var(--theme-icon-primary);
+  color: var(--menu-ink);
 }
 
 .theme-toggle-box.night i {
-  color: var(--theme-icon-primary);
+  color: var(--menu-ink);
 }
 
 .appearance-popover {
-  --liquid-bg: var(--theme-panel-surface-elevated);
+  --liquid-bg: var(--menu-surface-raised);
   --liquid-border: var(--theme-border-strong);
   --liquid-shadow: var(--shadow-lg);
   position: absolute;
@@ -2698,7 +2714,7 @@ button.author-info-item:focus-visible {
   display: grid;
   gap: 15px;
   transform: translateX(-50%);
-  color: var(--theme-text-primary);
+  color: var(--menu-ink);
   text-align: left;
   cursor: default;
   z-index: 20;
@@ -2721,7 +2737,7 @@ button.author-info-item:focus-visible {
   height: 14px;
   border-top: 1px solid var(--theme-border-strong);
   border-left: 1px solid var(--theme-border-strong);
-  background: var(--theme-panel-surface-elevated);
+  background: var(--menu-surface-raised);
   transform: translateX(-50%) rotate(45deg);
 }
 
@@ -2736,14 +2752,14 @@ button.author-info-item:focus-visible {
 
 .appearance-popover-head small {
   margin-top: 3px;
-  color: var(--theme-text-tertiary);
+  color: var(--menu-ink-muted);
   font-size: 10px;
   line-height: 1.45;
 }
 
 .appearance-popover-head span,
 .appearance-label {
-  color: var(--theme-text-tertiary);
+  color: var(--menu-ink-muted);
   font-size: 9px;
   font-weight: 760;
   letter-spacing: 0.17em;
@@ -2759,7 +2775,7 @@ button.author-info-item:focus-visible {
 }
 
 .appearance-group small {
-  color: var(--theme-text-tertiary);
+  color: var(--menu-ink-muted);
   font-size: 9px;
 }
 
@@ -2771,8 +2787,8 @@ button.author-info-item:focus-visible {
   display: flex;
   align-items: center;
   gap: 9px;
-  background: var(--theme-surface-soft);
-  color: var(--theme-text-secondary);
+  background: var(--menu-surface-raised);
+  color: var(--menu-ink-muted);
   font-size: 10px;
   cursor: pointer;
 }
@@ -2793,7 +2809,7 @@ button.author-info-item:focus-visible {
   border-radius: 13px;
   display: grid;
   gap: 3px;
-  background: var(--theme-surface-soft);
+  background: var(--menu-surface-raised);
 }
 
 .appearance-segment-two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -2808,7 +2824,7 @@ button.author-info-item:focus-visible {
   justify-content: center;
   gap: 6px;
   background: transparent;
-  color: var(--theme-text-secondary);
+  color: var(--menu-ink-muted);
   font: inherit;
   font-size: 10px;
   cursor: pointer;
@@ -2817,12 +2833,12 @@ button.author-info-item:focus-visible {
 
 .appearance-segment button:hover {
   background: rgba(var(--accent-rgb), 0.12);
-  color: var(--theme-text-primary);
+  color: var(--menu-ink);
 }
 
 .appearance-segment button.active {
-  background: var(--accent-mode-fill-strong, rgba(var(--accent-rgb), 0.26));
-  color: var(--accent-surface-text, var(--theme-text-primary));
+  background: var(--menu-selected-bg);
+  color: var(--accent-surface-text, var(--menu-ink));
   box-shadow: inset 0 0 0 1px var(--accent-mode-border, rgba(var(--accent-rgb), 0.32));
 }
 
@@ -2841,22 +2857,18 @@ button.author-info-item:focus-visible {
 }
 
 :root[data-theme-mode='day'] .top-menu-root {
-  --menu-glass-bg: linear-gradient(
-    155deg,
-    rgba(var(--accent-rgb), 0.06),
-    rgba(255, 252, 248, 0.55) 46%
-  );
+  --menu-glass-bg: var(--menu-surface);
   --menu-glass-border: var(--theme-border-strong);
   --menu-glass-shadow: var(--theme-shadow-soft);
-  --menu-active-bg: var(--accent-mode-fill-strong);
+  --menu-active-bg: var(--menu-selected-bg);
   --menu-active-border: var(--accent-mode-border);
   --menu-active-shadow: var(--accent-mode-shadow);
-  --menu-mobile-chip-bg: var(--theme-surface-soft);
+  --menu-mobile-chip-bg: var(--menu-surface-raised);
   --menu-mobile-chip-border: var(--theme-border-strong);
 }
 
 :root[data-theme-mode='day'] .top-menu-root :is(.author-avatar-box, .avatar-box) {
-  background: var(--theme-panel-surface-elevated);
+  background: var(--menu-surface-raised);
 }
 
 .fixed-nav-wrapper.expanded .menu-label-text {
@@ -2950,7 +2962,7 @@ button.author-info-item:focus-visible {
   }
 
   .mobile-top-dock {
-    --liquid-fill: color-mix(in srgb, var(--menu-glass-bg) 94%, transparent);
+    --liquid-fill: var(--menu-surface);
     --liquid-border: var(--menu-glass-border);
     --liquid-shadow: var(--shadow-md);
     position: absolute;
@@ -2985,7 +2997,7 @@ button.author-info-item:focus-visible {
     align-items: center;
     justify-content: center;
     gap: 5px;
-    color: var(--theme-menu-text, var(--theme-text-primary));
+    color: var(--theme-menu-text, var(--menu-ink));
     background: transparent;
     font: inherit;
     font-size: 10px;
@@ -2995,13 +3007,15 @@ button.author-info-item:focus-visible {
   }
 
   .mobile-top-nav-item.active {
-    color: var(--accent-surface-text, var(--theme-text-primary));
+    text-decoration: underline;
+    text-underline-offset: 4px;
+    color: var(--menu-on-selected);
     background: var(--menu-active-bg);
     box-shadow: inset 0 0 0 1px var(--menu-active-border);
   }
 
   .mobile-top-nav-item:focus-visible {
-    outline: 3px solid var(--theme-focus-ring, rgba(var(--accent-rgb), 0.72));
+    outline: 3px solid var(--menu-focus, rgba(var(--accent-rgb), 0.72));
     outline-offset: 2px;
   }
 

@@ -1,0 +1,260 @@
+{
+  "date": "2026-10-23",
+  "timezone": "Asia/Shanghai",
+  "browser": "Existing Chromium 134 via agent-browser (Edge launch failed)",
+  "thresholds": {
+    "ordinaryText": 4.5,
+    "largeTextAndMeaningfulIcons": 3,
+    "focus": 3
+  },
+  "desktopSummary": {
+    "cases": 240,
+    "checks": 219912,
+    "minimum": 4.522,
+    "failures": 0
+  },
+  "desktop": [
+    {
+      "configuration": "day-content",
+      "cases": 30,
+      "checks": 27489,
+      "failures": [],
+      "minimum": 4.522,
+      "unsupported": [],
+      "viewport": [
+        1440,
+        1000
+      ],
+      "worst": {
+        "color": "rgb(255, 251, 255)",
+        "label": "day/content/#FF0000",
+        "ratio": 4.522,
+        "required": 3,
+        "selector": "fas fa-house",
+        "text": "icon"
+      }
+    },
+    {
+      "configuration": "day-expressive",
+      "cases": 30,
+      "checks": 27489,
+      "failures": [],
+      "minimum": 4.666,
+      "unsupported": [],
+      "viewport": [
+        1440,
+        1000
+      ],
+      "worst": {
+        "color": "rgb(135, 79, 87)",
+        "label": "day/expressive/#000000",
+        "ratio": 4.666,
+        "required": 4.5,
+        "selector": "",
+        "text": "APPEARANCE"
+      }
+    },
+    {
+      "configuration": "day-soft",
+      "cases": 30,
+      "checks": 27489,
+      "failures": [],
+      "minimum": 4.655,
+      "unsupported": [],
+      "viewport": [
+        1440,
+        1000
+      ],
+      "worst": {
+        "color": "rgb(107, 91, 95)",
+        "label": "day/soft/#000000",
+        "ratio": 4.655,
+        "required": 4.5,
+        "selector": "",
+        "text": "APPEARANCE"
+      }
+    },
+    {
+      "configuration": "day-vibrant",
+      "cases": 30,
+      "checks": 27489,
+      "failures": [],
+      "minimum": 4.675,
+      "unsupported": [],
+      "viewport": [
+        1440,
+        1000
+      ],
+      "worst": {
+        "color": "rgb(122, 78, 104)",
+        "label": "day/vibrant/#000000",
+        "ratio": 4.675,
+        "required": 4.5,
+        "selector": "",
+        "text": "APPEARANCE"
+      }
+    },
+    {
+      "configuration": "night-content",
+      "cases": 30,
+      "checks": 27489,
+      "failures": [],
+      "minimum": 4.528,
+      "unsupported": [],
+      "viewport": [
+        1440,
+        1000
+      ],
+      "worst": {
+        "color": "rgb(99, 101, 101)",
+        "label": "night/content/#FFFFFF",
+        "ratio": 4.528,
+        "required": 3,
+        "selector": "fas fa-house",
+        "text": "icon"
+      }
+    },
+    {
+      "configuration": "night-expressive",
+      "cases": 30,
+      "checks": 27489,
+      "failures": [],
+      "minimum": 4.897,
+      "unsupported": [],
+      "viewport": [
+        1440,
+        1000
+      ],
+      "worst": {
+        "color": "rgba(255, 242, 233, 0.96)",
+        "label": "night/tab/在线音源",
+        "ratio": 4.897,
+        "required": 4.5,
+        "selector": "search-input",
+        "text": "试试 rain / forest / cafe / fireplace…"
+      }
+    },
+    {
+      "configuration": "night-soft",
+      "cases": 30,
+      "checks": 27489,
+      "failures": [],
+      "minimum": 4.897,
+      "unsupported": [],
+      "viewport": [
+        1440,
+        1000
+      ],
+      "worst": {
+        "color": "rgba(255, 242, 233, 0.96)",
+        "label": "night/tab/在线音源",
+        "ratio": 4.897,
+        "required": 4.5,
+        "selector": "search-input",
+        "text": "试试 rain / forest / cafe / fireplace…"
+      }
+    },
+    {
+      "configuration": "night-vibrant",
+      "cases": 30,
+      "checks": 27489,
+      "failures": [],
+      "minimum": 4.897,
+      "unsupported": [],
+      "viewport": [
+        1440,
+        1000
+      ],
+      "worst": {
+        "color": "rgba(255, 242, 233, 0.96)",
+        "label": "night/tab/在线音源",
+        "ratio": 4.897,
+        "required": 4.5,
+        "selector": "search-input",
+        "text": "试试 rain / forest / cafe / fireplace…"
+      }
+    }
+  ],
+  "additionalChecks": [
+    {
+      "configuration": "390px night soft",
+      "viewport": [
+        390,
+        844
+      ],
+      "cases": 30,
+      "checks": 26948,
+      "minimum": 4.897,
+      "failures": 0
+    },
+    {
+      "configuration": "390px day soft",
+      "viewport": [
+        390,
+        844
+      ],
+      "cases": 30,
+      "checks": 1589,
+      "minimum": 5.069,
+      "failures": 0
+    },
+    {
+      "configuration": "768px day content",
+      "viewport": [
+        768,
+        1024
+      ],
+      "cases": 30,
+      "checks": 26949,
+      "minimum": 4.522,
+      "failures": 0
+    },
+    {
+      "configuration": "1440px appearance soft day/night",
+      "viewport": [
+        1440,
+        1000
+      ],
+      "cases": 48,
+      "checks": 1680,
+      "minimum": 4.655,
+      "failures": 0
+    }
+  ],
+  "wallpaper": [
+    {
+      "alpha": "linear-gradient(135deg, rgba(242, 179, 157, 0.05) 0%, rgba(0, 0, 0, 0) 50%), linear-gradient(225deg, rgba(147, 197, 253, 0.03), rgba(0, 0, 0, 0) 50%), linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.05)), none",
+      "mode": "day",
+      "popover": "rgb(250, 228, 221)",
+      "top": "rgb(254, 234, 227)",
+      "wallpaper": "#ffffff"
+    },
+    {
+      "alpha": "linear-gradient(135deg, rgba(242, 179, 157, 0.05) 0%, rgba(0, 0, 0, 0) 50%), linear-gradient(225deg, rgba(147, 197, 253, 0.03), rgba(0, 0, 0, 0) 50%), linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.05)), none",
+      "mode": "day",
+      "popover": "rgb(250, 228, 221)",
+      "top": "rgb(254, 234, 227)",
+      "wallpaper": "#000000"
+    },
+    {
+      "alpha": "linear-gradient(135deg, rgba(242, 179, 157, 0.05) 0%, rgba(0, 0, 0, 0) 50%), linear-gradient(225deg, rgba(147, 197, 253, 0.03), rgba(0, 0, 0, 0) 50%), linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.05)), none",
+      "mode": "night",
+      "popover": "rgb(41, 29, 25)",
+      "top": "rgb(34, 23, 20)",
+      "wallpaper": "#ffffff"
+    },
+    {
+      "alpha": "linear-gradient(135deg, rgba(242, 179, 157, 0.05) 0%, rgba(0, 0, 0, 0) 50%), linear-gradient(225deg, rgba(147, 197, 253, 0.03), rgba(0, 0, 0, 0) 50%), linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.05)), none",
+      "mode": "night",
+      "popover": "rgb(41, 29, 25)",
+      "top": "rgb(34, 23, 20)",
+      "wallpaper": "#000000"
+    }
+  ],
+  "keyboard": {
+    "method": "Real Tab key",
+    "control": "Apps navigation",
+    "focusVisible": true,
+    "outline": "rgb(249, 183, 161) solid 2px"
+  }
+}
