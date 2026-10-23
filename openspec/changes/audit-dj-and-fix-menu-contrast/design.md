@@ -1,6 +1,6 @@
 ## Context
 
-See proposal.md for motivation. The frontend already generates Material 3 semantic roles with the installed material-color-utilities package, but TopMenu and AtmospherePanel still combine legacy translucent gradients, hardcoded white ink and locally overridden warm colors. Global accent ink is estimated against the page rather than every individual translucent control. The mobile dock uses color-mix with a gradient operand, which is invalid CSS. DJ is confirmed as https://dj.shizuki.site; initial browser access failed with ERR_CONNECTION_CLOSED, so connectivity must be verified before claiming feature coverage.
+See proposal.md for motivation. The frontend already generates Material 3 semantic roles with the installed material-color-utilities package, but TopMenu and AtmospherePanel still combine legacy translucent gradients, hardcoded white ink and locally overridden warm colors. Global accent ink is estimated against the page rather than every individual translucent control. The mobile dock uses color-mix with a gradient operand, which is invalid CSS. The user corrected the DJ URL to https://dj.shizuki.online/#/; it serves the Bible reading application. The earlier ERR_CONNECTION_CLOSED at dj.shizuki.site was a check of an incorrect URL and does not describe the application. Authenticated QA evidence and exact coverage limits are in dj-audit.md.
 
 ## Goals / Non-Goals
 

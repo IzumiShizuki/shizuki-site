@@ -1,0 +1,154 @@
+{
+  "failures": [],
+  "manual": [],
+  "minRatio": 5.982,
+  "navigation": [
+    {
+      "background": [
+        249,
+        250,
+        251
+      ],
+      "gradient": false,
+      "ink": "rgb(75, 85, 99)",
+      "navigation": true,
+      "ratio": 7.232,
+      "required": 4.5,
+      "tag": "SPAN",
+      "text": "今日"
+    },
+    {
+      "background": [
+        249,
+        250,
+        251
+      ],
+      "gradient": false,
+      "ink": "rgb(75, 85, 99)",
+      "navigation": true,
+      "ratio": 7.232,
+      "required": 4.5,
+      "tag": "SPAN",
+      "text": "阅读"
+    },
+    {
+      "background": [
+        249,
+        250,
+        251
+      ],
+      "gradient": false,
+      "ink": "rgb(75, 85, 99)",
+      "navigation": true,
+      "ratio": 7.232,
+      "required": 4.5,
+      "tag": "SPAN",
+      "text": "日历"
+    },
+    {
+      "background": [
+        249,
+        250,
+        251
+      ],
+      "gradient": false,
+      "ink": "rgb(75, 85, 99)",
+      "navigation": true,
+      "ratio": 7.232,
+      "required": 4.5,
+      "tag": "SPAN",
+      "text": "资源"
+    },
+    {
+      "background": [
+        249,
+        250,
+        251
+      ],
+      "gradient": false,
+      "ink": "rgb(75, 85, 99)",
+      "navigation": true,
+      "ratio": 7.232,
+      "required": 4.5,
+      "tag": "SPAN",
+      "text": "小组"
+    },
+    {
+      "background": [
+        249,
+        250,
+        251
+      ],
+      "gradient": false,
+      "ink": "rgb(75, 85, 99)",
+      "navigation": true,
+      "ratio": 7.232,
+      "required": 4.5,
+      "tag": "BUTTON",
+      "text": "读经 Todo"
+    },
+    {
+      "background": [
+        249,
+        250,
+        251
+      ],
+      "gradient": false,
+      "ink": "rgb(17, 24, 39)",
+      "navigation": true,
+      "ratio": 16.975,
+      "required": 4.5,
+      "tag": "BUTTON",
+      "text": "发现"
+    },
+    {
+      "background": [
+        249,
+        250,
+        251
+      ],
+      "gradient": false,
+      "ink": "rgb(55, 65, 81)",
+      "navigation": true,
+      "ratio": 9.863,
+      "required": 4.5,
+      "tag": "BUTTON",
+      "text": "我的计划"
+    },
+    {
+      "background": [
+        249,
+        250,
+        251
+      ],
+      "gradient": false,
+      "ink": "rgb(55, 65, 81)",
+      "navigation": true,
+      "ratio": 9.863,
+      "required": 4.5,
+      "tag": "BUTTON",
+      "text": "已保存"
+    },
+    {
+      "background": [
+        249,
+        250,
+        251
+      ],
+      "gradient": false,
+      "ink": "rgb(75, 85, 99)",
+      "navigation": true,
+      "ratio": 7.232,
+      "required": 4.5,
+      "tag": "SPAN",
+      "text": "0"
+    }
+  ],
+  "overflow": false,
+  "samples": 141,
+  "url": "https://dj.shizuki.online/#/bible/plans",
+  "viewport": [
+    390,
+    844
+  ]
+}

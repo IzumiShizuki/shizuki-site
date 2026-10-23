@@ -1,0 +1,182 @@
+{
+  "failures": [],
+  "manual": [],
+  "minRatio": 6.19,
+  "navigation": [
+    {
+      "background": [
+        249,
+        250,
+        251
+      ],
+      "gradient": false,
+      "ink": "rgb(75, 85, 99)",
+      "navigation": true,
+      "ratio": 7.232,
+      "required": 4.5,
+      "tag": "SPAN",
+      "text": "今日"
+    },
+    {
+      "background": [
+        229,
+        231,
+        235
+      ],
+      "gradient": false,
+      "ink": "rgb(17, 24, 39)",
+      "navigation": true,
+      "ratio": 14.328,
+      "required": 4.5,
+      "tag": "SPAN",
+      "text": "阅读"
+    },
+    {
+      "background": [
+        249,
+        250,
+        251
+      ],
+      "gradient": false,
+      "ink": "rgb(75, 85, 99)",
+      "navigation": true,
+      "ratio": 7.232,
+      "required": 4.5,
+      "tag": "SPAN",
+      "text": "日历"
+    },
+    {
+      "background": [
+        249,
+        250,
+        251
+      ],
+      "gradient": false,
+      "ink": "rgb(75, 85, 99)",
+      "navigation": true,
+      "ratio": 7.232,
+      "required": 4.5,
+      "tag": "SPAN",
+      "text": "资源"
+    },
+    {
+      "background": [
+        249,
+        250,
+        251
+      ],
+      "gradient": false,
+      "ink": "rgb(75, 85, 99)",
+      "navigation": true,
+      "ratio": 7.232,
+      "required": 4.5,
+      "tag": "SPAN",
+      "text": "小组"
+    },
+    {
+      "background": [
+        229,
+        231,
+        235
+      ],
+      "gradient": false,
+      "ink": "rgb(17, 24, 39)",
+      "navigation": true,
+      "ratio": 14.328,
+      "required": 4.5,
+      "tag": "BUTTON",
+      "text": "读经 Todo"
+    },
+    {
+      "background": [
+        249,
+        250,
+        251
+      ],
+      "gradient": false,
+      "ink": "rgb(40, 86, 56)",
+      "navigation": true,
+      "ratio": 8.108,
+      "required": 4.5,
+      "tag": "A",
+      "text": "浏览站内视频与书卷资源"
+    },
+    {
+      "background": [
+        249,
+        250,
+        251
+      ],
+      "gradient": false,
+      "ink": "rgb(40, 86, 56)",
+      "navigation": true,
+      "ratio": 8.108,
+      "required": 4.5,
+      "tag": "A",
+      "text": "浏览本站原创章节计划"
+    },
+    {
+      "background": [
+        255,
+        255,
+        255
+      ],
+      "gradient": false,
+      "ink": "rgb(17, 24, 39)",
+      "navigation": true,
+      "ratio": 17.74,
+      "required": 4.5,
+      "tag": "BUTTON",
+      "text": "‹"
+    },
+    {
+      "background": [
+        255,
+        255,
+        255
+      ],
+      "gradient": false,
+      "ink": "rgb(17, 24, 39)",
+      "navigation": true,
+      "ratio": 17.74,
+      "required": 4.5,
+      "tag": "SPAN",
+      "text": "上一章"
+    },
+    {
+      "background": [
+        255,
+        255,
+        255
+      ],
+      "gradient": false,
+      "ink": "rgb(17, 24, 39)",
+      "navigation": true,
+      "ratio": 17.74,
+      "required": 4.5,
+      "tag": "SPAN",
+      "text": "下一章"
+    },
+    {
+      "background": [
+        255,
+        255,
+        255
+      ],
+      "gradient": false,
+      "ink": "rgb(17, 24, 39)",
+      "navigation": true,
+      "ratio": 17.74,
+      "required": 4.5,
+      "tag": "BUTTON",
+      "text": "›"
+    }
+  ],
+  "overflow": false,
+  "samples": 95,
+  "url": "https://dj.shizuki.online/#/bible/read?book=LEV&chapter=1",
+  "viewport": [
+    390,
+    844
+  ]
+}
