@@ -440,6 +440,7 @@ function handleRequireCollectLogin() {
 .track-cover {
   width: 40px;
   height: 40px;
+  flex-shrink: 0;
   border-radius: 8px;
   background-size: cover;
   background-position: center;

@@ -216,8 +216,10 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--theme-accen
 .fm-track-list { display: grid; gap: 10px; }
 .fm-track { display: flex; align-items: center; gap: 12px; }
 .fm-track-play { flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; border: 0; padding: 6px; color: var(--theme-text); background: transparent; text-align: left; cursor: pointer; }
-.fm-track-play img { width: 48px; height: 48px; object-fit: cover; border-radius: 8px; }
-.fm-track-play span { flex: 1; display: grid; gap: 5px; }
+.fm-track-play img, .fm-track-play > i:first-child { width: 48px; height: 48px; flex-shrink: 0; object-fit: cover; border-radius: 8px; }
+.fm-track-play > i:first-child { display: grid; place-items: center; background: var(--theme-surface-soft); }
+.fm-track-play span { flex: 1; min-width: 0; display: grid; gap: 5px; }
+.fm-track-play strong, .fm-track-play small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .liked, .error { color: #ec4141; }
 @media (max-width: 560px) { .panel { padding: 14px; } .podcast-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 </style>

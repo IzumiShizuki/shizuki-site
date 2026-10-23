@@ -473,12 +473,15 @@
 /* 封面缩略 + hover 播放遮罩 */
 .music-home-view .te-cover-wrap {
   position: relative;
+  display: block;
   width: 40px;
   height: 40px;
   flex-shrink: 0;
+  border-radius: 8px;
 }
 
 .music-home-view .te-cover-wrap .track-cover {
+  display: block;
   width: 100%;
   height: 100%;
 }
