@@ -47,14 +47,20 @@
         class="workspace-grid fade-stagger"
         :class="{ conversation: activePrimaryMode === 'conversation' || activePrimaryMode === 'meguri' }"
       >
-        <section class="workspace-main liquid-material" :class="{ 'town-stage': activePrimaryMode === 'town' }">
+        <TownStudio
+          v-show="activePrimaryMode === 'town'"
+          class="town-playable-stage"
+          :active="activePrimaryMode === 'town'"
+          @destination="handlePlayableTownDestination"
+        />
+        <section ref="townScenePanelRef" class="workspace-main liquid-material" :class="{ 'town-stage': activePrimaryMode === 'town' }" tabindex="-1">
           <template v-if="activePrimaryMode === 'town'">
             <template v-if="townSubView === 'editor'">
               <div class="stage-head">
                 <div class="stage-copy">
                   <span class="stage-kicker">RPGMaker Editor Entry</span>
-                  <h2>地图资源编辑入口</h2>
-                  <p>这里负责承接上传、解析、预览和挂接四段链路。当前支持 zip/json/image 资源导入，并把最近一次预览挂接到指定小镇场景。</p>
+                  <h2>RPGMaker 资源资料</h2>
+                  <p>管理员可在此解析 zip/json/image 的元数据。上方「编辑小镇」可直接绘制和试玩原生地图；此处导入不执行 RPGMaker 项目。</p>
                 </div>
                 <div class="stage-actions">
                   <button
@@ -118,7 +124,7 @@
                   <span class="editor-step">04</span>
                   <strong>配置挂接</strong>
                   <p>
-                    当前挂接目标：{{ townAssetEditor.preview?.attachedSceneCode || townAssetEditor.attachedSceneCode || '未选择' }}。不会在一期实现 RPGMaker 运行时，只做展示挂接。
+                    当前资料挂接目标：{{ townAssetEditor.preview?.attachedSceneCode || townAssetEditor.attachedSceneCode || '未选择' }}。此入口只检查外部资源资料，不会替换上方可游玩的地图。
                   </p>
                   <span class="editor-tag">{{ townAssetEditor.preview ? '已挂接预览' : '挂接待确认' }}</span>
                 </article>
@@ -153,12 +159,12 @@
             <template v-else>
               <div class="stage-head">
                 <div class="stage-copy">
-                  <span class="stage-kicker">RPG Town Map</span>
+                  <span class="stage-kicker">场景资料与 AI 入口</span>
                   <h2>{{ selectedTownScene?.title || 'AI 小镇公开漫游' }}</h2>
                   <p>
                     {{
                       selectedTownScene?.description ||
-                      '默认落点是公开漫游地图。点击地图节点或场景条目，右侧会刷新场景描述、NPC 展示与权限入口。'
+                      '上方小镇可直接游玩。这里可查看图书馆、教室等场景资料，并进入已有 AI 与账务功能。'
                     }}
                   </p>
                 </div>
@@ -300,17 +306,13 @@
               <p v-if="townErrorText" class="feedback-banner error">{{ townErrorText }}</p>
 
               <div class="town-map-shell">
-                <div class="town-map-board">
-                  <div class="map-backdrop"></div>
-                  <div class="map-gridline"></div>
-
+                <div class="town-map-board town-destinations" role="group" aria-label="场景快捷入口">
                   <button
                     v-for="node in townMapNodes"
                     :key="node.sceneCode"
                     class="map-node ripple-trigger"
                     :class="[`tone-${node.tone}`, { active: node.sceneCode === selectedTownSceneCode }]"
                     type="button"
-                    :style="mapNodeStyle(node)"
                     @click="handleTownDestinationClick(node.sceneCode)"
                   >
                     <span v-if="node.kind === 'finance'" class="map-node-mark" aria-hidden="true">
@@ -331,7 +333,7 @@
                     @click="handleTownDestinationClick(scene.sceneCode)"
                   >
                     <strong>{{ scene.title }}</strong>
-                    <span>{{ scene.npcCount }} 个展示点</span>
+                    <span>{{ scene.metaLabel }}</span>
                   </button>
                 </div>
               </div>
@@ -373,21 +375,21 @@
           <template v-if="townSubView === 'editor'">
             <div class="side-panel-head">
               <span class="side-kicker">Editor Scope</span>
-              <h3>编辑边界</h3>
+              <h3>资源导入说明</h3>
             </div>
 
             <div class="side-info-list">
               <article class="side-info-card">
-                <strong>只做地图资源链路</strong>
-                <p>本轮编辑入口只承接上传、解析、预览和挂接，不混入场景运营配置。</p>
+                <strong>地图绘制与外部资料</strong>
+                <p>上方编辑器绘制可游玩的原生地图；这里保留外部资源的上传、解析和资料挂接。</p>
               </article>
               <article class="side-info-card">
                 <strong>管理员专属入口</strong>
                 <p>编辑按钮只对管理员显示，普通用户仍然停留在公开漫游视角，不暴露后台编辑语义。</p>
               </article>
               <article class="side-info-card">
-                <strong>为后续任务预留结构</strong>
-                <p>这一层已经接上真实上传、解析和预览链路；后续只需要继续细化挂接表现，而不用重做 AI Hub 壳层。</p>
+                <strong>浏览器本地地图</strong>
+                <p>上方地图保存于当前浏览器，可导出 JSON 备份。导入 RPGMaker 项目资料不会覆盖本地地图。</p>
               </article>
             </div>
           </template>
@@ -520,6 +522,7 @@ import { computed, defineAsyncComponent, onMounted, reactive, ref, watch } from 
 import { useRoute } from 'vue-router';
 import AiDialog from '../components/AiDialog.vue';
 import AiSessionRail from '../components/AiSessionRail.vue';
+import TownStudio from '../components/town/TownStudio.vue';
 import { useCompanionMode } from '../composables/useCompanionMode';
 import { useAuthSession } from '../composables/useAuthSession';
 import {
@@ -556,6 +559,7 @@ const townSubView = ref('map');
 const conversationChatMode = ref('normal');
 const conversationOpenPayload = ref(null);
 const sessionRailRef = ref(null);
+const townScenePanelRef = ref(null);
 const activeConversationSessionId = ref('');
 const sessionHistoryLoadingId = ref('');
 const townLoading = ref(false);
@@ -878,6 +882,13 @@ async function handleTownDestinationClick(sceneCode) {
   } catch (error) {
     townErrorText.value = resolveTownError(error);
   }
+}
+
+async function handlePlayableTownDestination(sceneCode) {
+  activateTownWorkspace('map');
+  await handleTownDestinationClick(sceneCode);
+  townScenePanelRef.value?.scrollIntoView?.({ block: 'start', behavior: window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+  townScenePanelRef.value?.focus?.({ preventScroll: true });
 }
 
 async function refreshTownStage() {
@@ -1314,13 +1325,6 @@ async function jumpToHomeExterior() {
   await loadTownScene('home_gate');
 }
 
-function mapNodeStyle(node) {
-  return {
-    left: `${node.coordX}%`,
-    top: `${node.coordY}%`
-  };
-}
-
 const NPC_AVATAR_TONES = Object.freeze([
   ['rgba(255, 190, 118, 0.9)', 'rgba(255, 138, 76, 0.72)'],
   ['rgba(140, 220, 255, 0.9)', 'rgba(88, 158, 236, 0.72)'],
@@ -1505,6 +1509,29 @@ watch(
   grid-template-columns: 1fr;
 }
 
+.town-playable-stage {
+  grid-column: 1 / -1;
+  min-width: 0;
+  padding: 18px;
+  background: var(--ai-hub-surface-elevated);
+  border-radius: 16px;
+}
+
+.town-map-board.town-destinations {
+  min-height: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px;
+}
+
+.town-destinations .map-node {
+  position: static;
+  transform: none;
+  min-width: 110px;
+  max-width: 100%;
+}
+
 .ai-hub-page .workspace-main,
 .ai-hub-page .workspace-side {
   --liquid-bg: var(--ai-hub-surface-elevated);
@@ -1526,6 +1553,7 @@ watch(
 .workspace-main.town-stage {
   align-content: start;
   align-self: start;
+  scroll-margin-top: 140px;
 }
 
 .workspace-side {
@@ -1633,28 +1661,6 @@ watch(
     var(--ai-hub-surface);
   border: 1px solid var(--ai-hub-border-strong);
   box-shadow: var(--ai-hub-shadow);
-}
-
-.map-backdrop,
-.map-gridline {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-}
-
-.map-backdrop {
-  background:
-    linear-gradient(135deg, rgba(var(--accent-rgb), 0.055) 25%, transparent 25%) 0 0 / 64px 64px,
-    linear-gradient(225deg, rgba(var(--accent-soft-rgb), 0.035) 25%, transparent 25%) 0 0 / 64px 64px;
-  opacity: 0.55;
-}
-
-.map-gridline {
-  background-image:
-    linear-gradient(rgba(var(--accent-rgb), 0.065) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(var(--accent-rgb), 0.065) 1px, transparent 1px);
-  background-size: 42px 42px;
-  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.85), transparent 100%);
 }
 
 .map-node {
@@ -2378,6 +2384,14 @@ watch(
     min-width: 118px;
     padding: 10px 12px;
   }
+}
+
+@media (max-width: 680px) {
+  .ai-hub-page .workspace-shell { padding: 8px; border-radius: 16px; gap: 10px; }
+  .town-playable-stage { padding: 8px; border-radius: 12px; }
+  .mode-switch { grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); width: 100%; padding: 4px; gap: 4px; }
+  .mode-tab { min-height: 44px; padding: 8px 5px; gap: 5px; font-size: 12px; }
+  .topbar-status { display: none; }
 }
 
 /* ---------- 标准聊天布局：左侧会话栏 + 右侧对话区 ---------- */

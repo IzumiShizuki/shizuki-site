@@ -177,6 +177,7 @@ async function mountPage() {
   const wrapper = mount(AiHubPage, {
     global: {
       stubs: {
+        TownStudio: { props: ['active'], template: '<div class="town-studio-stub">可游玩的小镇</div>' },
         AiDialog: AiDialogStub,
         MeguriPage: MeguriPageStub
       }
