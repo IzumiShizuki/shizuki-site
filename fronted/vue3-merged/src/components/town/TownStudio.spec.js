@@ -3,10 +3,11 @@ import { flushPromises, mount } from '@vue/test-utils';
 import { createMemoryHistory, createRouter } from 'vue-router';
 import TownStudio from './TownStudio.vue';
 import { TOWN_SAVE_KEY, createStarterMap, tileIndex } from './townMap';
+import { sceneSaveKey } from './townScenes';
 
 let wrappers = [];
-async function openStudio() {
-  const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/', component: TownStudio }, { path: '/other', component: { template: '<div />' } }] });
+async function openStudio(initialScene = 'kenney') {
+  const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/', component: { components: { TownStudio }, template: `<TownStudio initial-scene="${initialScene}" />` } }, { path: '/other', component: { template: '<div />' } }] });
   await router.push('/'); await router.isReady();
   const root = mount({ template: '<router-view />' }, { global: { plugins: [router] } });
   wrappers.push(root); await flushPromises(); const wrapper = root.findComponent(TownStudio); wrapper.testRouter = router; return wrapper;
@@ -146,5 +147,40 @@ describe('TownStudio interactions', () => {
       expect(JSON.parse(contents)).toEqual(createStarterMap());
       expect(w.text()).toContain('请在浏览器下载列表中确认');
     } finally { vi.useRealTimers(); }
+  });
+
+  it('opens the downloaded full scene with source attribution and a bounded palette', async () => {
+    const w = await openStudio('victorian');
+    expect(w.get('.town-title h2').text()).toBe('维多利亚生活街区');
+    expect(w.get('canvas').attributes('data-map-width')).toBe('128');
+    expect(w.get('.town-credit').text()).toContain('bluecarrot16');
+    expect(w.get('.town-credit').text()).toContain('完整作者与许可');
+    await button(w, '编辑小镇').trigger('click'); await button(w, '物件').trigger('click');
+    expect(w.findAll('.tile-palette.objects button')).toHaveLength(48);
+    await w.get('[aria-label="下一页素材"]').trigger('click');
+    expect(w.get('.palette-pagination span').text()).toMatch(/^2 \/ /);
+  });
+
+  it('requires a concrete unsaved switch choice and keeps the two scene saves separate', async () => {
+    const w = await openStudio(); await button(w, '编辑小镇').trigger('click');
+    await w.get('.field-label input').setValue('我的旧村庄');
+    await w.get('[aria-label="游玩场景"]').setValue('victorian');
+    expect(w.get('.town-title h2').text()).toBe('我的旧村庄'); expect(w.find('.scene-confirm').exists()).toBe(true);
+    await button(w, '取消').trigger('click'); expect(w.find('.scene-confirm').exists()).toBe(false);
+    await w.get('[aria-label="游玩场景"]').setValue('victorian'); await button(w, '保存并切换').trigger('click');
+    expect(w.get('.town-title h2').text()).toBe('维多利亚生活街区');
+    expect(JSON.parse(localStorage.getItem(TOWN_SAVE_KEY)).name).toBe('我的旧村庄');
+    await w.get('.field-label input').setValue('我的完整街区'); await button(w, '保存地图').trigger('click');
+    expect(JSON.parse(localStorage.getItem(sceneSaveKey('victorian'))).name).toBe('我的完整街区');
+    await w.get('[aria-label="游玩场景"]').setValue('kenney'); expect(w.get('.town-title h2').text()).toBe('我的旧村庄');
+    await w.get('[aria-label="游玩场景"]').setValue('victorian'); expect(w.get('.town-title h2').text()).toBe('我的完整街区');
+  });
+
+  it('samples an existing map object without changing the draft or painting on drag', async () => {
+    const w = await openStudio(); await button(w, '编辑小镇').trigger('click'); await button(w, '吸管').trigger('click');
+    // Source camera is centered on (18,16); fountain is at (18,13).
+    await pointer(w, 'pointerdown', 400, 164); await pointer(w, 'pointermove', 432, 164); await pointer(w, 'pointerup', 432, 164);
+    expect(w.text()).toContain('已取用物件瓦片 #135'); expect(w.text()).not.toContain('有未保存修改');
+    expect(w.get('.tile-palette.objects button[aria-pressed="true"]').attributes('aria-label')).toBe('喷泉');
   });
 });

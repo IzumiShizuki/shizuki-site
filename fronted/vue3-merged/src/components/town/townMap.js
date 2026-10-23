@@ -1,3 +1,5 @@
+import victorianTileset from './data/victorian-tileset.json';
+
 export const MAP_VERSION = 1;
 export const TOWN_SAVE_KEY = 'shizuki.ai-town.map.v1';
 export const ATLAS_URL = '/town/tiny-town.png';
@@ -12,6 +14,11 @@ export const PALETTES = Object.freeze([
 ]);
 export const TILE_NAMES = Object.freeze({ 0: '草地', 1: '碎草', 2: '花草', 13: '土路', 37: '路边', 43: '石板路', 132: '教堂十字', 133: '池水', 134: '木桥', 135: '喷泉', 136: '路灯' });
 
+const VICTORIAN_BLOCKED = new Set(victorianTileset.blocked);
+const KENNEY_META = Object.freeze({ id: 'kenney', atlasUrl: ATLAS_URL, sourceSize: 16, columns: 12, rows: 11, groundIds: TERRAIN_IDS, palettes: PALETTES, creditName: 'Kenney Tiny Town · CC0', creditUrl: 'https://kenney.nl/assets/tiny-town', detailsUrl: '/town/README.md' });
+const VICTORIAN_META = Object.freeze({ ...victorianTileset, atlasUrl: '/town/victorian/atlas.png', rows: Math.ceil(victorianTileset.tileCount / victorianTileset.columns), groundIds: victorianTileset.groundPalette, palettes: [{ name: '原图建筑与街景', tiles: victorianTileset.objectPalette }], creditName: 'bluecarrot16 与 LPC 作者 · CC BY-SA 4.0', creditUrl: victorianTileset.sourcePage, detailsUrl: '/town/victorian/CREDITS.txt' });
+export function townTileset(map) { return map?.tileset === 'lpc-victorian' ? VICTORIAN_META : KENNEY_META; }
+
 export function cloneMap(map) { return JSON.parse(JSON.stringify(map)); }
 export function tileIndex(map, x, y) { return y * map.width + x; }
 export function inBounds(map, x, y) { return Number.isInteger(x) && Number.isInteger(y) && x >= 0 && y >= 0 && x < map.width && y < map.height; }
@@ -21,17 +28,22 @@ export function isWalkable(map, x, y, { ignoreResidents = false } = {}) {
   if (map.collision[i] === 1) return false;
   if (!ignoreResidents && map.events.some((e) => e.kind === 'npc' && e.x === x && e.y === y)) return false;
   if (map.collision[i] === 0) return true;
+  if (map.tileset === 'lpc-victorian') return !VICTORIAN_BLOCKED.has(map.ground[i]) && !VICTORIAN_BLOCKED.has(map.objects[i]);
   return map.ground[i] !== TILE.WATER && map.objects[i] === -1;
 }
 
 export function validateMap(raw) {
   const fail = (message) => { throw new Error(message); };
   if (!raw || typeof raw !== 'object' || raw.version !== MAP_VERSION) fail('地图版本不支持，请导入本编辑器导出的 v1 JSON 地图。');
+  if (raw.tileset !== undefined && raw.tileset !== 'lpc-victorian') fail('地图图集不受支持，请选择已内置的场景。');
+  const imported = raw.tileset === 'lpc-victorian';
+  const maxSize = imported ? 128 : 64;
   const { width, height } = raw;
-  if (!Number.isInteger(width) || !Number.isInteger(height) || width < 12 || height < 12 || width > 64 || height > 64) fail('地图尺寸须为 12–64 格。');
+  if (!Number.isInteger(width) || !Number.isInteger(height) || width < 12 || height < 12 || width > maxSize || height > maxSize) fail(`地图尺寸须为 12–${maxSize} 格。`);
   const size = width * height;
   const checkLayer = (name, allowed) => {
-    if (!Array.isArray(raw[name]) || raw[name].length !== size || raw[name].some((n) => !Number.isInteger(n) || !allowed.includes(n))) fail(`${name} 图层长度或瓦片编号无效。`);
+    const accepts = typeof allowed === 'function' ? allowed : (n) => allowed.includes(n);
+    if (!Array.isArray(raw[name]) || raw[name].length !== size || raw[name].some((n) => !Number.isInteger(n) || !accepts(n))) fail(`${name} 图层长度或瓦片编号无效。`);
     return [...raw[name]];
   };
   const text = (value, max, label) => {
@@ -39,8 +51,9 @@ export function validateMap(raw) {
     return value;
   };
   const map = {
-    version: MAP_VERSION, name: text(raw.name, 60, '地图名称'), width, height,
-    ground: checkLayer('ground', TERRAIN_IDS), objects: checkLayer('objects', [-1, ...OBJECT_IDS]),
+    version: MAP_VERSION, ...(imported ? { tileset: 'lpc-victorian' } : {}), name: text(raw.name, 60, '地图名称'), width, height,
+    ground: checkLayer('ground', imported ? (n) => n >= 0 && n < victorianTileset.groundCount : TERRAIN_IDS),
+    objects: checkLayer('objects', imported ? (n) => n === -1 || (n >= victorianTileset.groundCount && n < victorianTileset.tileCount) : [-1, ...OBJECT_IDS]),
     collision: checkLayer('collision', [-1, 0, 1]), spawn: { x: raw.spawn?.x, y: raw.spawn?.y }, events: []
   };
   if (!Array.isArray(raw.events) || raw.events.length > 100) fail('交互点须为数组且不能超过 100 个。');

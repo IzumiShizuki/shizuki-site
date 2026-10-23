@@ -1,0 +1,987 @@
+LPC Victorian Town Preview
+Source: https://opengameart.org/content/lpc-victorian-town-decorations
+Original download: https://opengameart.org/sites/default/files/lpc-victorian-preview-see-readme.zip
+
+Original artwork: CC BY-SA 4.0. Original Tiled XML data: CC0.
+Conversion: source terrain/building layers are composited into two cell layers, with no layout changes. Collision, spawn, dialogue, resident figures and building roles are application additions, not claims about the original artwork. Adapted artwork remains CC BY-SA 4.0.
+
+Complete original credits follow, unabridged:
+
+
+========================================================================
+CREDITS-bricks.txt
+========================================================================
+
+"[LPC] Bricks" by bluecarrot16, Guido Bos, keith karnage, Lanea Zimmerman (Sharm), Casper Nilsson, Leonard Pabin, Buch, and ArMM1998
+
+
+Flowers, buildings and boxes; Interior wooden tiles; some old castle stuff 
+Guido Bos
+GPL v3 / CC-BY-SA 3.0
+https://opengameart.org/content/flowers-buildings-and-boxes-interior-wooden-tiles-some-old-castle-stuff
+
+Medieval town
+keith karnage
+CC-BY 3.0
+https://opengameart.org/content/medieval-town-0
+
+Liberated Pixel Cup (LPC) Base Assets 
+Lanea Zimmerman (Sharm)
+CC-BY-SA 3.0 / CC-BY 3.0 / GPL 3.0
+https://opengameart.org/content/liberated-pixel-cup-lpc-base-assets-sprites-map-tiles
+
+LPC C.Nilsson
+Casper Nilsson
+CC-BY-SA 3.0 / GPL 3.0
+https://opengameart.org/content/lpc-cnilsson
+
+Whispers of Avalon: Grassland Tileset
+Leonard Pabin
+CC-BY 3.0 / GPL 3.0 / GPL 2.0
+https://opengameart.org/content/whispers-of-avalon-grassland-tileset
+
+Outdoor 32x32 tileset
+Buch
+CC0
+https://opengameart.org/content/outdoor-32x32-tileset
+
+Zelda-like tilesets and sprites
+ArMM1998
+CC0
+https://opengameart.org/content/zelda-like-tilesets-and-sprites
+
+========================================================================
+CREDITS-container.txt
+========================================================================
+
+[LPC] Containers by bluecarrot16, Lanea Zimmerman (Sharm), William Thompson, Tuomo Untinen (Reemax), Evert, Buch, Blarumyrran, n2liquid, Jetrel, Guido Bos, Hyptosis, Bonsaiheldin, NaRNeRZz, PriorBlue, Jerom, 7Soul, and Wolthera van Hövell tot Westerflier (TheraHedwig). 
+
+Please credit all the above authors, include a link back to: https://opengameart.org/content/lpc-containers
+
+Based on: 
+
+LPC compatible Ancient Greek Architecture
+Wolthera van Hövell tot Westerflier (TheraHedwig)
+CC-BY-SA 3.0 / GPL 3.0
+https://opengameart.org/content/lpc-compatible-ancient-greek-architecture
+
+Liberated Pixel Cup (LPC) Base Assets (sprites & map tiles)
+Lanea Zimmerman (Sharm)
+CC-BY 3.0 / CC-BY-SA 3.0 / GPL 3.0
+http://opengameart.org/content/liberated-pixel-cup-lpc-base-assets-sprites-map-tiles
+
+LPC: Modified base tiles
+Lanea Zimmerman (Sharm), William Thompson
+CC-BY 3.0 / CC-BY-SA 3.0 / GPL 3.0 / OGA-BY 3.0
+http://opengameart.org/content/lpc-modified-base-tiles
+
+[LPC] House interior and decorations
+Tuomo Untinen (Reemax)
+CC-BY-SA 3.0 / GPL 3.0 / GPL 2.0
+http://opengameart.org/content/lpc-house-interior-and-decorations
+
+Cute dungeon LPC edit
+Evert, Buch, Sharm, William Thompson
+CC-BY 3.0
+http://opengameart.org/content/cute-dungeon-lpc-edit
+
+A cute dungeon
+Buch
+CC-BY 3.0
+https://opengameart.org/content/a-cute-dungeon
+
+Treasure chests, 32x32 and 16x16
+Blarumyrran
+CC0
+http://opengameart.org/content/treasure-chests-32x32-and-16x16
+
+RPG item set
+Jetrel
+CC0
+https://opengameart.org/content/rpg-item-set
+
+[LPC] Guido Bos entries cut up
+Guido Bos
+CC-BY-SA 3.0 / GPL 3.0
+https://opengameart.org/content/lpc-guido-bos-entries-cut-up
+
+Mage City Arcanos
+Hyptosis
+CC0
+https://opengameart.org/content/mage-city-arcanos
+
+[LPC] Dungeon Elements
+Lanea Zimmerman (Sharm), William.Thompsonj
+CC-BY 3.0 / GPL 3.0 / GPL 2.0 / OGA-BY 3.0
+https://opengameart.org/content/lpc-dungeon-elements
+
+Exterior 32x32 Town tileset
+n2liquid
+CC-BY-SA 4.0
+https://opengameart.org/content/exterior-32x32-town-tileset
+
+Treasure chests 32x32
+Bonsaiheldin
+CC-BY 4.0
+https://opengameart.org/content/treasure-chests-32x32
+
+LPC: Interior Castle Tiles
+Lanea Zimmerman (Sharm)
+CC-BY 3.0 / CC-BY-SA 3.0 / GPL 3.0 / OGA-BY 3.0
+https://opengameart.org/content/lpc-interior-castle-tiles
+
+Adventure Tileset (Unfinished)
+NaRNeRZz
+CC0
+https://opengameart.org/content/adventure-tileset-unfinished
+
+Recolor all the items!!!
+PriorBlue, Jerom, 7Soul
+CC-BY-SA 3.0
+https://opengameart.org/content/recolor-all-the-items
+
+32x32 fantasy tileset
+Jerom
+CC-BY-SA 3.0
+https://opengameart.org/content/32x32-fantasy-tileset
+
+420-Pixel-Art-Icons-for-RPG
+7soul
+CC0
+https://www.deviantart.com/7soul1/art/420-Pixel-Art-Icons-for-RPG-129892453
+
+========================================================================
+CREDITS-decorations-victorian.txt
+========================================================================
+
+[LPC] Victorian Town Decorations by bluecarrot16, Casper Nilsson, Lanea Zimmerman (Sharm), William Thompson, mold, AntumDeluge, Curt, Daniel Eddeland (daneeklu), caeles, George Bailey, Jetrel, Yar, Guido Bos, Ivan Voirol (Silver IV), Stephen Challener (Redshrike), the Open Surge team, Arthur Carvalho, Guilherme Vieira (n2liquid), NaRNeRZz, Diarandor, Armando Montero (ArMM1998), Tuomo Untinen (Reemax), Buch.
+
+License: CC-BY-SA 4.0
+
+## Based on: 
+
+LPC C.Nilsson
+Casper Nilsson
+CC-BY-SA 3.0 / GPL 3.0
+https://opengameart.org/content/lpc-cnilsson
+
+LPC Base Assets
+Lanea Zimmerman (AKA Sharm)
+CC-BY 3.0 / GPL 3.0
+https://opengameart.org/content/liberated-pixel-cup-lpc-base-assets-sprites-map-tiles
+
+[LPC] Signposts, graves, line cloths and scare crow
+Reemax
+CC-BY-SA 3.0 / GPL 3.0
+https://opengameart.org/content/lpc-signposts-graves-line-cloths-and-scare-crow
+
+LPC: Modified base tiles
+Lanea Zimmerman (Sharm), William Thompson
+CC-BY 3.0 / GPL 3.0 / OGA-BY 3.0
+https://opengameart.org/content/lpc-modified-base-tiles
+
+[LPC] Misc
+Lanea Zimmerman, William Thompson
+https://opengameart.org/content/lpc-misc
+
+LPC Lamp Posts Rework
+Curt, Lanea Zimmerman (Sharm), William.Thompsonj, & mold, reworked by AntumDeluge
+CC-BY 3.0 /GPL 3.0 / GPL 2.0 / OGA-BY 3.0
+https://opengameart.org/content/lpc-lamp-posts-rework
+
+[LPC] Farming tilesets, magic animations and UI elements
+Daniel Eddeland (daneeklu)
+CC-BY-SA 3.0 / GPL 3.0
+https://opengameart.org/content/lpc-farming-tilesets-magic-animations-and-ui-elements
+
+[LPC] Adobe Building Set
+Lanea Zimmerman (Sharm), William Thompson
+CC-BY 3.0 / GPL 3.0 / GPL 2.0 / OGA-BY 3.0
+https://opengameart.org/content/lpc-adobe-building-set
+
+[LPC] caeles' art
+caeles
+CC-BY-SA 3.0 / GPL 3.0
+https://opengameart.org/content/lpc-caeles-art
+
+[LPC] Arabic Elements
+Lanea Zimmerman, William Thompson
+CC-BY 3.0 / GPL 3.0 / GPL 2.0 / OGA-BY 3.0
+https://opengameart.org/content/lpc-arabic-elements
+
+[LPC] Water Fountain
+Curt, Sharm, William.Thompsonj
+CC-BY 3.0
+https://opengameart.org/content/lpc-water-fountain
+
+LPC: Interior Castle Tiles
+Lanea Zimmerman
+CC-BY 3.0 / GPL 3.0 / GPL 2.0 / OGA-BY 3.0
+https://opengameart.org/content/lpc-interior-castle-tiles
+
+16x16 Game Assets
+George Bailey
+CC-BY 4.0
+https://opengameart.org/content/16x16-game-assets
+
+RPG item set
+Jetrel
+CC0
+https://opengameart.org/content/rpg-item-set
+
+Isometric 64x64 Outside Tileset
+Yar
+CC-BY 3.0
+https://opengameart.org/content/isometric-64x64-outside-tileset
+
+[LPC] Guido Bos entries cut up
+Guido Bos
+CC-BY-SA 3.0 / GPL 3.0
+https://opengameart.org/content/lpc-guido-bos-entries-cut-up
+
+Basic map 32x32 by Silver IV
+Ivan Voirol (Silver IV)
+CC-BY 3.0 / GPL 3.0 / GPL 2.0
+https://opengameart.org/content/basic-map-32x32-by-silver-iv
+
+32x32 (and 16x16) RPG Tiles--Forest and some Interior Tiles
+Stephen Challener (Redshrike) and the Open Surge team (http://opensnc.sourceforge.net)commissioned by Gaurav Munjal
+CC-BY 3.0
+https://opengameart.org/content/32x32-and-16x16-rpg-tiles-forest-and-some-interior-tiles
+
+Exterior 32x32 Town tileset
+Arthur Carvalho; Copyright Guilherme Vieira (n2liquid), https://fb.com/sonettocommons
+CC-BY-SA 4.0
+https://opengameart.org/content/town-tileset-exterior-32x32
+
+
+
+
+Tileset and Characters - Unfinished
+NaRNeRZz
+CC0
+https://opengameart.org/content/tileset-and-characters-unfinished
+
+Solarus Fountain
+Diarandor for Children of Solarus (https://github.com/solarus-games/children-of-solarus), a game for the Solarus game engine (http://www.solarus-games.org/).
+CC-BY-SA 4.0
+https://opengameart.org/content/solarus-fountain
+
+Zelda-like tilesets and sprites
+Armando Montero (ArMM1998)
+CC0
+https://opengameart.org/content/zelda-like-tilesets-and-sprites
+
+[LPC] Dungeon Elements
+Lanea Zimmerman (Sharm), William Thompson
+CC-BY 4.0 / CC-BY 3.0 / GPL 3.0 / GPL 2.0 / OGA-BY 3.0
+https://opengameart.org/content/lpc-dungeon-elements
+
+[LPC] Guido Bos entries cut up
+Guido Bos
+CC-BY-SA 3.0 / GPL 3.0
+https://opengameart.org/content/lpc-guido-bos-entries-cut-up
+
+[LPC] Hanging signs
+Reemax
+CC-BY-SA 3.0 / GPL 3.0
+https://opengameart.org/content/lpc-hanging-signs
+
+Tuxemon tileset
+Buch
+CC-BY-SA 3.0
+https://opengameart.org/content/tuxemon-tileset
+
+========================================================================
+CREDITS-food.txt
+========================================================================
+
+"[LPC] Foods" by bluecarrot16, Daniel Eddeland (daneeklu), Joshua Taylor, Richard Kettering (Jetrel), thekingphoenix, RedVoxel, and Molly "Cougarmint" Willits. 
+https://opengameart.org/content/lpc-food
+
+# BASED ON:
+
+[LPC] Farming tilesets, magic animations and UI elements
+DE = Daniel Eddeland (Daneeklu)
+CC-BY-SA 3.0 / GPL 3.0
+https://opengameart.org/content/lpc-farming-tilesets-magic-animations-and-ui-elements
+
+Fruit and Veggie Inventory
+JT = Joshua Taylor
+CC-BY-SA 3.0 / GPL 3.0 
+https://opengameart.org/content/fruit-and-veggie-inventory
+
+RPG item set
+RK = Richard Kettering (Jetrel)
+CC0
+https://opengameart.org/content/rpg-item-set
+
+Icons: Food.
+TKP = thekingphoenix
+CC0
+http://opengameart.org/content/icons-food
+
+Food Items 16x16
+RV = RedVoxel
+CC0
+https://opengameart.org/content/food-items-16x16
+
+Chicken and Pork Icon Pack
+MCW = Molly "Cougarmint" Willits
+CC-BY 3.0 / OGA-BY 3.0
+https://opengameart.org/content/chicken-and-pork-icon-pack
+
+LPC style farm animals
+DE = Daniel Eddeland (Daneeklu)
+CC-BY 3.0 / GPL 2.0
+https://opengameart.org/content/lpc-style-farm-animals
+
+* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *  
+
+# LIST OF ITEMS AND LICENSES
+
+All items edited by bluecarrot16. Original authors listed, otherwise drawn from scratch by bluecarrot16. 
+
+- If you use this entire set, the license is CC-BY-SA 3.0+ or GPL v3.0+. 
+- All individual can be used under either of those licenses (CC-BY-SA 3.0+ or GPL 3.0+). 
+- Some items can also be used under other licenses, according to the table below.
+- For items with a CC-BY, CC-BY-SA, OGA-BY, or GPL license, you must credit the original author(s) as well as bluecarrot16, link to the original submissions (above) and include a link back to this page <https://opengameart.org/content/lpc-food>.
+- For items licensed CC0, credit and link back to this page is appreciated, but not required. 
+
+EXAMPLE 1: Watermelon
+Watermelon, by Joshua Taylor, Richard Kettering (Jetrel), and bluecarrot16.
+CC-BY-SA 3.0
+https://opengameart.org/content/lpc-food
+Based on:
+https://opengameart.org/content/fruit-and-veggie-inventory
+https://opengameart.org/content/rpg-item-set
+
+
+EXAMPLE 2: Leeks (credit optional due to CC0 license)
+Leeks by bluecarrot16
+CC0
+https://opengameart.org/content/lpc-food
+
+
+## FRUITS / VEGETABLES
+
+|                                    Item                                    | Other Authors | Other Licenses |
+|----------------------------------------------------------------------------|---------------|----------------|
+| Russet potatoes                                                            | JT            |                |
+| Gold potatoes                                                              | DE            |                |
+| Purple potatoes                                                            | DE            |                |
+| Sweet potatoes                                                             | DE            |                |
+| Yuca / Cassava                                                             | DE            |                |
+| Carrots                                                                    | DE            |                |
+| Carrots                                                                    | JT            |                |
+| Parsnips                                                                   | JT            |                |
+| Radishes                                                                   | JT            |                |
+| Beets                                                                      | JT            |                |
+| Turnips                                                                    | JT            |                |
+| Rutabaga                                                                   | JT            |                |
+| Garlic                                                                     | JT            |                |
+| Yellow onion / Sweet onion                                                 | JT            |                |
+| Red onion / Purple onion                                                   | JT            |                |
+| White onion                                                                | JT            |                |
+| Green onion                                                                | JT            |                |
+| Hot pepper                                                                 | DE            |                |
+| Green bell pepper                                                          | JT            |                |
+| Red bell pepper                                                            | JT            |                |
+| Orange bell pepper                                                         | JT            |                |
+| Yellow bell pepper                                                         | JT            |                |
+| Chili peppers / Hot peppers / Poblano, Cayanne Serrano, Habanero, Jalapeño |               | CC0            |
+| Watermelon                                                                 | JT, RK        |                |
+| Honeydew melon                                                             |               | CC0            |
+| Cantaloupe melon                                                           |               | CC0            |
+| Acorn squash                                                               |               | CC0            |
+| Pumpkin                                                                    | JT            |                |
+| Crookneck squash                                                           | JT            |                |
+| Butternut squash                                                           |               | CC0            |
+| Ornamental gourds: turban squash, gooseneck, small pumpkins                |               | CC0            |
+| Ornamental gourds: pan patty squash, small pumpkins                        |               | CC0            |
+|----------------------------------------------------------------------------|---------------|----------------|
+| Asparagus                                                                  |               | CC0            |
+| Rhubarb                                                                    |               | CC0            |
+| Romaine lettuce                                                            |               | CC0            |
+| Iceberg lettuce                                                            | RK            | CC0            |
+| Kale                                                                       |               | CC0            |
+| Red cabbage / Purple cabbage                                               |               | CC0            |
+| Green cabbage                                                              |               | CC0            |
+| Celery                                                                     |               | CC0            |
+| Bok choy                                                                   |               | CC0            |
+| Fennel bulb                                                                |               | CC0            |
+| Brussels sprouts                                                           |               | CC0            |
+| Cauliflower                                                                | JT            |                |
+| Broccoli                                                                   | JT            |                |
+| Artichoke                                                                  | DE            |                |
+| Leeks                                                                      |               | CC0            |
+| Kohlrabi                                                                   |               | CC0            |
+| Eggplant                                                                   | DE, JT        |                |
+| Zucchini / Green squash                                                    | DE            |                |
+| Yellow squash / Summer squash                                              | DE            |                |
+| Cucumber                                                                   | RK            | CC0            |
+| Strawberry                                                                 | JT            |                |
+| Blackberries                                                               |               | CC0            |
+| Raspberries                                                                |               | CC0            |
+| Red grapes                                                                 |               | CC0            |
+| Green grapes                                                               |               | CC0            |
+| Cherry tomatoes                                                            |               | CC0            |
+| Tomatoes                                                                   | DE            |                |
+| Large tomatoes                                                             | JT            |                |
+| Peas / Snap peas / Sugar peas                                              | JT            |                |
+| Hops                                                                       |               | CC0            |
+| Green beans                                                                |               | CC0            |
+|----------------------------------------------------------------------------|---------------|----------------|
+| Red delicious apples / red apples                                          | JT            |                |
+| Granny smith apples / green apples                                         | JT            |                |
+| Golden delicious apples / yellow apples                                    | JT            |                |
+| Golden delicious apples / yellow apples                                    | JT            |                |
+| Honeycrisp apples / variegated apples                                      | JT            |                |
+| Lemon                                                                      | JT            |                |
+| Lime                                                                       | JT            |                |
+| Cherries                                                                   | JT            |                |
+| Oranges                                                                    | JT            |                |
+| Bartlett pears / Green pears                                               | JT            |                |
+| D'anjou pears / Yellow pears                                               | JT            |                |
+| Bosc pears / Brown pears                                                   | JT            |                |
+| Figs                                                                       |               | CC0            |
+| Starfruit / Carambola                                                      |               | CC0            |
+| Banana                                                                     | JT            |                |
+| Peach                                                                      |               | CC0            |
+| Avocado                                                                    |               | CC0            |
+| Mango                                                                      |               | CC0            |
+| Mango                                                                      |               | CC0            |
+| Pomegranate                                                                |               | CC0            |
+| Dragonfruit / Pitaya / Pitahaya                                            |               | CC0            |
+| Pineapple                                                                  |               | CC0            |
+| Coconut                                                                    |               | CC0            |
+| Coffee                                                                     |               | CC0            |
+| Mandarin orange / Kumquat                                                  |               | CC0            |
+| Plums                                                                      |               | CC0            |
+| Jackfruit / Jack tree                                                      |               | CC0            |
+| Breadfruit                                                                 |               | CC0            |
+| Papaya                                                                     |               | CC0            |
+| Kiwi                                                                       |               | CC0            |
+| Corn                                                                       | DE            |                |
+| Corn                                                                       | JT            |                |
+
+## CHEESE, DAIRY, EGGS
+
+|           Item           | Other Authors | Other Licenses |
+|--------------------------|---------------|----------------|
+| Brie                     | TKP           | CC0            |
+| Gouda                    | TKP           | CC0            |
+| White Swiss              | TKP           | CC0            |
+| Cheddar                  | TKP           | CC0            |
+| Yellow Swiss             | TKP           | CC0            |
+| Smoked gruyere           |               | CC0            |
+| Muenster                 |               | CC0            |
+| Blue cheese / Gorgonzola | TKP           | CC0            |
+| Feta                     |               | CC0            |
+| Mozarella                |               | CC0            |
+| Manchengo                |               | CC0            |
+| Jack                     |               | CC0            |
+| Parmesean                |               | CC0            |
+|--------------------------|---------------|----------------|
+| White eggs               |               | CC0            |
+| Brown eggs               |               | CC0            |
+| Hardboiled eggs          |               | CC0            |
+| Fried eggs               |               | CC0            |
+| Scrambled eggs           |               | CC0            |
+| Butter                   |               | CC0            |
+
+## MUSHROOMS
+
+|                                    Item                                    | Other Authors | Other Licenses |
+|----------------------------------------------------------------------------|---------------|----------------|
+| Common mushroom / button mushroom / crimini mushroom / champignon mushroom |               | CC0            |
+| Oyster mushrooms                                                           |               | CC0            |
+| Portobello mushrooms                                                       |               | CC0            |
+| King trumpet mushrooms / King oyster mushrooms / French horn mushroom      |               | CC0            |
+| Black morels                                                               |               | CC0            |
+| Enokitake / Enoki                                                          |               | CC0            |
+
+
+## NUTS
+
+|    Item    | Other Authors | Other Licenses |
+|------------|---------------|----------------|
+| Pisatcchio |               | CC0            |
+| Pecan      |               | CC0            |
+| Peanut     |               | CC0            |
+| Walnut     |               | CC0            |
+| Almond     |               | CC0            |
+| Cashew     |               | CC0            |
+
+## BREAD
+
+|       Item       | Other Authors | Other Licenses |
+|------------------|---------------|----------------|
+| Vienna small     | RV            | CC0            |
+| Loaf             | RK            | CC0            |
+| Vienna large     | TKP           | CC0            |
+| Baguette         |               | CC0            |
+| Pullman loaf     |               | CC0            |
+| Coburg large     |               | CC0            |
+| ???              |               | CC0            |
+| Crescent roll    |               | CC0            |
+| Coburg roll      |               | CC0            |
+| Muffin           |               | CC0            |
+| Cob / Boule roll |               | CC0            |
+| Pretzel          |               | CC0            |
+| Croissant        |               | CC0            |
+| Donut            |               | CC0            |
+| Chocolate cake   |               | CC0            |
+| Pie              |               | CC0            |
+| Braided Pie      |               | CC0            |
+| Bagel            |               | CC0            |
+| Pancakes         |               | CC0            |
+| Waffles          |               | CC0            |
+
+## MEAT
+|           Item          | Other Authors |     Other Licenses     |
+|-------------------------|---------------|------------------------|
+| Chicken                 | MCW           | CC-BY 3 / OGA-BY 3     |
+| Chicken drumstick       | RK            | CC0                    |
+| Rotisserie chicken      | DE            |                        |
+| Large chicken drumstick | DE            |                        |
+| Turkey                  | DE            |                        |
+| Liver                   | DE            |                        |
+| Chop                    | RK            |                        |
+| Sausage                 | RK            |                        |
+| Ribeye steak            | DE            |                        |
+| T-bone steak            |               | CC0                    |
+| Rib roast               |               | CC0                    |
+| Back ribs               |               | CC0                    |
+| Ham                     | DE            |                        |
+| Pork chop               | MCW           | CC-BY 3.0 / OGA-BY 3.0 |
+| Bacon                   |               | CC0                    |
+| Pig                     | DE            |                        |
+| Kebab                   |               | CC0                    |
+| Meatballs               |               | CC0                    |
+
+
+
+## SEAFOOD
+
+|    Item   | Other Authors | Other Licenses |
+|-----------|---------------|----------------|
+| Mussel    |               | CC0            |
+| Scallop   |               | CC0            |
+| Oyster    |               | CC0            |
+| Crab      |               | CC0            |
+|-----------|---------------|----------------|
+| Anchovy   |               | CC0            |
+| Perch     | DE            |                |
+| Salmon    | DE            |                |
+| Trout     | DE            |                |
+| Catfish   | DE            |                |
+| Walleye   | DE            |                |
+| Carp      | DE            |                |
+| Bass      |               | CC0            |
+| Flounder  |               | CC0            |
+| Cod       | DE            |                |
+| Tilapia   |               | CC0            |
+| Herring   |               | CC0            |
+| Haddock   |               | CC0            |
+| Calamari  |               | CC0            |
+| Lobster   |               | CC0            |
+|-----------|---------------|----------------|
+| Grouper   | DE            |                |
+| Halibut   |               | CC0            |
+| Tuna      | DE            |                |
+| Swordfish |               | CC0            |
+| Pike      | DE            |                |
+
+
+## Future ideas
+
+- Fruits/vegetables
+    + Olives
+    + Green Olives
+    + Berries
+        * Cranberry
+        * Elderberry
+        * Huckleberry
+        * Lingonberry
+    + Tropical
+        * Guava
+        * Rambutan
+        * Soursop
+    + Flowers
+        * Poppy
+        * Sunflower
+        * Tulip
+    + Apricot
+    + Durian
+    + Lychee
+    + Persimmon
+    + Quince
+    + Tamarind
+- Herbs
+    + Basil
+    + Chives
+    + Cilantro / Coriander
+    + Dill
+    + Lavender
+    + Lemongrass
+    + Mugwort
+    + Mitsuba
+    + Oregano
+    + Parsley
+    + Rosemary
+    + Sage
+    + Tarragon
+    + Thyme
+    + Verbena
+- Cereals
+    + Wheat
+    + Barley
+    + Amarinth
+- Beans
+    + Black beans
+    + Kidney beans
+    + Navy beans
+    + Garbanzo beans
+
+https://en.wikipedia.org/wiki/List_of_breads
+- Oval loaf w/ longitudinal slashes (ear)
+- Kaiser
+- Miche
+- Twisted roll
+- Breadsticks
+- Focaccia
+- Ciabatta?
+- English muffin
+- Challah
+- Jerkey
+
+- Eel 
+- Shrimp/prawn
+- Abalone
+- Basa
+- Crappie 
+- Crayfish 
+- Kingfish
+- Mackerel 
+- Marlin 
+- Milkfish 
+- Orange roughy  
+- Pacific saury  
+- Pollock 
+- Sardine
+- Sole 
+- Swai
+- Sea urchin
+
+
+========================================================================
+CREDITS-roofs.txt
+========================================================================
+
+"[LPC] Roofs" by bluecarrot16, Lanea Zimmerman (Sharm), Michele Bucelli (Buch), Xenodora, keith karnage, NaRNeRZz, and Talon (Talosaurus). 
+
+
+Liberated Pixel Cup (LPC) Base Assets 
+Lanea Zimmerman (Sharm)
+CC-BY-SA 3.0 / CC-BY 3.0 / GPL 3.0
+https://opengameart.org/content/liberated-pixel-cup-lpc-base-assets-sprites-map-tiles
+
+
+LPC Style Well
+Xenodora
+CC-BY 3.0 / GPL 3.0
+https://opengameart.org/content/lpc-style-well
+
+
+LPC C.Nilsson
+Casper Nilsson
+CC-BY-SA 3.0 / GPL 3.0
+https://opengameart.org/content/lpc-cnilsson
+
+
+Medieval town
+keith karnage
+CC-BY 3.0
+https://opengameart.org/content/medieval-town-0
+
+
+Orthographic outdoor tiles
+Michele Bucelli (Buch) <http://blog-buch.rhcloud.com>
+CC0
+https://opengameart.org/content/orthographic-outdoor-tiles
+
+
+Tileset and Characters - Unfinished
+NaRNeRZz
+CC0
+https://opengameart.org/content/tileset-and-characters-unfinished
+
+
+Old Eastern Themed Building Tiles + Tree
+Talosaurus
+CC0
+https://opengameart.org/content/old-eastern-themed-building-tiles-tree
+
+========================================================================
+CREDITS-terrain.txt
+========================================================================
+
+"[LPC] Terrains" by bluecarrot16, Lanea Zimmerman (Sharm), Daniel Eddeland (Daneeklu), Richard Kettering (Jetrel), Zachariah Husiar (Zabin), Hyptosis, Casper Nilsson, Buko Studios, Nushio, ZaPaper, billknye, William Thompson, caeles, Redshrike, Bertram, and Rayane Félix (RayaneFLX)
+
+Liberated Pixel Cup (LPC) Base Assets (sprites & map tiles)
+Lanea Zimmerman (Sharm)
+CC-BY 3.0 / CC-BY-SA 3.0 / GPL 3.0
+https://opengameart.org/content/liberated-pixel-cup-lpc-base-assets-sprites-map-tiles
+
+[LPC] Farming tilesets, magic animations and UI elements
+Daniel Eddeland (Daneeklu)
+CC-BY-SA 3.0 / GPL 3.0
+https://opengameart.org/content/lpc-farming-tilesets-magic-animations-and-ui-elements
+
+ZRPG Tiles
+Richard Kettering (Jetrel), Zachariah Husiar (Zabin), Hyptosis, Lanea Zimmerman (Sharm), and Open Pixel Project.
+CC-BY-SA 3.0+
+https://opengameart.org/content/zrpg-tiles
+
+LPC C.Nilsson
+Casper Nilsson
+CC-BY-SA 3.0 / GPL 3.0
+https://opengameart.org/content/lpc-cnilsson
+
+Frozen Lake [LPC]
+Buko Studios (http://www.buko-studios.com/) Commissioned by PlayCraft: (www.playcraftapp.com)
+CC-BY 3.0
+https://opengameart.org/content/frozen-lake-lpc
+
+
+LPC Animated Water and waterfalls
+ZaPaper
+CC-BY-SA 3.0
+https://opengameart.org/content/lpc-animated-water-and-waterfalls
+
+LPC More Water Transitions
+billknye
+CC-BY-SA 3.0 / GPL 3.0
+https://opengameart.org/content/lpc-more-water-transitions
+
+[LPC] Sand+Rock Alt Colors
+William.Thompsonj, Daniel Eddeland
+CC-BY-SA 3.0 / GPL 3.0
+https://opengameart.org/content/lpc-sandrock-alt-colors
+
+[LPC] Colorful Sand + Deep Water!
+Nushio
+CC-BY-SA 3.0 / GPL 3.0
+https://opengameart.org/content/lpc-colorful-sand-deep-water
+
+LPC terrain extension
+caeles
+CC-BY-SA 3.0 / GPL 3.0
+https://opengameart.org/content/lpc-terrain-extension
+
+RPG Tiles: Cobble stone paths & town objects
+Zachariah Husiar (Zabin), Daniel Eddeland (Daneeklu), Richard Kettering (Jetrel), Hyptosis, Redshrike, Bertram
+CC-BY-SA 3.0
+https://opengameart.org/content/rpg-tiles-cobble-stone-paths-town-objects
+
+RPG Terrains
+Rayane Félix (RayaneFLX)
+CC-BY-SA 3.0
+https://opengameart.org/content/rpg-terrains
+
+========================================================================
+CREDITS-trees.txt
+========================================================================
+
+## Trees
+
+"[LPC] Trees Mega-Pack" by bluecarrot16, Jetrel, Zabin, Hyptosis, Surt, Buch, Johann Charlot, Stephen Challener and the Open Surge team (http://opensnc.sourceforge.net), Gaurav Munjal, Ivan Voirol (Silver IV)
+Guido Bos, Yar, Paulina Riva (PauR), William.Thompsonj, Casper Nilsson, Hyptosis, ansimuz, qubodup, Bart K., Blarumyrran, Lanea Zimmerman (Sharm), Leonard Pabin, Chris Phillips, Barbara Rivera, and Talosaurus. 
+CC-BY-SA 3.0
+
+
+Lots of trees and plants from OGA (DB32) tilesets pack 1
+Jetrel, Zabin, Hyptosis, Surt
+CC0
+https://opengameart.org/content/lots-of-trees-and-plants-from-oga-db32-tilesets-pack-1
+
+The Field of the Floating Islands
+Buch <https://opengameart.org/users/buch>
+CC0
+https://opengameart.org/content/the-field-of-the-floating-islands
+
+Outdoor tiles, again
+Buch <https://opengameart.org/users/buch>
+CC-BY 2.0
+https://opengameart.org/content/outdoor-tiles-again
+
+Shoot'em up graphic kit
+Johann Charlot
+CC-BY-SA 3.0 / GPL 3.0
+https://opengameart.org/content/shootem-up-graphic-kit
+
+32x32 (and 16x16) RPG Tiles--Forest and some Interior Tiles
+Stephen Challener and the Open Surge team (http://opensnc.sourceforge.net)commissioned by Gaurav Munjal
+CC-BY 3.0
+https://opengameart.org/content/32x32-and-16x16-rpg-tiles-forest-and-some-interior-tiles
+
+Orthographic outdoor tiles
+Buch
+CC0
+https://opengameart.org/content/orthographic-outdoor-tiles
+
+Basic map 32x32 by Silver IV
+Ivan Voirol (Silver IV)
+CC-BY 3.0 / GPL 3.0 / GPL 2.0
+https://opengameart.org/content/basic-map-32x32-by-silver-iv
+
+old frogatto tile art
+Guido Bos
+CC0
+https://opengameart.org/content/old-frogatto-tile-art
+
+Generic Platformer Tiles
+surt
+CC0
+http://opengameart.org/content/generic-platformer-tiles
+
+Isometric 64x64 Outside Tileset
+Yar
+CC-BY 3.0
+https://opengameart.org/content/isometric-64x64-outside-tileset
+
+Nature tileset
+Paulina Riva (PauR)
+CC-BY 3.0
+https://opengameart.org/content/nature-tileset
+
+[LPC] Tree Recolors
+William.Thompsonj
+CC-BY-SA 3.0 / GPL 3.0
+https://opengameart.org/content/lpc-tree-recolors
+
+LPC C.Nilsson
+Casper Nilsson
+CC-BY-SA 3.0 / GPL 3.0
+https://opengameart.org/content/lpc-cnilsson
+
+Lots of Hyptosis' tiles organized!
+Hyptosis
+CC-BY 3.0
+https://opengameart.org/content/lots-of-hyptosis-tiles-organized
+
+Trees & Bushes
+ansimuz
+CC0
+http://opengameart.org/content/trees-bushes
+
+OGA Community Tileset: Nature
+qubodup, Bart K., Blarumyrran
+GPL 2.0 / GPL 3.0 / CC-BY-SA 3.0
+https://opengameart.org/content/oga-community-tileset-nature
+
+Liberated Pixel Cup (LPC) Base Assets 
+Lanea Zimmerman (Sharm)
+CC-BY-SA 3.0 / CC-BY 3.0 / GPL 3.0
+https://opengameart.org/content/liberated-pixel-cup-lpc-base-assets-sprites-map-tiles
+
+Whispers of Avalon: Grassland Tileset
+Leonard Pabin
+CC-BY 3.0 / GPL 3.0 / GPL 2.0
+https://opengameart.org/content/whispers-of-avalon-grassland-tileset
+
+Team River Fox
+Chris Phillips, Barbara Rivera
+CC-BY-SA 3.0 / GPL 3.0
+https://opengameart.org/content/team-river-fox
+
+Concept Art for LPC Entry
+Barbara Rivera
+CC-BY-SA 3.0 / GPL 3.0
+https://opengameart.org/content/concept-art-for-lpc-entry
+
+Old Eastern Themed Building Tiles + Tree
+Talosaurus
+CC0
+https://opengameart.org/content/old-eastern-themed-building-tiles-tree
+
+
+
+========================================================================
+CREDITS-victorian.txt
+========================================================================
+
+"LPC Victorian Buildings," by bluecarrot16, Lanea Zimmerman (Sharm), Casper Nilsson, Lyndsay Takacs (cyanowl), and Redshrike. 
+
+CC-BY-SA 3.0 / GPL 3.0
+
+
+Liberated Pixel Cup (LPC) Base Assets 
+Lanea Zimmerman (Sharm)
+CC-BY-SA 3.0 / CC-BY 3.0 / GPL 3.0
+https://opengameart.org/content/liberated-pixel-cup-lpc-base-assets-sprites-map-tiles
+
+LPC: Interior Castle Tiles
+Sharm
+CC-BY 3.0 / CC-BY-SA 3.0 / GPL 3.0 / OGA-BY 3.0
+https://opengameart.org/content/lpc-interior-castle-tiles
+
+
+LPC C.Nilsson
+Casper Nilsson
+CC-BY-SA 3.0 / GPL 3.0
+https://opengameart.org/content/lpc-cnilsson
+
+
+Shabby Chic Cabin Remix
+Lyndsay Takacs (cyanowl) 
+CC0
+https://opengameart.org/content/shabby-chic-cabin-remix
+
+RPG Indoor Tileset: Expansion 1
+Redshrike
+CC-BY 3.0 / GPL 3.0 / GPL 2.0 / OGA-BY 3.0
+https://opengameart.org/content/rpg-indoor-tileset-expansion-1
+
+========================================================================
+CREDITS-windows-doors.txt
+========================================================================
+
+"LPC Windows & Doors" by bluecarrot16, Lanea Zimmerman (Sharm) and Daniel Armstrong (HughSpectrum), Casper Nilsson, Anamaris, Krusmira, Keith Karnage, and Guido Bos. License: 
+CC-BY-SA 3.0 / GPL 3.0+
+
+Based on:
+"LPC Base Assets" 
+Lanea Zimmerman (Sharm) and Daniel Armstrong (HughSpectrum). 
+CC-BY-SA 3.0 / GPL 3.0+. 
+http://opengameart.org/content/liberated-pixel-cup-lpc-base-assets-sprites-map-tiles
+
+"LPC art entry"
+Casper Nilsson. 
+CC-BY-SA 3.0 / GPL 3.0+. 
+http://opengameart.org/content/lpc-cnilsson
+
+"Steampun-a-fy (with concept art)" by Anamaris and Krusmira
+CC-BY-SA 3.0 / GPL 3.0+. 
+http://opengameart.org/content/steampun-a-fy-with-concept-art
+
+Medieval town
+CC-BY 3.0
+Keith Karnage
+https://opengameart.org/content/medieval-town-0
+
+Old Frogatto houses
+Guido Bos
+CC0
+https://opengameart.org/content/old-frogatto-houses
+
+Cute dungeon LPC edit
+Evert, Buch, Lanea Zimmerman (Sharm)
+CC-BY 3.0
+https://opengameart.org/content/cute-dungeon-lpc-edit
+
+Spooky Castle Tileset
+Buch
+CC0
+https://opengameart.org/content/spooky-castle-tileset

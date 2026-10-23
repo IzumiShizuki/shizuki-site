@@ -1,12 +1,15 @@
-import { TILE, tileIndex, isWalkable } from './townMap';
+import { TILE, tileIndex, isWalkable, townTileset } from './townMap';
 
 // The extra scenery is native pixel art, drawn on the same 16 px grid as the atlas.
-export function drawTile(ctx, atlas, id, x, y, size, tick = 0) {
+export function drawTile(ctx, atlas, id, x, y, size, tick = 0, tileset = null) {
   if (id < 0) return;
-  if (id < 132 && atlas?.complete && atlas.naturalWidth) {
-    ctx.drawImage(atlas, (id % 12) * 16, Math.floor(id / 12) * 16, 16, 16, x, y, size, size);
+  const imported = tileset?.id === 'lpc-victorian';
+  const columns = tileset?.columns || 12, sourceSize = tileset?.sourceSize || 16;
+  if ((imported || id < 132) && atlas?.complete && atlas.naturalWidth) {
+    ctx.drawImage(atlas, (id % columns) * sourceSize, Math.floor(id / columns) * sourceSize, sourceSize, sourceSize, x, y, size, size);
     return;
   }
+  if (imported) { ctx.fillStyle = id < tileset.groundCount ? '#7e9662' : '#706a61'; ctx.fillRect(x, y, size, size); return; }
   ctx.save(); ctx.translate(x, y); ctx.scale(size / 16, size / 16);
   const box = (color, xx, yy, w, h) => { ctx.fillStyle = color; ctx.fillRect(xx, yy, w, h); };
   if (id === TILE.WATER) {
@@ -43,6 +46,7 @@ export function drawActor(ctx, x, y, size, color = 'blue', direction = 'down', s
 
 export function drawTown(ctx, { map, atlas, width, height, scale, camera, player, editing, grid, collision, hover, selectedEvent, route, tick }) {
   const size = 16 * scale;
+  const tileset = townTileset(map);
   ctx.clearRect(0, 0, width, height);
   ctx.fillStyle = '#344c42'; ctx.fillRect(0, 0, width, height);
   ctx.save(); ctx.translate(-camera.x, -camera.y); ctx.imageSmoothingEnabled = false;
@@ -50,8 +54,8 @@ export function drawTown(ctx, { map, atlas, width, height, scale, camera, player
   const minY = Math.max(0, Math.floor(camera.y / size)), maxY = Math.min(map.height, Math.ceil((camera.y + height) / size));
   for (let y = minY; y < maxY; y++) for (let x = minX; x < maxX; x++) {
     const i = tileIndex(map, x, y);
-    drawTile(ctx, atlas, map.ground[i], x * size, y * size, size, tick);
-    drawTile(ctx, atlas, map.objects[i], x * size, y * size, size, tick);
+    drawTile(ctx, atlas, map.ground[i], x * size, y * size, size, tick, tileset);
+    drawTile(ctx, atlas, map.objects[i], x * size, y * size, size, tick, tileset);
     if (editing && collision) { ctx.fillStyle = isWalkable(map, x, y) ? 'rgba(59, 184, 128, .25)' : 'rgba(203, 70, 86, .5)'; ctx.fillRect(x * size, y * size, size, size); }
   }
   for (const p of route) { ctx.fillStyle = '#f8efc4'; ctx.fillRect((p.x + .4) * size, (p.y + .4) * size, size * .2, size * .2); }
