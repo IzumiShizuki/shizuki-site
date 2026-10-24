@@ -1,6 +1,7 @@
 const API_BASE_STORAGE_KEY = 'shizuki.apiBase.v1';
 
-const ENV_BASE = String(import.meta.env.VITE_GATEWAY_BASE_URL || '/').trim() || '/';
+const ENV_BASE = String(import.meta.env.VITE_GATEWAY_BASE_URL || 'https://site.shizuki.online').trim()
+  || 'https://site.shizuki.online';
 
 function sanitizeBase(raw) {
   const value = String(raw || '').trim();

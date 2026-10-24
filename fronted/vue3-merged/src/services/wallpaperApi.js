@@ -1,6 +1,7 @@
 import { httpRequest, normalizeApiData } from './httpClient';
 
-const RAW_API_BASE = String(import.meta.env.VITE_GATEWAY_BASE_URL || '/').trim() || '/';
+const RAW_API_BASE = String(import.meta.env.VITE_GATEWAY_BASE_URL || 'https://site.shizuki.online').trim()
+  || 'https://site.shizuki.online';
 const API_BASE = RAW_API_BASE === '/' ? '' : RAW_API_BASE.replace(/\/+$/, '');
 
 function unwrapApiResponse(response) {
