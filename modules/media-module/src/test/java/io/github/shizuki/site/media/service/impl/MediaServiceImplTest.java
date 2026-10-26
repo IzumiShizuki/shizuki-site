@@ -1,5 +1,9 @@
 package io.github.shizuki.site.media.service.impl;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.sun.net.httpserver.HttpServer;
 import io.github.shizuki.common.core.error.BusinessException;
 import io.github.shizuki.common.core.error.ErrorCode;
 import io.github.shizuki.common.security.context.LoginUserContext;
@@ -14,6 +18,7 @@ import io.github.shizuki.site.media.integration.NeteaseCookieProvider;
 import io.github.shizuki.site.media.integration.SpotifyMusicProvider;
 import io.github.shizuki.site.media.integration.UserMusicGateway;
 import io.github.shizuki.site.media.config.MediaStorageProperties;
+import io.github.shizuki.site.media.config.AsmrMusicProperties;
 import io.github.shizuki.site.media.request.AdminAssetUpdateRequest;
 import io.github.shizuki.site.media.request.AdminMusicDefaultPlaylistBundleReplaceRequest;
 import io.github.shizuki.site.media.request.AdminMusicPlaylistProfileUpsertRequest;
@@ -56,6 +61,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.net.InetSocketAddress;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -65,6 +71,7 @@ import org.mockito.ArgumentMatchers;
 import org.mockito.InOrder;
 import org.mockito.Mockito;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.web.client.RestClient;
 import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.AbstractPlatformTransactionManager;
 import org.springframework.transaction.support.DefaultTransactionStatus;
@@ -821,6 +828,72 @@ class MediaServiceImplTest {
     }
 
     @Test
+    void shouldRejectFilteredVoiceSearchBeforeContactingUpstreamWithoutGrant() {
+        LoginUserContext.set(new LoginUser(7L, Set.of("USER"), Set.of()));
+
+        BusinessException error = Assertions.assertThrows(BusinessException.class,
+            () -> mediaService.searchVoiceWorks("rain", 1, 20, "release", "desc", "11", "general,r15"));
+
+        assertThat(error.getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN);
+        Mockito.verifyNoInteractions(asmrMusicProvider);
+    }
+
+    @Test
+    void shouldFindTaggedWorksBeyondUnfilteredFirstPage() throws Exception {
+        LoginUserContext.set(new LoginUser(8L, Set.of("FRIEND"), Set.of("music.asmr.access")));
+        ObjectMapper json = new ObjectMapper();
+        List<Map<String, Object>> allWorks = new ArrayList<>();
+        for (int id = 1; id <= 6; id++) {
+            allWorks.add(Map.of("id", id, "title", "rain-" + id,
+                "tags", List.of(Map.of("id", id <= 3 ? 99 : 11, "name", id <= 3 ? "Other" : "Rain"))));
+        }
+        HttpServer upstream = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        upstream.createContext("/", exchange -> {
+            String path = exchange.getRequestURI().getPath();
+            Object response;
+            if ("/api/tags/".equals(path)) {
+                response = List.of(Map.of("id", 11, "name", "Rain"));
+            } else {
+                Map<String, Object> body = "POST".equals(exchange.getRequestMethod())
+                    ? json.readValue(exchange.getRequestBody(), Map.class) : Map.of();
+                int page = ((Number) body.getOrDefault("page", 1)).intValue();
+                int size = ((Number) body.getOrDefault("pageSize", 2)).intValue();
+                List<Map<String, Object>> matches = path.contains("$tagw:Rain$")
+                    ? allWorks.subList(3, 6) : allWorks;
+                int from = Math.min(matches.size(), (page - 1) * size);
+                response = Map.of("works", matches.subList(from, Math.min(matches.size(), from + size)),
+                    "pagination", Map.of("currentPage", page, "pageSize", size, "totalCount", matches.size()));
+            }
+            byte[] bytes = json.writeValueAsBytes(response);
+            exchange.getResponseHeaders().set("Content-Type", "application/json; charset=UTF-8");
+            exchange.sendResponseHeaders(200, bytes.length);
+            try (var output = exchange.getResponseBody()) {
+                output.write(bytes);
+            }
+        });
+        upstream.start();
+        try {
+            String source = "http://127.0.0.1:" + upstream.getAddress().getPort();
+            AsmrMusicProperties properties = new AsmrMusicProperties();
+            properties.setServer(source);
+            properties.setBaseUrl(source);
+            properties.setBaseUrls(List.of(source));
+            asmrMusicProvider = new AsmrMusicProvider(properties, RestClient.builder(), json);
+            mediaService = buildMediaService("th_test_default_key");
+
+            MusicVoiceWorksResponse first = mediaService.searchVoiceWorks("", 1, 2, "release", "desc", "11", "");
+            MusicVoiceWorksResponse second = mediaService.searchVoiceWorks("", 2, 2, "release", "desc", "11", "");
+
+            assertThat(first.items()).extracting(item -> item.workId()).containsExactly(4L, 5L);
+            assertThat(first.hasMore()).isTrue();
+            assertThat(second.items()).extracting(item -> item.workId()).containsExactly(6L);
+            assertThat(second.hasMore()).isFalse();
+        } finally {
+            upstream.stop(0);
+        }
+    }
+
+    @Test
     void shouldSearchVoiceWorksWithTagAndFilter() {
         LoginUserContext.set(new LoginUser(8L, Set.of("FRIEND"), Set.of("music.asmr.access")));
         AsmrMusicProvider.WorkSummary work1 = buildAsmrWorkSummary(
@@ -831,16 +904,9 @@ class MediaServiceImplTest {
             false,
             "全年齢"
         );
-        AsmrMusicProvider.WorkSummary work2 = buildAsmrWorkSummary(
-            1002L,
-            "午后助眠",
-            List.of(new AsmrMusicProvider.TagSummary(22L, "低语")),
-            List.of(new AsmrMusicProvider.VoiceActorSummary("va-2", "星野葵")),
-            true,
-            "18+"
-        );
-        Mockito.when(asmrMusicProvider.listWorks(1, 24, "release", "desc"))
-            .thenReturn(new AsmrMusicProvider.SearchResult(List.of(work1, work2), 1, 24, 2));
+        Mockito.when(asmrMusicProvider.searchFilteredWorks(
+            "", 1, 24, "release", "desc", Set.of(11L, 22L), Set.of("general", "r15")))
+            .thenReturn(new AsmrMusicProvider.SearchResult(List.of(work1), 1, 24, 1));
 
         MusicVoiceWorksResponse response = mediaService.searchVoiceWorks(
             "",
@@ -857,6 +923,9 @@ class MediaServiceImplTest {
         Assertions.assertEquals("全年齢", response.items().get(0).ageCategory());
         Assertions.assertFalse(response.availableTags().isEmpty());
         Assertions.assertTrue(response.availableTags().stream().anyMatch(tag -> tag.tagId() == 11L));
+        Assertions.assertFalse(response.hasMore());
+        Mockito.verify(asmrMusicProvider).searchFilteredWorks(
+            "", 1, 24, "release", "desc", Set.of(11L, 22L), Set.of("general", "r15"));
     }
 
     @Test
@@ -908,7 +977,7 @@ class MediaServiceImplTest {
     }
 
     @Test
-    void shouldAdvanceFilteredVoiceWorksByUpstreamPageWithoutOverlappingWindows() {
+    void shouldAdvancePagesWithinFilteredVoiceWorks() {
         LoginUserContext.set(new LoginUser(8L, Set.of("FRIEND"), Set.of("music.asmr.access")));
         AsmrMusicProvider.WorkSummary firstGeneral = buildAsmrWorkSummary(
             3001L,
@@ -926,23 +995,15 @@ class MediaServiceImplTest {
             false,
             "全年齢"
         );
-        AsmrMusicProvider.WorkSummary adult = buildAsmrWorkSummary(
-            3999L,
-            "成人作品",
-            List.of(),
-            List.of(),
-            true,
-            "18+"
-        );
-        Mockito.when(asmrMusicProvider.listWorks(Mockito.anyInt(), Mockito.eq(2), Mockito.eq("release"), Mockito.eq("desc")))
+        Mockito.when(asmrMusicProvider.searchFilteredWorks(Mockito.anyString(), Mockito.anyInt(), Mockito.eq(2),
+            Mockito.eq("release"), Mockito.eq("desc"), Mockito.eq(Set.of()), Mockito.eq(Set.of("general", "r15"))))
             .thenAnswer(invocation -> {
-                int upstreamPage = invocation.getArgument(0);
+                int upstreamPage = invocation.getArgument(1);
                 List<AsmrMusicProvider.WorkSummary> works = switch (upstreamPage) {
-                    case 1 -> List.of(firstGeneral, adult);
-                    case 2 -> List.of(secondGeneral, adult);
-                    default -> List.of(adult);
+                    case 1 -> List.of(firstGeneral, secondGeneral);
+                    default -> List.of();
                 };
-                return new AsmrMusicProvider.SearchResult(works, upstreamPage, 2, 12);
+                return new AsmrMusicProvider.SearchResult(works, upstreamPage, 2, 2);
             });
 
         MusicVoiceWorksResponse firstPage = mediaService.searchVoiceWorks(
@@ -964,11 +1025,10 @@ class MediaServiceImplTest {
             "general,r15"
         );
 
-        Assertions.assertEquals(List.of(3001L), firstPage.items().stream().map(item -> item.workId()).toList());
-        Assertions.assertEquals(List.of(3002L), secondPage.items().stream().map(item -> item.workId()).toList());
-        Assertions.assertTrue(firstPage.hasMore());
-        Mockito.verify(asmrMusicProvider).listWorks(1, 2, "release", "desc");
-        Mockito.verify(asmrMusicProvider).listWorks(2, 2, "release", "desc");
+        assertThat(firstPage.items()).extracting(item -> item.workId()).containsExactly(3001L, 3002L);
+        assertThat(secondPage.items()).isEmpty();
+        assertThat(firstPage.hasMore()).isFalse();
+        assertThat(secondPage.hasMore()).isFalse();
     }
 
     @Test

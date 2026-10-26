@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -112,15 +113,59 @@ public class AsmrMusicProvider {
      * 搜索作品（works），支持指定排序。
      */
     public SearchResult searchWorks(String keyword, int page, int limit, String order, String sort) {
-        String normalizedKeyword = normalizeKeyword(keyword);
+        return requestSearchWorks(normalizeKeyword(keyword), page, limit, order, sort);
+    }
+
+    /**
+     * 在上游全量检索范围内应用标签和年龄条件，再由上游分页。
+     */
+    public SearchResult searchFilteredWorks(String keyword, int page, int limit, String order, String sort,
+                                            Set<Long> tagIds, Set<String> ageCategories) {
+        List<String> terms = new ArrayList<>();
+        if (StringUtils.hasText(keyword)) {
+            terms.add(normalizeKeyword(keyword));
+        }
+        if (tagIds != null && !tagIds.isEmpty()) {
+            Map<Long, String> tagNames = new LinkedHashMap<>();
+            for (TagSummary tag : parseTags(requestJsonRaw("GET", "/api/tags/", null))) {
+                if (StringUtils.hasText(tag.name())) {
+                    tagNames.put(tag.tagId(), tag.name());
+                }
+            }
+            for (Long tagId : tagIds) {
+                String name = tagNames.get(tagId);
+                if (!StringUtils.hasText(name)) {
+                    return new SearchResult(List.of(), Math.max(1, page), Math.max(1, Math.min(60, limit)), 0);
+                }
+                terms.add("$tagw:" + name + "$");
+            }
+        }
+        List<String> categories = List.of("general", "r15", "adult");
+        List<String> selected = categories.stream()
+            .filter(category -> ageCategories != null && ageCategories.contains(category))
+            .toList();
+        if (selected.size() == 1) {
+            terms.add("$age:" + selected.get(0) + "$");
+        } else if (selected.size() == 2) {
+            // 上游不支持用斜杠拼接年龄 OR；排除第三种分类即为两种分类的并集。
+            String excluded = categories.stream().filter(category -> !selected.contains(category)).findFirst().orElseThrow();
+            terms.add("$-age:" + excluded + "$");
+        }
+        return terms.isEmpty()
+            ? listWorks(page, limit, order, sort)
+            : requestSearchWorks(String.join(" ", terms), page, limit, order, sort);
+    }
+
+    private SearchResult requestSearchWorks(String keyword, int page, int limit, String order, String sort) {
         int safePage = Math.max(1, page);
         int safeLimit = Math.max(1, Math.min(60, limit));
         String normalizedOrder = normalizeOrder(order);
         String normalizedSort = normalizeSort(sort);
-        String encodedKeyword = encodeQuerySegment(normalizedKeyword);
+        String encodedKeyword = encodeQuerySegment(keyword);
         String path = "/api/search/" + encodedKeyword;
         Map<String, Object> body = Map.of(
             "page", safePage,
+            "pageSize", safeLimit,
             "order", normalizedOrder,
             "sort", normalizedSort,
             "seed", 0,
@@ -154,8 +199,9 @@ public class AsmrMusicProvider {
         String normalizedSort = normalizeSort(sort);
         String path = String.format(
             Locale.ROOT,
-            "/api/works?page=%d&order=%s&sort=%s",
+            "/api/works?page=%d&pageSize=%d&order=%s&sort=%s",
             safePage,
+            safeLimit,
             encodeQuerySegment(normalizedOrder),
             encodeQuerySegment(normalizedSort)
         );

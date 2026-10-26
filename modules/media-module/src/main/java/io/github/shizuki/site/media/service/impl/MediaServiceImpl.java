@@ -1662,29 +1662,17 @@ public class MediaServiceImpl implements MediaService {
         Set<Long> selectedTagIds = parseVoiceTagIds(tagIds);
         Set<String> selectedAgeCategories = parseVoiceAgeCategories(ageCategories);
 
-        boolean keywordMode = StringUtils.hasText(normalizedKeyword);
-        int effectiveFetchLimit = safeLimit;
-        List<AsmrMusicProvider.WorkSummary> accepted = new ArrayList<>();
-        AsmrMusicProvider.SearchResult result = keywordMode
-            ? asmrMusicProvider.searchWorks(normalizedKeyword, safePage, effectiveFetchLimit, normalizedOrder, normalizedSort)
-            : asmrMusicProvider.listWorks(safePage, effectiveFetchLimit, normalizedOrder, normalizedSort);
+        AsmrMusicProvider.SearchResult result = asmrMusicProvider.searchFilteredWorks(
+            normalizedKeyword, safePage, safeLimit, normalizedOrder, normalizedSort, selectedTagIds, selectedAgeCategories
+        );
         List<AsmrMusicProvider.WorkSummary> works = result.works() == null ? List.of() : result.works();
+        boolean hasMore = result.totalCount() > ((long) result.currentPage() * Math.max(1, result.pageSize()));
+
+        List<MusicVoiceWorkItemResponse> items = new ArrayList<>();
         for (AsmrMusicProvider.WorkSummary item : works) {
             if (item == null || item.id() <= 0L) {
                 continue;
             }
-            if (!matchesVoiceTagFilter(item, selectedTagIds)) {
-                continue;
-            }
-            if (!matchesVoiceAgeFilter(item, selectedAgeCategories)) {
-                continue;
-            }
-            accepted.add(item);
-        }
-        boolean hasMore = result.totalCount() > ((long) result.currentPage() * Math.max(1, result.pageSize()));
-
-        List<MusicVoiceWorkItemResponse> items = new ArrayList<>();
-        for (AsmrMusicProvider.WorkSummary item : accepted) {
             items.add(toVoiceWorkItem(item));
         }
         return new MusicVoiceWorksResponse(
@@ -1692,7 +1680,7 @@ public class MediaServiceImpl implements MediaService {
             safePage,
             safeLimit,
             hasMore,
-            aggregateVoiceAvailableTags(accepted)
+            aggregateVoiceAvailableTags(works)
         );
     }
 
@@ -3595,34 +3583,6 @@ public class MediaServiceImpl implements MediaService {
             }
         }
         return result;
-    }
-
-    private boolean matchesVoiceTagFilter(AsmrMusicProvider.WorkSummary work, Set<Long> selectedTagIds) {
-        if (selectedTagIds == null || selectedTagIds.isEmpty()) {
-            return true;
-        }
-        if (work == null || work.tags() == null || work.tags().isEmpty()) {
-            return false;
-        }
-        Set<Long> workTagIds = new LinkedHashSet<>();
-        for (AsmrMusicProvider.TagSummary item : work.tags()) {
-            if (item == null || item.tagId() <= 0L) {
-                continue;
-            }
-            workTagIds.add(item.tagId());
-        }
-        return workTagIds.containsAll(selectedTagIds);
-    }
-
-    private boolean matchesVoiceAgeFilter(AsmrMusicProvider.WorkSummary work, Set<String> selectedAgeCategories) {
-        if (selectedAgeCategories == null || selectedAgeCategories.isEmpty()) {
-            return true;
-        }
-        if (work == null) {
-            return false;
-        }
-        String category = normalizeVoiceAgeCategory(work.ageCategory(), work.nsfw());
-        return selectedAgeCategories.contains(category);
     }
 
     private String normalizeVoiceAgeCategory(String rawValue, boolean nsfw) {
