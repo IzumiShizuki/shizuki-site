@@ -14,3 +14,9 @@
 - [x] 3.1 Run relevant backend tests, frontend voice tests, and the monolith build.
 - [x] 3.2 Verify implementation against the OpenSpec artifacts, run strict validation, document evidence and remaining limitations.
 - [x] 3.3 Commit only this change locally with the configured author identity.
+
+## 4. Authorized production deployment
+
+- [x] 4.1 Prepare an isolated release from the current production revision, apply only the voice search fix, and verify its tests/build.
+- [x] 4.2 Preserve a verified restore point and previous backend image, publish only the backend, and verify the deployed artifact.
+- [x] 4.3 Verify health and live filtered pagination, record deployment evidence, and commit the handoff locally.

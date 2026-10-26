@@ -4,7 +4,7 @@ Verified on 2026-10-26 (Asia/Shanghai).
 
 | Dimension | Result |
 | --- | --- |
-| Completeness | 8/8 tasks; all 3 requirements implemented |
+| Completeness | 8/8 implementation tasks; all 3 requirements implemented; authorized deployment is recorded separately in deployment-report.md |
 | Correctness | All 7 scenarios covered by service, provider HTTP, frontend, and live upstream checks |
 | Coherence | Matches the design: upstream filtering, native age union, explicit pageSize, unchanged response shape |
 
@@ -56,6 +56,6 @@ Checked the [upstream application's current JavaScript](https://asmr.one/js/app.
 
 ## Delivery and limits
 
-The local commit contains only this voice-search fix and its OpenSpec artifacts. Existing unrelated working-tree changes are preserved. No push, deployment, or archive is included; the backend must be deployed for the live site to use the fix.
+The implementation commit contains only this voice-search fix and its OpenSpec artifacts. Existing unrelated working-tree changes are preserved. Production deployment was subsequently authorized and completed on 2026-10-27; see [deployment-report.md](deployment-report.md) for the isolated production baseline, runtime identity, backup, and live acceptance. No Git push or OpenSpec archive was performed.
 
 Tag-filtered requests add one upstream catalogue lookup. Pagination retains upstream ordering and does not promise a catalogue snapshot if upstream data changes between requests. The HTTP regression tests prevent future omission of the requested page size or reintroduction of page-local filtering.

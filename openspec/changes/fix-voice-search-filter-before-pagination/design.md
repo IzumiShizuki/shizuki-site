@@ -6,7 +6,7 @@ See proposal.md for motivation. `searchVoiceWorks` currently filters one upstrea
 
 **Goals:** Apply filters to upstream search before pagination, retain tag AND / age OR behavior, and honor the existing pagination contract.
 
-**Non-Goals:** Mirror the whole upstream catalogue locally, scan every unfiltered upstream page, redesign the page, or deploy/push changes.
+**Non-Goals:** Mirror the whole upstream catalogue locally, scan every unfiltered upstream page, redesign the page, or push Git changes.
 
 ## Decisions
 
@@ -25,4 +25,4 @@ See proposal.md for motivation. `searchVoiceWorks` currently filters one upstrea
 
 ## Migration Plan
 
-No database migration or API shape change. Build and verify locally; deployment is a separate authorized operation. Rollback reverts the provider/service changes.
+No database migration or API shape change. The user authorized production deployment on 2026-10-27. Prepare an isolated release from the current production revision and apply only this fix, retain a verified restore point and previous backend image, then replace only the backend and verify health and filtered pagination. Rollback restores the previous backend image and synchronized source paths. No Git push is included.
