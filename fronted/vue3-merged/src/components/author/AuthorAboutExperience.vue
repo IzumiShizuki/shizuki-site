@@ -8,12 +8,10 @@
           :skills="profile.profileJson?.skills || []"
           :enabled="profile.enabled !== false"
           :portals="portals"
-          :stats="{
-            posts: profile.profileJson?.stats?.posts || 0,
-            projects: profile.profileJson?.stats?.projects || 0,
-            tags: profile.profileJson?.stats?.tags || 0,
-            views: profile.profileJson?.stats?.views || 0
-          }"
+          :stats="publicStats.stats"
+          :stats-loading="publicStats.loading.value"
+          :stats-error="publicStats.error.value"
+          @retry-stats="publicStats.refresh"
           @select-portal="$emit('select-portal', $event)"
         />
         <AuthorAboutStoryColumn
@@ -100,6 +98,9 @@ import AuthorAboutOverviewPremium from './AuthorAboutOverviewPremium.vue';
 import AuthorAboutStoryColumn from './AuthorAboutStoryColumn.vue';
 import AuthorLifeCardRail from './AuthorLifeCardRail.vue';
 import AuthorPublicPostsColumn from './AuthorPublicPostsColumn.vue';
+import { usePublicSiteStats } from '../../composables/usePublicSiteStats';
+
+const publicStats = usePublicSiteStats();
 
 defineProps({
   canManageLifeContent: { type: Boolean, default: false },
@@ -311,6 +312,10 @@ defineEmits(['select-tab', 'select-portal', 'edit', 'edit-journey', 'retry-album
 }
 
 @media (max-width: 720px) {
+  .author-about-center {
+    padding-top: 56px;
+  }
+
   .author-section-heading {
     align-items: start;
     flex-direction: column;

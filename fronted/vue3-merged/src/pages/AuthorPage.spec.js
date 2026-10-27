@@ -215,7 +215,7 @@ describe('AuthorPage admin tab handling', () => {
     ]);
     expect(wrapper.findAll('.about-hero-image')).toHaveLength(1);
     expect(wrapper.findAll('.about-section-image')).toHaveLength(0);
-    expect(wrapper.findAll('.about-card-index').map((item) => item.text())).toEqual(['01', '02', '03']);
+    expect(wrapper.findAll('.about-card-heading h3').map((item) => item.text())).toEqual(['长期目标', '偏好与灵感', '站点外链']);
     expect(wrapper.findAll('a.link-btn').map((item) => item.attributes('href'))).toEqual(['/#/blog', '/#/']);
     expect(wrapper.findAll('.life-rail-heading > a').map((item) => item.attributes('href'))).toEqual(['/albums', '/moments']);
   });

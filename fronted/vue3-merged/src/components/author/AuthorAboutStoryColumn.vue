@@ -1,6 +1,6 @@
 <template>
   <div class="author-story-column about-motion-root about-story-root">
-    <article class="author-card about-manifesto reveal-node" :style="staggerStyle(0)">
+    <article class="story-surface about-manifesto reveal-node" :style="staggerStyle(0)">
       <button
         v-if="canEdit"
         class="inline-edit-fab ripple-trigger"
@@ -18,7 +18,7 @@
         alt="关于本站配图"
       />
       <div class="about-manifesto-copy">
-        <span class="about-section-code" aria-hidden="true">ABOUT / 00</span>
+        <span class="about-section-code">写给来访的你</span>
         <h2>关于这座小站</h2>
         <p
           v-for="(line, index) in about.intro"
@@ -33,13 +33,13 @@
 
     <section class="about-flow-grid">
       <article
-        class="author-card about-goal-stage reveal-node"
+        class="story-surface about-goal-stage reveal-node"
         :class="{ 'has-image': missionImage }"
         :style="staggerStyle(3)"
       >
         <div class="about-card-copy">
           <header class="about-card-heading">
-            <span class="about-card-index" aria-hidden="true">01</span>
+            <span class="about-card-index" aria-hidden="true"><i class="fas fa-location-arrow"></i></span>
             <span>
               <small aria-hidden="true">方向</small>
               <h3>长期目标</h3>
@@ -56,9 +56,9 @@
         />
       </article>
 
-      <article class="author-card about-preference-stage reveal-node" :style="staggerStyle(4)">
+      <article class="story-surface about-preference-stage reveal-node" :style="staggerStyle(4)">
         <header class="about-card-heading">
-          <span class="about-card-index" aria-hidden="true">02</span>
+          <span class="about-card-index" aria-hidden="true">✳</span>
           <span>
             <small aria-hidden="true">收藏</small>
             <h3>偏好与灵感</h3>
@@ -79,7 +79,7 @@
       </article>
 
       <article
-        class="author-card about-links-stage reveal-node"
+        class="story-surface about-links-stage reveal-node"
         :class="{ 'has-image': linksImage }"
         :style="staggerStyle(5)"
       >
@@ -92,7 +92,7 @@
         />
         <div class="about-card-copy">
           <header class="about-card-heading">
-            <span class="about-card-index" aria-hidden="true">03</span>
+            <span class="about-card-index" aria-hidden="true"><i class="fas fa-link"></i></span>
             <span>
               <small aria-hidden="true">继续探索</small>
               <h3>站点外链</h3>
@@ -118,7 +118,7 @@
       </article>
     </section>
 
-    <section v-if="showJourney && journey.length" class="author-card about-journey-preview reveal-node" :style="staggerStyle(6)">
+    <section v-if="showJourney && journey.length" class="story-surface about-journey-preview reveal-node" :style="staggerStyle(6)">
       <header class="about-journey-heading">
         <div>
           <span class="about-section-code" aria-hidden="true">JOURNEY / NOW</span>
@@ -230,24 +230,24 @@ function handleLinkClick(event, url) {
 <style scoped>
 .author-story-column {
   display: grid;
-  gap: 14px;
+  gap: 32px;
   min-width: 0;
 }
 
-.author-card {
+.story-surface {
   min-width: 0;
   max-width: 100%;
-  padding: 14px;
-  border: 1px solid var(--theme-border);
-  border-radius: 14px;
+  padding: 24px;
+  border: 0;
+  border-radius: 0;
   color: var(--theme-text-primary);
-  background: var(--theme-panel-surface);
-  box-shadow: var(--theme-shadow-soft);
+  background: transparent;
+  box-shadow: none;
   transition: transform 240ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 240ms ease, border-color 240ms ease;
 }
 
-:global(:root[data-theme-mode='day']) .author-card {
-  box-shadow: var(--theme-shadow-soft);
+:global(:root[data-theme-mode='day']) .story-surface {
+  box-shadow: none;
 }
 
 .inline-edit-fab {
@@ -279,7 +279,12 @@ function handleLinkClick(event, url) {
   grid-template-columns: minmax(210px, 0.82fr) minmax(0, 1.18fr);
   gap: clamp(18px, 3vw, 32px);
   align-items: center;
-  padding: clamp(16px, 2.4vw, 24px);
+  padding: clamp(16px, 2.4vw, 28px);
+  border-block: 1px solid var(--theme-border-subtle);
+}
+
+.about-manifesto:not(:has(.about-hero-image)) {
+  grid-template-columns: 1fr;
 }
 
 .about-hero-image {
@@ -289,18 +294,19 @@ function handleLinkClick(event, url) {
   max-height: 280px;
   display: block;
   object-fit: cover;
-  border: 1px solid var(--theme-border);
-  border-radius: 14px;
+  border: 0;
+  border-radius: 48% 48% 12px 12px;
 }
 
 .about-manifesto-copy {
+  min-width: 0;
   display: grid;
   gap: 7px;
   align-content: center;
 }
 
 .about-section-code {
-  color: var(--theme-text-secondary);
+  color: rgb(var(--accent-readable-rgb));
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.16em;
@@ -316,14 +322,16 @@ function handleLinkClick(event, url) {
 .line-text {
   margin-top: 8px;
   color: var(--theme-text-secondary);
-  line-height: 1.68;
+  line-height: 1.9;
+  font-size: 13px;
+  overflow-wrap: anywhere;
 }
 
 .about-flow-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.2fr) minmax(250px, 0.8fr);
   grid-template-areas: 'goal preference' 'links preference';
-  gap: 12px;
+  gap: 20px;
   align-items: stretch;
 }
 
@@ -331,9 +339,23 @@ function handleLinkClick(event, url) {
   grid-area: goal;
   position: relative;
   overflow: hidden;
-  min-height: 160px;
+  min-height: 220px;
   display: grid;
   align-items: stretch;
+  background: var(--accent-mode-fill-soft);
+  border-radius: 12px 64px 12px 12px;
+}
+
+.about-goal-stage::after {
+  content: '';
+  position: absolute;
+  right: -52px;
+  bottom: -82px;
+  width: 180px;
+  height: 180px;
+  border: 1px solid var(--accent-mode-border-strong);
+  border-radius: 50%;
+  pointer-events: none;
 }
 
 .about-goal-stage.has-image {
@@ -399,9 +421,9 @@ function handleLinkClick(event, url) {
   align-items: center;
   justify-content: center;
   border: 1px solid var(--theme-border);
-  border-radius: 11px;
-  color: var(--accent-surface-text);
-  background: var(--accent-mode-fill-strong);
+  border-radius: 50%;
+  color: rgb(var(--accent-readable-rgb));
+  background: var(--accent-mode-fill-soft);
   font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.04em;
@@ -412,7 +434,10 @@ function handleLinkClick(event, url) {
   min-width: 0;
   display: grid;
   align-content: start;
-  gap: 14px;
+  gap: 22px;
+  padding-top: 38px;
+  background: var(--theme-panel-surface);
+  border-radius: 64px 12px 64px 12px;
 }
 
 .about-tag-section {
@@ -448,6 +473,7 @@ function handleLinkClick(event, url) {
   min-width: 0;
   display: grid;
   align-items: stretch;
+  padding-inline: 8px;
 }
 
 .about-links-stage.has-image {
@@ -468,10 +494,11 @@ function handleLinkClick(event, url) {
   justify-content: space-between;
   gap: 12px;
   padding: 0 13px;
-  border: 1px solid var(--theme-border);
-  border-radius: 12px;
+  border: 0;
+  border-bottom: 1px solid var(--theme-border);
+  border-radius: 0;
   color: var(--theme-text-primary);
-  background: var(--theme-panel-surface-elevated);
+  background: transparent;
   text-align: left;
   text-decoration: none;
   transition: transform 180ms ease, border-color 180ms ease, background-color 180ms ease;
@@ -495,6 +522,12 @@ function handleLinkClick(event, url) {
 
 .link-btn.is-disabled:hover {
   transform: none;
+}
+
+.link-btn:focus-visible,
+.inline-edit-fab:focus-visible {
+  outline: 3px solid var(--theme-focus-ring);
+  outline-offset: 4px;
 }
 
 .about-journey-preview {
@@ -651,7 +684,7 @@ function handleLinkClick(event, url) {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .author-card,
+  .story-surface,
   .inline-edit-fab,
   .is-reveal-ready {
     transform: none !important;

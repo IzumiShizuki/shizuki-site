@@ -1,6 +1,12 @@
-import { mount } from '@vue/test-utils';
-import { describe, expect, it } from 'vitest';
+import { flushPromises, mount } from '@vue/test-utils';
+import { describe, expect, it, vi } from 'vitest';
 import AuthorAboutExperience from './AuthorAboutExperience.vue';
+import AuthorAboutOverviewPremium from './AuthorAboutOverviewPremium.vue';
+
+vi.mock('../../services/blogApi', () => ({
+  listPosts: vi.fn().mockResolvedValue({ total: 12 }),
+  getPostSidebar: vi.fn().mockResolvedValue({ categories: [], tags: [] })
+}));
 
 function mountExperience(activeTab = 'about') {
   return mount(AuthorAboutExperience, {
@@ -34,8 +40,8 @@ function mountExperience(activeTab = 'about') {
     },
     global: {
       stubs: {
-        AuthorAboutOverview: {
-          props: ['hero', 'identity', 'skills', 'enabled', 'portals'],
+        AuthorAboutOverviewPremium: {
+          props: ['hero', 'identity', 'skills', 'enabled', 'portals', 'stats'],
           template: '<section class="about-overview-stub">{{ hero.name }} · {{ identity.activityStatus }} · {{ skills.join(",") }} · {{ portals.length }}</section>'
         },
         AuthorAboutStoryColumn: {
@@ -53,6 +59,13 @@ function mountExperience(activeTab = 'about') {
 }
 
 describe('AuthorAboutExperience shared-shell composition', () => {
+  it('wires public totals into the rendered overview', async () => {
+    const wrapper = mountExperience();
+    await flushPromises();
+    expect(wrapper.getComponent(AuthorAboutOverviewPremium).props('stats')).toEqual({ posts: 12, categories: 0, tags: 0 });
+    wrapper.unmount();
+  });
+
   it('renders the complete public story in one ordered center column because the page owns the shared rails', () => {
     const wrapper = mountExperience();
 

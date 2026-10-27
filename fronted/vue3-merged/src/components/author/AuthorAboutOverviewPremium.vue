@@ -1,152 +1,75 @@
 <template>
   <section class="about-overview about-overview-premium" aria-labelledby="about-overview-title">
-    <!-- 封面区域 - 保留并增强 -->
-    <div
-      class="hero-cover-section"
-      ref="coverRef"
-      @mousemove="handleCoverMouseMove"
-      @mouseleave="resetCoverParallax"
-    >
-      <!-- 封面图 -->
-      <div class="cover-image-wrapper">
-        <img
-          class="cover-image"
-          :src="coverUrl"
-          :alt="`${displayName} 的网站封面`"
-          :style="coverParallaxStyle"
-        />
-        <div class="cover-overlay" aria-hidden="true"></div>
-
-        <!-- 浮动装饰粒子 -->
-        <div class="floating-particles" aria-hidden="true">
-          <span v-for="i in 12" :key="i" class="particle" :style="particleStyle(i)"></span>
+    <div class="about-hero">
+      <div class="hero-copy">
+        <div class="hero-topline">
+          <span class="hero-page-label">关于网站</span>
+          <span class="about-overview-status" :class="{ offline: !enabled }">
+            <span aria-hidden="true"></span>{{ enabled ? activityStatus : '暂时离线' }}
+          </span>
         </div>
+        <p class="hero-greeting">{{ hero.greeting || '你好，很高兴认识你' }}</p>
+        <h1 id="about-overview-title">{{ displayName }}<span class="name-period" aria-hidden="true">.</span></h1>
+        <blockquote class="hero-quote">{{ hero.quote || '愿你终将与热爱相逢' }}</blockquote>
+        <dl class="hero-facts" aria-label="作者身份信息">
+          <div v-for="fact in compactFacts" :key="fact.label" class="about-overview-fact">
+            <dt>{{ fact.label }}</dt><dd>{{ fact.value }}</dd>
+          </div>
+        </dl>
+        <div class="hero-footnote"><span aria-hidden="true"></span>记录所学，也收藏生活。</div>
       </div>
 
-      <!-- Hero内容 - 浮在封面之上 -->
-      <div class="hero-content-overlay">
-        <div class="hero-content">
-          <!-- 头像 + 光环 -->
-          <div class="avatar-section" ref="avatarRef">
-            <div class="avatar-glow-rings" aria-hidden="true">
-              <span class="glow-ring ring-1"></span>
-              <span class="glow-ring ring-2"></span>
-              <span class="glow-ring ring-3"></span>
-            </div>
-            <div class="avatar-wrapper">
-              <img class="hero-avatar" :src="avatarUrl" :alt="`${displayName} avatar`" />
-              <div class="avatar-border" aria-hidden="true"></div>
-            </div>
-          </div>
-
-          <!-- 文字内容 -->
-          <div class="hero-text">
-            <p class="hero-greeting animate-slide-up">{{ hero.greeting || '你好，很高兴认识你' }}</p>
-            <h1 id="about-overview-title" class="hero-name animate-slide-up" style="--delay: 0.1s">
-              {{ displayName }}
-            </h1>
-            <blockquote class="hero-quote animate-slide-up" style="--delay: 0.2s">
-              {{ hero.quote || '愿你终将与热爱相逢' }}
-            </blockquote>
-
-            <!-- 状态 + 快速信息 -->
-            <div class="hero-meta animate-slide-up" style="--delay: 0.3s">
-              <span class="hero-status about-overview-status" :class="{ offline: !enabled }">
-                <span class="status-pulse" aria-hidden="true"></span>
-                {{ enabled ? activityStatus : '暂时离线' }}
-              </span>
-              <div class="quick-tags">
-                <span v-for="fact in compactFacts" :key="fact.label" class="quick-tag about-overview-fact">
-                  <i :class="fact.icon" aria-hidden="true"></i>
-                  {{ fact.value }}
-                </span>
-              </div>
-            </div>
-          </div>
+      <div class="orbital-art">
+        <div class="orbit orbit--ascending" aria-hidden="true"></div>
+        <div class="orbit orbit--descending" aria-hidden="true"></div>
+        <div class="cover-arch">
+          <img class="cover-image" :src="coverUrl" :alt="`${displayName} 的网站封面`" fetchpriority="high" />
         </div>
-
-        <!-- 波浪过渡 - 连接封面和下方内容 -->
-        <svg class="wave-divider" viewBox="0 0 1440 120" preserveAspectRatio="none" aria-hidden="true">
-          <path d="M0 72C190 116 360 30 575 60C800 92 946 132 1160 76C1274 46 1367 45 1440 58V120H0Z" />
+        <svg class="hero-star" viewBox="0 0 100 100" aria-hidden="true">
+          <path d="M50 0L59 33L85 15L67 41L100 50L67 59L85 85L59 67L50 100L41 67L15 85L33 59L0 50L33 41L15 15L41 33Z" />
         </svg>
+        <span class="orbit-moon" aria-hidden="true"></span>
+        <img class="hero-avatar" :src="avatarUrl" :alt="`${displayName} 的头像`" width="88" height="88" />
+        <span class="art-caption">热爱，让小站慢慢生长。</span>
       </div>
     </div>
 
-    <!-- 统计数据区 - 交叠式出现 -->
-    <div class="stats-section section-reveal" data-reveal-index="0">
-      <h2 class="section-title">
-        <i class="fas fa-chart-line"></i>
-        数据一览
-      </h2>
-      <div class="stats-grid">
-        <div
-          v-for="(stat, index) in statsData"
-          :key="stat.key"
-          class="stat-card"
-          :style="{ '--card-delay': `${index * 0.1}s` }"
-          @mouseenter="handleStatHover"
-        >
-          <div class="stat-icon-wrapper">
-            <div class="stat-icon-glow" aria-hidden="true"></div>
-            <i :class="stat.icon" class="stat-icon"></i>
-          </div>
-          <div class="stat-content">
-            <div class="stat-value">
-              <span class="stat-number" :data-target="stat.value">0</span>
-            </div>
-            <div class="stat-label">{{ stat.label }}</div>
-          </div>
-          <div class="stat-sparkle" aria-hidden="true"></div>
+    <section class="stats-section" aria-labelledby="about-stats-title" :aria-busy="statsLoading">
+      <header class="stats-heading">
+        <span class="stats-mark" aria-hidden="true">✳</span>
+        <div><h2 id="about-stats-title">数据一览</h2><p>小站留下的足迹</p></div>
+      </header>
+      <dl class="stats-grid" aria-label="公开内容统计">
+        <div v-for="stat in statsData" :key="stat.key" class="stat-item">
+          <dt>{{ stat.label }}</dt>
+          <dd>
+            <span class="stat-number">{{ formatCount(stat.value) }}</span>
+            <span v-if="stat.value === null" class="stat-unavailable">{{ statsLoading ? '加载中' : '暂不可用' }}</span>
+          </dd>
         </div>
+      </dl>
+      <div class="stats-caption" role="status">
+        <p>{{ statsError || (statsLoading ? '正在读取公开内容统计…' : '统计范围：公开文章、分类与标签') }}</p>
+        <button v-if="statsError" type="button" class="stats-retry" :disabled="statsLoading" @click="$emit('retry-stats')">
+          <i class="fas fa-rotate-right" aria-hidden="true"></i>{{ statsLoading ? '重试中…' : '重新加载' }}
+        </button>
       </div>
-    </div>
+    </section>
 
-    <!-- 技能栈区 - 磁性卡片效果 -->
-    <div v-if="visibleSkills.length" class="skills-section section-reveal" data-reveal-index="1">
-      <h2 class="section-title">
-        <i class="fas fa-code"></i>
-        技能栈
-      </h2>
-      <div class="skills-magnetic-grid" ref="skillsGridRef">
-        <div
-          v-for="(skill, index) in visibleSkills"
-          :key="skill"
-          class="skill-card magnetic-card about-skill-chip"
-          :style="{ '--skill-index': index }"
-          :data-skill-index="index"
-          @mouseenter="handleSkillHover($event, index)"
-          @mouseleave="resetSkillHover"
-        >
-          <span class="skill-text">{{ skill }}</span>
-          <div class="skill-shimmer" aria-hidden="true"></div>
-        </div>
-      </div>
-    </div>
+    <section v-if="visibleSkills.length" class="skills-section" aria-labelledby="about-skills-title">
+      <header class="section-heading"><h2 id="about-skills-title">正在学习<br />与构建</h2><p>让好奇心，有迹可循。</p></header>
+      <ul class="skill-constellation" aria-label="技能方向">
+        <li v-for="(skill, index) in visibleSkills" :key="skill" class="about-skill-chip" :class="`skill-shape-${index % 3}`">{{ skill }}</li>
+      </ul>
+    </section>
 
-    <!-- 快捷入口 - 玻璃态卡片 -->
-    <nav v-if="portals.length" class="portals-section section-reveal" data-reveal-index="3" aria-label="站点入口">
-      <h2 class="section-title">
-        <i class="fas fa-compass"></i>
-        探索更多
-      </h2>
-      <div class="portals-glass-grid">
-        <button
-          v-for="portal in portals"
-          :key="portal.key"
-          type="button"
-          class="portal-glass-card ripple-trigger about-portal-link"
-          @click="$emit('select-portal', portal)"
-          @mouseenter="handlePortalHover"
-        >
-          <div class="portal-glow" aria-hidden="true"></div>
-          <div class="portal-icon-wrapper">
-            <i :class="portal.icon"></i>
-          </div>
-          <div class="portal-text">
-            <strong>{{ portal.title }}</strong>
-            <small>{{ portal.description }}</small>
-          </div>
-          <i class="fas fa-arrow-right portal-arrow"></i>
+    <nav v-if="portals.length" class="portals-section" aria-label="站点入口">
+      <header class="section-heading"><h2>从这里<br />继续探索</h2><p>写下的、喜欢的、正在做的。</p></header>
+      <div class="portal-list">
+        <button v-for="portal in portals" :key="portal.key" type="button" class="about-portal-link ripple-trigger" @click="$emit('select-portal', portal)">
+          <span class="portal-symbol"><i :class="portal.icon" aria-hidden="true"></i></span>
+          <span class="portal-copy"><strong>{{ portal.title }}</strong><small>{{ portal.description }}</small></span>
+          <i class="fas fa-arrow-up-right-from-square portal-arrow" aria-hidden="true"></i>
         </button>
       </div>
     </nav>
@@ -154,7 +77,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { computed } from 'vue';
 
 const props = defineProps({
   hero: { type: Object, default: () => ({}) },
@@ -162,797 +85,532 @@ const props = defineProps({
   skills: { type: Array, default: () => [] },
   enabled: { type: Boolean, default: true },
   portals: { type: Array, default: () => [] },
-  stats: { type: Object, default: () => ({ posts: 0, projects: 0, tags: 0, views: 0 }) }
+  stats: { type: Object, default: () => ({}) },
+  statsLoading: { type: Boolean, default: false },
+  statsError: { type: String, default: '' }
 });
 
-defineEmits(['select-portal']);
-
-const coverRef = ref(null);
-const avatarRef = ref(null);
-const skillsGridRef = ref(null);
-
-const coverParallax = ref({ x: 0, y: 0 });
-const coverParallaxStyle = computed(() => ({
-  transform: `translate(${coverParallax.value.x}px, ${coverParallax.value.y}px) scale(1.1)`
-}));
-
+defineEmits(['select-portal', 'retry-stats']);
 const displayName = computed(() => String(props.hero?.name || 'Shizuki').trim());
 const avatarUrl = computed(() => String(props.hero?.avatarUrl || '/images/katanegai.jpg').trim());
 const coverUrl = computed(() => String(props.hero?.coverImageUrl || avatarUrl.value).trim());
 const activityStatus = computed(() => String(props.identity?.activityStatus || '学习中').trim());
-
-const compactFacts = computed(() => {
-  const facts = [];
-  if (props.identity?.role) facts.push({ label: '角色', value: props.identity.role, icon: 'fas fa-briefcase' });
-  if (props.identity?.major) facts.push({ label: '专业', value: props.identity.major, icon: 'fas fa-book' });
-  if (props.identity?.location) facts.push({ label: '位置', value: props.identity.location, icon: 'fas fa-location-dot' });
-  else if (props.identity?.school) facts.push({ label: '学校', value: props.identity.school, icon: 'fas fa-graduation-cap' });
-  return facts.slice(0, 3);
-});
-
+const compactFacts = computed(() => [
+  { label: '当前角色', value: props.identity?.role },
+  { label: '专业', value: props.identity?.major },
+  { label: props.identity?.location ? '所在城市' : '学校', value: props.identity?.location || props.identity?.school }
+].filter((fact) => String(fact.value || '').trim()));
 const visibleSkills = computed(() => {
   const seen = new Set();
-  return props.skills
-    .map((item) => String(item || '').trim())
-    .filter((item) => {
-      const key = item.toLowerCase();
-      if (!item || seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    })
-    .slice(0, 20);
+  return props.skills.map((item) => String(item || '').trim()).filter((skill) => {
+    const key = skill.toLowerCase();
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).slice(0, 20);
 });
-
 const statsData = computed(() => [
-  { key: 'posts', label: '文章', value: props.stats.posts || 0, icon: 'fas fa-file-lines' },
-  { key: 'projects', label: '项目', value: props.stats.projects || 0, icon: 'fas fa-folder' },
-  { key: 'tags', label: '标签', value: props.stats.tags || 0, icon: 'fas fa-tags' },
-  { key: 'views', label: '浏览', value: props.stats.views || 0, icon: 'fas fa-eye' }
+  { key: 'posts', label: '公开文章', value: props.stats.posts ?? null },
+  { key: 'categories', label: '内容分类', value: props.stats.categories ?? null },
+  { key: 'tags', label: '内容标签', value: props.stats.tags ?? null }
 ]);
-
-function particleStyle(index) {
-  const delay = Math.random() * 8;
-  const duration = 15 + Math.random() * 10;
-  const x = Math.random() * 100;
-  const y = Math.random() * 100;
-  return {
-    left: `${x}%`,
-    top: `${y}%`,
-    animationDelay: `${delay}s`,
-    animationDuration: `${duration}s`
-  };
+const numberFormatter = new Intl.NumberFormat('zh-CN');
+function formatCount(value) {
+  return Number.isSafeInteger(value) && value >= 0 ? numberFormatter.format(value) : '—';
 }
-
-function handleCoverMouseMove(e) {
-  if (!coverRef.value) return;
-  const rect = coverRef.value.getBoundingClientRect();
-  const x = (e.clientX - rect.left - rect.width / 2) / rect.width;
-  const y = (e.clientY - rect.top - rect.height / 2) / rect.height;
-  coverParallax.value = { x: x * 30, y: y * 30 };
-}
-
-function resetCoverParallax() {
-  coverParallax.value = { x: 0, y: 0 };
-}
-
-function handleStatHover(e) {
-  const card = e.currentTarget;
-  card.style.transform = 'translateY(-8px) scale(1.02)';
-}
-
-function handleSkillHover(e, index) {
-  const card = e.currentTarget;
-  card.style.transform = 'translateY(-4px) scale(1.05)';
-}
-
-function resetSkillHover(e) {
-  const card = e.currentTarget;
-  card.style.transform = '';
-}
-
-function handlePortalHover(e) {
-  const card = e.currentTarget;
-  const glow = card.querySelector('.portal-glow');
-  if (glow) glow.style.opacity = '1';
-}
-
-// 数字动画
-function animateNumber(element, target) {
-  const duration = 2000;
-  const start = 0;
-  const startTime = performance.now();
-
-  function update(currentTime) {
-    const elapsed = currentTime - startTime;
-    const progress = Math.min(elapsed / duration, 1);
-    const easeProgress = 1 - Math.pow(1 - progress, 3);
-    const current = Math.floor(start + (target - start) * easeProgress);
-    element.textContent = current;
-    if (progress < 1) requestAnimationFrame(update);
-  }
-
-  requestAnimationFrame(update);
-}
-
-// Intersection Observer - 滚动触发动画
-let observer = null;
-let numberAnimationTimer = null;
-onMounted(() => {
-  const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
-
-  // 数字动画
-  numberAnimationTimer = setTimeout(() => {
-    document.querySelectorAll('.stat-number').forEach(el => {
-      const target = parseInt(el.dataset.target) || 0;
-      if (reducedMotion) el.textContent = String(target);
-      else animateNumber(el, target);
-    });
-  }, reducedMotion ? 0 : 500);
-
-  // 交叠式reveal
-  if (reducedMotion || typeof IntersectionObserver !== 'function') {
-    document.querySelectorAll('.section-reveal').forEach(el => el.classList.add('revealed'));
-    return;
-  }
-  observer = new IntersectionObserver((entries) => {
-    entries.forEach(entry => {
-      if (entry.isIntersecting) {
-        entry.target.classList.add('revealed');
-      }
-    });
-  }, { threshold: 0.1, rootMargin: '-50px' });
-
-  document.querySelectorAll('.section-reveal').forEach(el => observer.observe(el));
-});
-
-onUnmounted(() => {
-  clearTimeout(numberAnimationTimer);
-  if (observer) observer.disconnect();
-});
 </script>
 
 <style scoped>
 .about-overview-premium {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-10);
+  container-type: inline-size;
+  min-width: 0;
+  color: var(--theme-text-primary);
+  display: grid;
+  gap: clamp(28px, 4vw, 48px);
 }
-
-/* ============================================================
-   封面区域 - 保留并增强
-   ============================================================ */
-
-.hero-cover-section {
+.about-hero {
+  min-width: 0;
   position: relative;
-  min-height: 600px;
-  border-radius: var(--radius-2xl);
+  isolation: isolate;
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 16px;
+  padding: clamp(24px, 3.2vw, 44px);
   overflow: hidden;
-  box-shadow: 0 30px 90px rgba(0, 0, 0, 0.5);
+  border-radius: 16px 16px 64px 16px;
+  background: var(--theme-panel-surface);
 }
-
-.cover-image-wrapper {
-  position: absolute;
-  inset: 0;
-  overflow: hidden;
-}
-
-.cover-image {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  transition: transform 0.3s ease-out;
-  will-change: transform;
-}
-
-.cover-overlay {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    180deg,
-    rgba(0, 0, 0, 0.2) 0%,
-    rgba(0, 0, 0, 0.5) 60%,
-    rgba(0, 0, 0, 0.8) 100%
-  );
-}
-
-/* 浮动粒子 */
-.floating-particles {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  overflow: hidden;
-}
-
-.particle {
-  position: absolute;
-  width: 4px;
-  height: 4px;
-  background: rgba(255, 255, 255, 0.6);
-  border-radius: 50%;
-  box-shadow: 0 0 10px rgba(255, 255, 255, 0.8);
-  animation: particle-float 15s ease-in-out infinite;
-}
-
-@keyframes particle-float {
-  0%, 100% { transform: translateY(0) translateX(0); opacity: 0; }
-  10% { opacity: 1; }
-  90% { opacity: 1; }
-  100% { transform: translateY(-100vh) translateX(50px); opacity: 0; }
-}
-
-/* Hero内容层 */
-.hero-content-overlay {
+.hero-copy {
+  min-width: 0;
   position: relative;
   z-index: 2;
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
-  min-height: 600px;
-  padding: var(--space-10) var(--space-6) 0;
 }
-
-.hero-content {
-  display: flex;
-  align-items: flex-end;
-  gap: var(--space-6);
-  padding-bottom: var(--space-8);
-}
-
-/* 头像 + 光环 */
-.avatar-section {
-  position: relative;
-  flex-shrink: 0;
-}
-
-.avatar-glow-rings {
-  position: absolute;
-  inset: -40px;
-  pointer-events: none;
-}
-
-.glow-ring {
-  position: absolute;
-  inset: 0;
-  border-radius: 50%;
-  border: 2px solid;
-  opacity: 0.3;
-  animation: ring-pulse 3s ease-in-out infinite;
-}
-
-.ring-1 {
-  border-color: rgba(var(--accent-rgb), 0.8);
-  animation-delay: 0s;
-}
-
-.ring-2 {
-  border-color: rgba(147, 197, 253, 0.6);
-  animation-delay: 1s;
-}
-
-.ring-3 {
-  border-color: rgba(196, 181, 253, 0.6);
-  animation-delay: 2s;
-}
-
-@keyframes ring-pulse {
-  0%, 100% { transform: scale(0.8); opacity: 0; }
-  50% { transform: scale(1.2); opacity: 0.5; }
-}
-
-.avatar-wrapper {
-  position: relative;
-  width: 140px;
-  height: 140px;
-}
-
-.hero-avatar {
-  width: 100%;
-  height: 100%;
-  border-radius: 50%;
-  object-fit: cover;
-  border: 4px solid rgba(255, 255, 255, 0.2);
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
-  position: relative;
-  z-index: 1;
-}
-
-.avatar-border {
-  position: absolute;
-  inset: -6px;
-  border-radius: 50%;
-  background: conic-gradient(
-    from 0deg,
-    rgba(var(--accent-rgb), 1),
-    rgba(147, 197, 253, 1),
-    rgba(196, 181, 253, 1),
-    rgba(var(--accent-rgb), 1)
-  );
-  animation: border-rotate 4s linear infinite;
-  z-index: 0;
-}
-
-@keyframes border-rotate {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-
-/* 文字内容 */
-.hero-text {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-}
-
-.animate-slide-up {
-  animation: slide-up 0.8s ease-out backwards;
-  animation-delay: var(--delay, 0s);
-}
-
-@keyframes slide-up {
-  from {
-    opacity: 0;
-    transform: translateY(30px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.hero-greeting {
-  font-size: 14px;
-  font-weight: 700;
-  letter-spacing: 0.15em;
-  text-transform: uppercase;
-  color: rgba(var(--accent-rgb), 1);
-  text-shadow: 0 2px 10px rgba(var(--accent-rgb), 0.5);
-  margin: 0;
-}
-
-.hero-name {
-  font-size: clamp(40px, 6vw, 72px);
-  font-weight: 900;
-  line-height: 1.1;
-  margin: 0;
-  background: linear-gradient(
-    135deg,
-    rgba(255, 255, 255, 1) 0%,
-    rgba(147, 197, 253, 1) 50%,
-    rgba(196, 181, 253, 1) 100%
-  );
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  text-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
-}
-
-.hero-quote {
-  font-size: 18px;
-  font-style: italic;
-  color: rgba(255, 255, 255, 0.9);
-  margin: 0;
-  padding-left: var(--space-4);
-  border-left: 4px solid rgba(var(--accent-rgb), 0.6);
-  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
-}
-
-.hero-meta {
+.hero-topline {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-3);
-  margin-top: var(--space-2);
+  gap: 12px;
+  margin-bottom: 36px;
 }
-
-.hero-status {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 16px;
-  border-radius: var(--radius-full);
-  background: rgba(255, 255, 255, 0.15);
-  backdrop-filter: blur(10px);
-  font-size: 13px;
-  font-weight: 600;
-  color: rgba(255, 255, 255, 1);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+.hero-page-label {
+  font-size: 12px;
+  color: var(--theme-text-secondary);
 }
-
-.status-pulse {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: #4ECDC4;
-  box-shadow: 0 0 10px #4ECDC4;
-  animation: pulse 2s ease-in-out infinite;
-}
-
-@keyframes pulse {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.5; transform: scale(1.3); }
-}
-
-.hero-status.offline .status-pulse {
-  background: #95a5a6;
-  box-shadow: none;
-  animation: none;
-}
-
-.quick-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-}
-
-.quick-tag {
-  display: flex;
+.about-overview-status {
+  display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 12px;
-  border-radius: var(--radius-md);
-  background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(10px);
-  font-size: 13px;
-  color: rgba(255, 255, 255, 0.95);
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+  color: rgb(var(--accent-readable-rgb));
+  font-size: 11px;
 }
-
-.quick-tag i {
-  color: rgba(var(--accent-rgb), 1);
-}
-
-/* 波浪分隔 */
-.wave-divider {
-  position: absolute;
-  bottom: -1px;
-  left: 0;
-  width: 100%;
-  height: 80px;
-  fill: var(--theme-bg);
-}
-
-/* ============================================================
-   统计数据区 - 动画卡片
-   ============================================================ */
-
-.section-reveal {
-  opacity: 0;
-  transform: translateY(40px);
-  transition: all 0.8s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.section-reveal.revealed {
-  opacity: 1;
-  transform: translateY(0);
-}
-
-.stats-section,
-.skills-section,
-.portals-section {
-  padding: var(--space-8) var(--space-6);
-  border-radius: var(--radius-2xl);
-  background: rgba(var(--theme-panel-surface-rgb, 20, 20, 30), 0.5);
-  backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.section-title {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  font-size: 24px;
-  font-weight: 800;
-  color: rgba(255, 255, 255, 0.95);
-  margin-bottom: var(--space-6);
-}
-
-.section-title i {
-  font-size: 20px;
-  color: rgba(var(--accent-rgb), 1);
-}
-
-.stats-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: var(--space-4);
-}
-
-.stat-card {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: var(--space-4);
-  padding: var(--space-5);
-  border-radius: var(--radius-xl);
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  overflow: hidden;
-  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-  animation: stat-appear 0.6s ease-out backwards;
-  animation-delay: var(--card-delay);
-}
-
-@keyframes stat-appear {
-  from {
-    opacity: 0;
-    transform: scale(0.8) translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1) translateY(0);
-  }
-}
-
-.stat-card:hover {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(var(--accent-rgb), 0.5);
-  box-shadow: 0 20px 60px rgba(var(--accent-rgb), 0.3);
-}
-
-.stat-icon-wrapper {
-  position: relative;
-  width: 60px;
-  height: 60px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: var(--radius-lg);
-  background: rgba(var(--accent-rgb), 0.15);
-  flex-shrink: 0;
-}
-
-.stat-icon-glow {
-  position: absolute;
-  inset: -10px;
-  background: radial-gradient(circle, rgba(var(--accent-rgb), 0.4), transparent 70%);
-  filter: blur(20px);
-  opacity: 0;
-  transition: opacity 0.3s ease;
-}
-
-.stat-card:hover .stat-icon-glow {
-  opacity: 1;
-}
-
-.stat-icon {
-  font-size: 24px;
-  color: rgba(var(--accent-rgb), 1);
-}
-
-.stat-content {
-  flex: 1;
-  min-width: 0;
-}
-
-.stat-value {
-  font-size: 32px;
-  font-weight: 800;
-  line-height: 1;
-  color: rgba(255, 255, 255, 0.95);
-}
-
-.stat-label {
-  font-size: 13px;
-  color: rgba(255, 255, 255, 0.6);
-  margin-top: 4px;
-}
-
-.stat-sparkle {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  width: 20px;
-  height: 20px;
-  background: radial-gradient(circle, rgba(255, 255, 255, 0.8), transparent);
+.about-overview-status > span {
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
-  opacity: 0;
-  animation: sparkle 2s ease-in-out infinite;
+  background: currentColor;
 }
-
-@keyframes sparkle {
-  0%, 100% { opacity: 0; transform: scale(0.5) rotate(0deg); }
-  50% { opacity: 1; transform: scale(1) rotate(180deg); }
+.about-overview-status.offline {
+  color: var(--theme-text-tertiary);
 }
-
-/* ============================================================
-   技能栈 - 磁性卡片
-   ============================================================ */
-
-.skills-magnetic-grid {
+.hero-greeting {
+  margin: 0 0 12px;
+  color: var(--theme-text-secondary);
+  font-size: 14px;
+  line-height: 1.8;
+}
+h1 {
+  margin: 0;
+  font-family: var(--font-display, 'Zen Maru Gothic', 'LXGW WenKai', sans-serif);
+  font-size: clamp(38px, 7cqi, 76px);
+  font-weight: 800;
+  line-height: 1.12;
+  letter-spacing: -0.035em;
+  overflow-wrap: anywhere;
+  text-wrap: balance;
+}
+.name-period {
+  color: rgb(var(--accent-readable-rgb));
+}
+.hero-quote {
+  margin: 22px 0 28px;
+  max-width: 26ch;
+  color: var(--theme-text-primary);
+  font-family: var(--font-display, 'LXGW WenKai', sans-serif);
+  font-size: clamp(16px, 2.6cqi, 23px);
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+.hero-facts {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+}
+.about-overview-fact {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr);
+  align-items: baseline;
+  gap: 10px;
+}
+.hero-facts dt {
+  color: var(--theme-text-tertiary);
+  font-size: 10px;
+}
+.hero-facts dd {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.hero-footnote {
+  margin-top: 32px;
   display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-3);
+  align-items: center;
+  gap: 10px;
+  color: var(--theme-text-secondary);
+  font-size: 11px;
 }
-
-.skill-card {
+.hero-footnote > span {
+  width: 28px;
+  height: 1px;
+  background: rgb(var(--accent-readable-rgb));
+}
+.orbital-art {
   position: relative;
-  padding: 12px 20px;
-  border-radius: var(--radius-lg);
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  font-size: 15px;
-  font-weight: 600;
-  color: rgba(255, 255, 255, 0.95);
-  overflow: hidden;
-  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-  cursor: pointer;
-  animation: skill-pop 0.5s ease-out backwards;
-  animation-delay: calc(var(--skill-index) * 0.03s);
+  min-width: 0;
+  width: 100%;
+  aspect-ratio: 0.85;
+  margin-block: 20px 36px;
 }
-
-@keyframes skill-pop {
-  from {
-    opacity: 0;
-    transform: scale(0.8);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
-.skill-card:hover {
-  background: rgba(var(--accent-rgb), 0.2);
-  border-color: rgba(var(--accent-rgb), 0.6);
-  box-shadow: 0 10px 30px rgba(var(--accent-rgb), 0.3);
-}
-
-.skill-shimmer {
+.cover-arch {
   position: absolute;
-  top: 0;
-  left: -100%;
+  inset: 0 5% 3%;
+  overflow: hidden;
+  border-radius: 48% 48% 18% 18% / 40% 40% 14% 14%;
+  transform: rotate(5deg);
+  background: var(--theme-surface-soft);
+}
+.cover-image {
+  display: block;
   width: 100%;
   height: 100%;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    rgba(255, 255, 255, 0.3),
-    transparent
-  );
-  transition: left 0.5s ease;
+  object-fit: cover;
+  object-position: 76% center;
+  transform: rotate(-5deg) scale(1.13);
 }
-
-.skill-card:hover .skill-shimmer {
-  left: 100%;
-}
-
-/* ============================================================
-   快捷入口 - 玻璃态
-   ============================================================ */
-
-.portals-glass-grid {
-  display: grid;
-  gap: var(--space-4);
-}
-
-.portal-glass-card {
-  position: relative;
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  align-items: center;
-  gap: var(--space-4);
-  padding: var(--space-5);
-  border-radius: var(--radius-xl);
-  border: none;
-  background: rgba(255, 255, 255, 0.05);
-  backdrop-filter: blur(20px);
-  cursor: pointer;
-  overflow: hidden;
-  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-  text-align: left;
-}
-
-.portal-glow {
+.orbit {
   position: absolute;
-  inset: 0;
-  background: radial-gradient(
-    circle at 50% 50%,
-    rgba(var(--accent-rgb), 0.2),
-    transparent 70%
-  );
-  opacity: 0;
-  transition: opacity 0.3s ease;
+  z-index: 1;
+  left: -15%;
+  top: 21%;
+  width: 130%;
+  height: 48%;
+  border: 1px solid rgb(var(--accent-readable-rgb));
+  border-radius: 50%;
   pointer-events: none;
 }
-
-.portal-glass-card:hover {
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(var(--accent-rgb), 0.3);
-  transform: translateX(8px);
-  box-shadow: 0 20px 60px rgba(var(--accent-rgb), 0.2);
+.orbit--ascending {
+  transform: rotate(-32deg);
 }
-
-.portal-icon-wrapper {
-  width: 56px;
-  height: 56px;
-  display: flex;
+.orbit--descending {
+  transform: rotate(38deg);
+  opacity: 0.55;
+}
+.hero-star {
+  position: absolute;
+  z-index: 2;
+  top: -7%;
+  right: 1%;
+  width: 22%;
+  fill: rgb(var(--accent-rgb));
+  transform: rotate(12deg);
+}
+.orbit-moon {
+  position: absolute;
+  z-index: 2;
+  left: -2%;
+  top: 18%;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: rgb(var(--accent-readable-rgb));
+}
+.hero-avatar {
+  position: absolute;
+  z-index: 2;
+  left: -3%;
+  bottom: -2%;
+  width: 29%;
+  height: auto;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border: 5px solid rgb(var(--accent-soft-rgb));
+  border-radius: 50%;
+  box-shadow: var(--theme-shadow-soft);
+}
+.art-caption {
+  position: absolute;
+  right: 4%;
+  bottom: -28px;
+  color: var(--theme-text-secondary);
+  font-size: 10px;
+  transform: rotate(-4deg);
+}
+.stats-section {
+  display: grid;
+  grid-template-columns: minmax(130px, 0.7fr) minmax(0, 1.6fr);
+  gap: 20px 24px;
   align-items: center;
-  justify-content: center;
-  border-radius: var(--radius-lg);
-  background: rgba(var(--accent-rgb), 0.15);
-  font-size: 24px;
-  color: rgba(var(--accent-rgb), 1);
-  flex-shrink: 0;
+  padding: 22px clamp(18px, 3vw, 32px);
+  border-block: 1px solid var(--theme-border);
 }
-
-.portal-text {
+.stats-heading {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
+  gap: 12px;
+  align-items: center;
+}
+.stats-mark {
+  color: rgb(var(--accent-readable-rgb));
+  font-size: 48px;
+  line-height: 1;
+}
+.stats-heading h2, .section-heading h2 {
+  margin: 0;
+  font-family: var(--font-display, 'LXGW WenKai', sans-serif);
+  font-size: clamp(18px, 2.6cqi, 25px);
+  line-height: 1.5;
+  text-wrap: balance;
+}
+.stats-heading p, .section-heading p {
+  margin: 6px 0 0;
+  color: var(--theme-text-secondary);
+  font-size: 11px;
+  line-height: 1.8;
+}
+.stats-grid {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+.stat-item {
   min-width: 0;
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 5px;
 }
-
-.portal-text strong {
+.stat-item dt {
+  color: var(--theme-text-secondary);
+  font-size: 11px;
+}
+.stat-item dd {
+  margin: 0;
+  display: grid;
+  gap: 2px;
+}
+.stat-number {
+  font-size: clamp(26px, 4.8cqi, 42px);
+  font-weight: 750;
+  line-height: 1.15;
+  letter-spacing: -0.025em;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.stat-unavailable {
+  color: var(--theme-text-tertiary);
+  font-size: 10px;
+}
+.stats-caption {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.stats-caption p {
+  margin: 0;
+  font-size: 10px;
+  color: var(--theme-text-secondary);
+  line-height: 1.7;
+}
+.stats-retry {
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 12px;
+  border: 1px solid var(--theme-border);
+  border-radius: 999px;
+  background: var(--theme-surface-soft);
+  color: var(--theme-text-primary);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.stats-retry:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+.skills-section, .portals-section {
+  display: grid;
+  grid-template-columns: minmax(130px, 0.7fr) minmax(0, 1.6fr);
+  align-items: start;
+  gap: 24px;
+  padding-inline: clamp(18px, 3vw, 32px);
+}
+.skill-constellation {
+  margin: 0;
+  padding: 4px 0 0;
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+.about-skill-chip {
+  max-width: 100%;
+  padding: 12px 18px;
+  font-size: 12px;
+  color: var(--theme-text-primary);
+  border: 1px solid var(--theme-border-strong);
+  overflow-wrap: anywhere;
+}
+.skill-shape-0 {
+  border-radius: 50%;
+  padding-block: 18px;
+}
+.skill-shape-1 {
+  border-radius: 24px 6px 24px 6px;
+  background: var(--accent-mode-fill-soft);
+}
+.skill-shape-2 {
+  border-radius: 6px 24px 6px 24px;
+}
+.portal-list {
+  min-width: 0;
+  display: grid;
+}
+.about-portal-link {
+  min-width: 0;
+  width: 100%;
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) 18px;
+  gap: 14px;
+  align-items: center;
+  padding: 16px 4px;
+  border: 0;
+  border-bottom: 1px solid var(--theme-border);
+  color: var(--theme-text-primary);
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.about-portal-link:first-child {
+  padding-top: 0;
+}
+.portal-symbol {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--accent-mode-fill-soft);
+  color: rgb(var(--accent-readable-rgb));
+  transition: transform 180ms ease-out;
+}
+.portal-copy {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+.portal-copy strong {
   font-size: 16px;
-  font-weight: 700;
-  color: rgba(255, 255, 255, 0.95);
+  overflow-wrap: anywhere;
 }
-
-.portal-text small {
-  font-size: 14px;
-  color: rgba(255, 255, 255, 0.7);
+.portal-copy small {
+  font-size: 11px;
+  color: var(--theme-text-secondary);
+  line-height: 1.6;
+  overflow-wrap: anywhere;
 }
-
 .portal-arrow {
-  font-size: 18px;
-  color: rgba(255, 255, 255, 0.4);
-  transition: all 0.3s ease;
+  font-size: 12px;
+  color: var(--theme-text-secondary);
+  transition: transform 180ms ease-out;
 }
-
-.portal-glass-card:hover .portal-arrow {
-  color: rgba(var(--accent-rgb), 1);
-  transform: translateX(6px);
+.about-portal-link:hover .portal-arrow {
+  transform: translate(2px, -2px);
+  color: rgb(var(--accent-readable-rgb));
 }
-
-/* ============================================================
-   响应式
-   ============================================================ */
-
-@media (max-width: 1024px) {
-  .hero-content {
-    flex-direction: column;
-    align-items: center;
-    text-align: center;
+.about-portal-link:hover .portal-symbol {
+  transform: rotate(-12deg);
+}
+.about-portal-link:focus-visible, .stats-retry:focus-visible {
+  outline: 3px solid var(--theme-focus-ring);
+  outline-offset: 4px;
+  border-radius: 8px;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .orbital-art {
+    animation: art-arrive 650ms cubic-bezier(0.16, 1, 0.3, 1) both;
   }
-
-  .hero-quote {
-    border-left: none;
-    border-top: 4px solid rgba(var(--accent-rgb), 0.6);
-    padding-left: 0;
-    padding-top: var(--space-2);
-  }
-
-  .hero-meta {
-    justify-content: center;
+  @keyframes art-arrive {
+    from {
+      transform: translateY(12px) rotate(-3deg);
+    }
+    to {
+      transform: translateY(0) rotate(0);
+    }
   }
 }
-
-@media (max-width: 768px) {
-  .hero-cover-section {
-    min-height: 500px;
+@container (max-width: 600px) {
+  .about-hero {
+    gap: 24px;
+    padding: 24px;
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
   }
-
-  .hero-name {
-    font-size: clamp(32px, 8vw, 48px);
+  .hero-topline {
+    margin-bottom: 24px;
   }
-
+  .hero-facts {
+    gap: 8px;
+  }
+  .hero-footnote {
+    margin-top: 24px;
+  }
+  .stats-section {
+    grid-template-columns: 1fr;
+  }
+  .stats-mark {
+    font-size: 34px;
+  }
+  .stats-heading {
+    gap: 10px;
+  }
+  .stats-heading > div {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 12px;
+  }
   .stats-grid {
-    grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
   }
-
+  .skills-section, .portals-section {
+    grid-template-columns: 1fr;
+    gap: 18px;
+  }
+  .section-heading h2 br {
+    display: none;
+  }
 }
-
-/* ============================================================
-   降低动画
-   ============================================================ */
-
+@container (max-width: 420px) {
+  .about-hero {
+    grid-template-columns: 1fr;
+    gap: 12px;
+    padding: 24px 22px 32px;
+    border-bottom-right-radius: 48px;
+  }
+  .hero-topline {
+    margin-bottom: 22px;
+  }
+  h1 {
+    font-size: clamp(40px, 14cqi, 58px);
+  }
+  .hero-quote {
+    font-size: 18px;
+    margin-block: 16px 20px;
+  }
+  .hero-footnote {
+    display: none;
+  }
+  .orbital-art {
+    width: 76%;
+    justify-self: center;
+    aspect-ratio: 1.04;
+    margin-block: 16px 36px;
+  }
+  .art-caption {
+    right: -8%;
+  }
+  .stats-section, .skills-section, .portals-section {
+    padding-inline: 12px;
+  }
+  .about-skill-chip {
+    padding: 10px 14px;
+  }
+  .skill-shape-0 {
+    padding-block: 15px;
+  }
+  .portal-copy strong {
+    font-size: 15px;
+  }
+}
 @media (prefers-reduced-motion: reduce) {
-  * {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
+  .portal-arrow, .portal-symbol {
+    transition: none;
   }
 }
 </style>
