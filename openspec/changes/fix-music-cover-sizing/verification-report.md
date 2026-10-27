@@ -1,5 +1,7 @@
 # Verification: fix-music-cover-sizing
 
+本文记录原始实现核验。2026-10-27 用户授权后的生产发布结果见 [deployment-report.md](deployment-report.md)。
+
 ## 结果
 
 | 维度 | 核验结果 |
@@ -40,4 +42,4 @@
 
 ## 交接
 
-本次修复只提交三个音乐样式文件及本 change 的文档。工作区同时出现的菜单、主题、小镇、OAuth 和 AstrBot 等其他改动不属于本次提交。无部署或推送操作，change 保持未归档。
+原始实现阶段只提交三个音乐样式文件及本 change 的文档。工作区同时出现的菜单、主题、小镇、OAuth 和 AstrBot 等其他改动不属于本次提交。该阶段未部署或推送；后续经用户授权已部署，见部署报告。change 保持未归档。
