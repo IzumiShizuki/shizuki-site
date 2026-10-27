@@ -85,7 +85,7 @@
         id="author-section-posts"
         class="author-about-section author-about-section--posts"
         data-author-section="posts"
-        aria-label="站点文章"
+        aria-label="站点文章区域"
       >
         <AuthorPublicPostsColumn />
       </section>
@@ -166,37 +166,37 @@ defineEmits(['select-tab', 'select-portal', 'edit', 'edit-journey', 'retry-album
 
 .author-about-center {
   display: grid;
-  gap: clamp(38px, 6vw, 68px);
-  padding: 2px 4px max(96px, env(safe-area-inset-bottom));
+  gap: clamp(52px, 8vw, 92px);
+  padding: clamp(20px, 3vw, 36px) clamp(16px, 2.7vw, 40px) max(108px, env(safe-area-inset-bottom));
 }
 
 .author-about-section {
   min-width: 0;
-  scroll-margin-top: 20px;
+  scroll-margin-top: 24px;
 }
 
 .author-about-section--intro {
   display: grid;
-  gap: 18px;
+  gap: clamp(28px, 4vw, 48px);
 }
 
 .author-about-section--journey {
   display: grid;
-  gap: 18px;
+  gap: 24px;
 }
 
 .author-section-heading {
   display: flex;
   align-items: end;
   justify-content: space-between;
-  gap: 20px;
-  padding: 0 clamp(4px, 1.2vw, 12px);
+  gap: 24px;
+  padding: 0;
 }
 
 .author-section-heading > div {
   min-width: 0;
   display: grid;
-  gap: 7px;
+  gap: 9px;
 }
 
 .author-section-heading h2,
@@ -208,112 +208,148 @@ defineEmits(['select-tab', 'select-portal', 'edit', 'edit-journey', 'retry-album
 }
 
 .author-section-heading h2 {
-  color: var(--theme-text-primary);
+  color: var(--about-text-hero, var(--theme-text-primary));
   font-family: var(--font-display, 'Zen Maru Gothic', 'LXGW WenKai', sans-serif);
-  font-size: clamp(24px, 3vw, 36px);
-  line-height: 1.12;
-  letter-spacing: -0.025em;
+  font-size: clamp(28px, 4vw, 44px);
+  line-height: 1.18;
+  font-weight: 780;
+  letter-spacing: -0.03em;
 }
 
 .author-section-heading p {
   max-width: 68ch;
-  color: var(--theme-text-secondary);
-  font-size: 13px;
-  line-height: 1.7;
+  color: var(--about-text-secondary, var(--theme-text-secondary));
+  font-size: 14px;
+  font-weight: 480;
+  line-height: 1.78;
 }
 
 .author-section-action {
-  min-height: 40px;
-  padding: 0 14px;
-  border: 1px solid var(--accent-mode-border);
-  border-radius: var(--radius-sm);
+  min-height: 44px;
+  padding: 0 17px;
+  border: 1.5px solid var(--about-accent-border, var(--accent-mode-border));
+  border-radius: 999px;
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  color: var(--theme-text-primary);
-  background: var(--accent-mode-fill-soft);
+  gap: 9px;
+  color: var(--about-text-primary, var(--theme-text-primary));
+  background: var(--about-accent-fill, var(--accent-mode-fill-soft));
   font: inherit;
-  font-size: 12px;
-  font-weight: 700;
+  font-size: 13px;
+  font-weight: 680;
   white-space: nowrap;
   cursor: pointer;
-  transition: transform var(--dur-fast) var(--ease-out), border-color var(--dur-fast) ease;
+  transition: transform 220ms ease-out, border-color 220ms ease, box-shadow 220ms ease;
 }
 
 .author-section-action:hover {
-  border-color: var(--accent-mode-border-strong);
+  border-color: var(--about-accent-border, var(--accent-mode-border-strong));
   transform: translateY(-2px);
+  box-shadow: var(--about-shadow-soft, var(--theme-shadow-soft));
 }
 
 .author-section-action:focus-visible {
   outline: 3px solid var(--theme-focus-ring);
-  outline-offset: 3px;
+  outline-offset: 4px;
 }
 
 .about-journey-archive-list {
   display: grid;
-  gap: 14px;
+  gap: 0;
 }
 
 .about-journey-entry {
   min-width: 0;
   display: grid;
-  grid-template-columns: minmax(150px, 0.34fr) minmax(0, 1fr);
-  overflow: hidden;
+  grid-template-columns: minmax(170px, 0.32fr) minmax(0, 1fr);
+  gap: clamp(20px, 3vw, 36px);
+  padding: clamp(24px, 3.5vw, 42px) 0;
+  overflow: visible;
+  border: 0;
+  border-bottom: 1px solid var(--about-border-subtle, var(--theme-border-subtle));
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  transition: transform 200ms ease-out;
+}
+
+.about-journey-entry:first-child {
+  padding-top: 0;
+}
+
+.about-journey-entry:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.about-journey-entry:hover {
+  transform: translateX(4px);
 }
 
 .about-journey-entry:not(.has-image) {
   grid-template-columns: 1fr;
+  max-width: 78ch;
 }
 
 .about-journey-entry > img {
   width: 100%;
   height: 100%;
-  min-height: 170px;
+  min-height: 190px;
   display: block;
   object-fit: cover;
+  border: 0;
+  border-radius: 16px;
+  box-shadow: var(--about-shadow-soft, var(--theme-shadow-soft));
 }
 
 .about-journey-entry-copy {
   min-width: 0;
   display: grid;
   align-content: center;
-  gap: 8px;
-  padding: clamp(18px, 3vw, 28px);
+  gap: 10px;
+  padding: 0;
 }
 
 .about-journey-entry time,
 .about-journey-entry-copy > span {
-  color: rgb(var(--accent-readable-rgb));
-  font-size: 11px;
-  font-weight: 700;
+  color: var(--about-accent-text, rgb(var(--accent-readable-rgb)));
+  font-size: 11.5px;
+  font-weight: 740;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .about-journey-entry h3 {
-  color: var(--theme-text-primary);
-  font-size: clamp(17px, 2vw, 22px);
-  line-height: 1.3;
+  color: var(--about-text-hero, var(--theme-text-primary));
+  font-size: clamp(19px, 2.6vw, 26px);
+  font-weight: 700;
+  line-height: 1.36;
+  letter-spacing: -0.015em;
 }
 
 .about-journey-entry p {
-  max-width: 70ch;
-  color: var(--theme-text-secondary);
-  font-size: 13px;
-  line-height: 1.75;
+  max-width: 72ch;
+  color: var(--about-text-secondary, var(--theme-text-secondary));
+  font-size: 14px;
+  font-weight: 470;
+  line-height: 1.82;
 }
 
 .author-section-empty {
-  padding: 24px;
-  border: 1px solid var(--theme-border-subtle);
-  border-radius: var(--radius-md);
-  color: var(--theme-text-secondary);
-  background: var(--theme-panel-surface);
+  padding: 32px 24px;
+  border: 1px solid var(--about-border-subtle, var(--theme-border-subtle));
+  border-radius: 16px;
+  color: var(--about-text-secondary, var(--theme-text-secondary));
+  background: var(--about-surface-soft, var(--theme-panel-surface));
   text-align: center;
+  font-size: 14px;
+  font-weight: 480;
 }
 
-@media (max-width: 720px) {
+@media (max-width: 820px) {
   .author-about-center {
-    padding-top: 56px;
+    padding-top: clamp(56px, 8vw, 72px);
+    padding-inline: clamp(12px, 2.5vw, 24px);
   }
 
   .author-section-heading {
@@ -333,8 +369,15 @@ defineEmits(['select-tab', 'select-portal', 'edit', 'edit-journey', 'retry-album
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .author-section-action {
+  .author-section-action,
+  .about-journey-entry {
     transition: none;
+  }
+
+  .author-section-action:hover,
+  .about-journey-entry:hover {
+    transform: none;
+    padding-left: 0;
   }
 }
 </style>

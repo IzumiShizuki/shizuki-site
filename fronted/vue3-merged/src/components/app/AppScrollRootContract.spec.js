@@ -46,7 +46,7 @@ describe('App public scroll root contract', () => {
     expect(authorSource).toContain('--content-shell-left: clamp(236px, 15vw, 276px)');
     expect(authorSource).toContain('--content-shell-right: clamp(300px, 18vw, 348px)');
     expect(authorSource).toContain('scroll-padding-bottom: max(96px, env(safe-area-inset-bottom))');
-    expect(authorExperienceSource).toContain('padding: 2px 4px max(96px, env(safe-area-inset-bottom))');
+    expect(authorExperienceSource).toContain('max(108px, env(safe-area-inset-bottom))');
     expect(authorSource).toContain('resolveContentScrollRoot()');
   });
 });

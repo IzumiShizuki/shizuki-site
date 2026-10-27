@@ -1,5 +1,5 @@
 <template>
-  <HorizontalCardRail class="author-life-rail" :label="railLabel" :title="railTitle">
+  <HorizontalCardRail class="author-life-rail" :class="{ 'is-empty': items.length === 0 }" :label="railLabel" :title="railTitle">
     <template #header>
       <div class="life-rail-heading">
         <div>
@@ -164,11 +164,12 @@ function formatPublishedAt(value) {
 <style scoped>
 .author-life-rail {
   min-width: 0;
-  padding: 16px;
-  border: 1px solid var(--theme-border);
-  border-radius: 20px;
-  background: var(--theme-panel-surface);
-  box-shadow: var(--theme-shadow-soft);
+  padding: clamp(16px, 2.5vw, 24px) 0;
+  border: 0;
+  border-block: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 .life-rail-heading {
@@ -176,68 +177,76 @@ function formatPublishedAt(value) {
   display: flex;
   align-items: end;
   justify-content: space-between;
-  gap: 16px;
+  gap: 18px;
+  margin-bottom: 20px;
 }
 
 .life-rail-heading > div {
   min-width: 0;
   display: grid;
-  gap: 2px;
+  gap: 3px;
 }
 
 .life-rail-heading span {
-  color: rgb(var(--accent-readable-rgb, var(--accent-strong-rgb)));
-  font-size: 9px;
-  font-weight: 760;
-  letter-spacing: 0.13em;
+  color: var(--about-accent-text, rgb(var(--accent-readable-rgb, var(--accent-strong-rgb))));
+  font-size: 9.5px;
+  font-weight: 780;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
 }
 
 .life-rail-heading h2 {
   margin: 0;
-  color: var(--theme-text-primary);
+  color: var(--about-text-primary, var(--theme-text-primary));
   font-family: var(--font-display, 'Zen Maru Gothic', sans-serif);
-  font-size: clamp(1rem, 1.8vw, 1.25rem);
+  font-size: clamp(18px, 2.2vw, 24px);
+  font-weight: 700;
+  line-height: 1.38;
+  letter-spacing: -0.015em;
 }
 
 .life-rail-heading > a {
-  color: var(--theme-text-secondary);
-  font-size: 11px;
+  color: var(--about-text-secondary, var(--theme-text-secondary));
+  font-size: 11.5px;
+  font-weight: 580;
   text-decoration: none;
+  transition: color 180ms ease;
 }
 
 .life-rail-heading > a:hover {
-  color: var(--theme-text-primary);
+  color: var(--about-text-primary, var(--theme-text-primary));
 }
 
 .life-preview-card,
 .life-preview-state {
-  min-height: 206px;
-  border: 1px solid var(--theme-border);
-  border-radius: 18px;
-  background: var(--theme-panel-surface-elevated);
+  min-height: 218px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 .life-preview-card {
   position: relative;
   overflow: hidden;
   display: grid;
-  grid-template-rows: 118px minmax(0, 1fr);
-  color: var(--theme-text-primary);
+  grid-template-rows: 128px minmax(0, 1fr);
+  color: var(--about-text-primary, var(--theme-text-primary));
   text-decoration: none;
-  transition: transform 260ms cubic-bezier(0.22, 1, 0.36, 1), border-color 180ms ease, box-shadow 260ms ease;
+  transition: transform 280ms cubic-bezier(0.22, 1, 0.36, 1), border-color 200ms ease, box-shadow 280ms ease;
 }
 
 .life-preview-card:hover {
-  transform: translateY(-5px) rotate(-0.35deg);
-  border-color: rgba(var(--accent-rgb), 0.48);
-  box-shadow: var(--shadow-md);
+  transform: translateY(-6px) rotate(-0.45deg);
+  border-color: var(--about-accent-border, rgba(var(--accent-rgb), 0.52));
+  box-shadow: none;
 }
 
 .life-preview-card:focus-visible,
 .life-preview-state button:focus-visible,
 .life-preview-action:focus-visible {
   outline: 3px solid var(--theme-focus-ring);
-  outline-offset: 3px;
+  outline-offset: 4px;
 }
 
 .life-preview-media,
@@ -246,7 +255,9 @@ function formatPublishedAt(value) {
   min-height: 0;
   display: grid;
   place-items: center;
-  background: linear-gradient(145deg, rgba(var(--accent-rgb), 0.2), rgba(var(--accent-soft-rgb), 0.07));
+  background: linear-gradient(145deg, var(--about-accent-fill, rgba(var(--accent-rgb), 0.22)), rgba(var(--accent-soft-rgb), 0.08));
+  border-bottom: 0;
+  border-radius: 32px 12px 32px 12px;
 }
 
 .life-preview-media img {
@@ -257,31 +268,34 @@ function formatPublishedAt(value) {
 }
 
 .life-preview-placeholder {
-  color: rgb(var(--accent-readable-rgb, var(--accent-strong-rgb)));
-  font-size: 2rem;
+  color: var(--about-accent-text, rgb(var(--accent-readable-rgb, var(--accent-strong-rgb))));
+  font-size: 2.2rem;
+  opacity: 0.72;
 }
 
 .life-preview-copy {
   min-width: 0;
   display: grid;
   align-content: start;
-  gap: 5px;
-  padding: 13px 38px 14px 14px;
+  gap: 6px;
+  padding: 15px 32px 16px 0;
 }
 
 .life-preview-copy small {
-  color: rgb(var(--accent-readable-rgb, var(--accent-strong-rgb)));
+  color: var(--about-accent-text, rgb(var(--accent-readable-rgb, var(--accent-strong-rgb))));
   font-size: 10px;
-  font-weight: 750;
-  letter-spacing: 0.13em;
+  font-weight: 770;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
 }
 
 .life-preview-copy strong {
   overflow: hidden;
   display: -webkit-box;
-  color: var(--theme-text-primary);
-  font-size: 14px;
-  line-height: 1.45;
+  color: var(--about-text-primary, var(--theme-text-primary));
+  font-size: 15px;
+  font-weight: 640;
+  line-height: 1.5;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
 }
@@ -289,72 +303,99 @@ function formatPublishedAt(value) {
 .life-preview-copy span {
   overflow: hidden;
   display: -webkit-box;
-  color: var(--theme-text-secondary);
-  font-size: 11px;
-  line-height: 1.5;
+  color: var(--about-text-secondary, var(--theme-text-secondary));
+  font-size: 11.5px;
+  font-weight: 500;
+  line-height: 1.58;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
 }
 
 .life-preview-arrow {
   position: absolute;
-  right: 14px;
-  bottom: 15px;
-  color: var(--theme-icon-muted, var(--theme-text-secondary));
-  font-size: 11px;
+  right: 16px;
+  bottom: 17px;
+  color: var(--about-text-tertiary, var(--theme-icon-muted, var(--theme-text-secondary)));
+  font-size: 11.5px;
+  transition: transform 200ms ease-out;
+}
+
+.life-preview-card:hover .life-preview-arrow {
+  transform: translate(2px, -2px);
 }
 
 .life-preview-state {
   display: grid;
-  place-items: center;
+  grid-template-columns: 52px minmax(0, 1fr);
+  justify-items: start;
   align-content: center;
-  gap: 8px;
-  padding: 20px;
-  color: var(--theme-text-secondary);
-  text-align: center;
+  align-items: start;
+  gap: 6px 18px;
+  min-height: 106px;
+  padding: 16px 4px;
+  color: var(--about-text-secondary, var(--theme-text-secondary));
+  text-align: left;
+}
+
+.author-life-rail.is-empty :deep(.horizontal-card-rail__track) {
+  grid-auto-columns: minmax(0, 1fr);
 }
 
 .life-preview-state > i {
-  color: rgb(var(--accent-readable-rgb, var(--accent-strong-rgb)));
-  font-size: 1.6rem;
+  grid-row: 1 / span 2;
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: var(--about-accent-fill, var(--accent-mode-fill-soft));
+  color: var(--about-accent-text, rgb(var(--accent-readable-rgb, var(--accent-strong-rgb))));
+  font-size: 1.8rem;
 }
 
 .life-preview-state strong {
-  color: var(--theme-text-primary);
-  font-size: 14px;
+  color: var(--about-text-primary, var(--theme-text-primary));
+  font-size: 14.5px;
+  font-weight: 660;
 }
 
 .life-preview-state span {
-  max-width: 230px;
-  font-size: 11px;
-  line-height: 1.5;
+  max-width: 68ch;
+  font-size: 11.5px;
+  font-weight: 490;
+  line-height: 1.62;
 }
 
 .life-preview-state button,
 .life-preview-action {
-  min-height: 38px;
+  grid-column: 2;
+  min-height: 40px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 7px;
-  padding: 0 14px;
-  border: 1px solid var(--theme-border);
+  gap: 8px;
+  padding: 0 16px;
+  border: 1.5px solid var(--about-border-subtle, var(--theme-border));
   border-radius: 999px;
-  color: var(--theme-text-primary);
-  background: var(--theme-surface-soft);
+  color: var(--about-text-primary, var(--theme-text-primary));
+  background: var(--about-surface-elevated, var(--theme-surface-soft));
   cursor: pointer;
-  font-size: 11px;
+  font-size: 11.5px;
+  font-weight: 600;
   text-decoration: none;
+  transition: transform 180ms ease-out, border-color 180ms ease, box-shadow 180ms ease;
 }
 
-.life-preview-action:hover {
-  border-color: var(--accent-mode-border-strong, rgba(var(--accent-rgb), 0.52));
-  background: var(--theme-floating-surface-hover, var(--theme-panel-surface-elevated));
+.life-preview-action:hover,
+.life-preview-state button:hover {
+  transform: translateY(-1px);
+  border-color: var(--about-accent-border, rgba(var(--accent-rgb), 0.54));
+  box-shadow: var(--about-shadow-soft, var(--theme-shadow-soft));
 }
 
 [data-motion-mode='soothing'] .life-preview-card,
 :global(:root[data-effective-motion-mode='soothing']) .life-preview-card {
-  transition: opacity 140ms ease, border-color 140ms ease;
+  transition: opacity 160ms ease, border-color 160ms ease;
 }
 
 [data-motion-mode='soothing'] .life-preview-card:hover,
@@ -364,9 +405,12 @@ function formatPublishedAt(value) {
 
 @media (prefers-reduced-motion: reduce) {
   .life-preview-card,
-  .life-preview-card:hover {
+  .life-preview-card:hover,
+  .life-preview-arrow,
+  .life-preview-action:hover,
+  .life-preview-state button:hover {
     transform: none;
-    transition: opacity 120ms linear, border-color 120ms linear;
+    transition: opacity 140ms linear, border-color 140ms linear;
   }
 }
 </style>
