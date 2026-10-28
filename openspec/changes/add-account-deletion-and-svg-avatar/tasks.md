@@ -12,5 +12,6 @@
 ## 3. Requested data cleanup and delivery
 
 - [x] 3.1 Identify and close only navidias on 111.228.35.186; verify identity/session removal and record a sanitized report.
-- [ ] 3.2 Run relevant backend/frontend tests, production build and UI verification; fix material findings.
-- [ ] 3.3 Complete OpenSpec verification/strict validation and local commit without pushing.
+- [ ] 3.2 Run relevant backend/frontend tests, production build and UI verification; fix material findings. 2026-10-28: relevant tests and production builds pass (including UI render tests); real-browser account closure flow remains pending.
+- [x] 3.3 Complete OpenSpec verification/strict validation and local commit. Completed in bdb08457; user authorized GitHub publication on 2026-10-28, overriding the earlier local-only delivery limit.
+

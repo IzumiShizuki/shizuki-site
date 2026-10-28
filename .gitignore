@@ -2987,3 +2987,6 @@ fronted/vue3-merged/desktop-release/
 fronted/vue3-merged/release/
 fronted/vue3-merged/prototypes/
 deploy/deploy-manifest*.json
+
+# DJ plugin source is maintained in the independent DJ project.
+/tools/astrbot-bible/dist/

@@ -1,5 +1,7 @@
 # 智能体协作协议 (Agent Instructions)
 
+DJ 读经共读已拆分到独立项目 `D:/program/dj`，GitHub 为 `IzumiShizuki/dj`。新的 DJ 修改在该项目完成，主站继续在本仓库维护；详细边界见 `docs/projects.md`。
+
 本项目使用 **OpenSpec** 记录重要变更，并使用 Git 管理实现与交付。开始材料性改动前，先确认对应 change 的 proposal、design、spec 与 tasks 已就绪。
 
 ## 0. 服务器归属边界 (Server Ownership Boundary)
