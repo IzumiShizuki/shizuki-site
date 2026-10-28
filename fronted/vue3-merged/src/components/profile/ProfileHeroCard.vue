@@ -7,7 +7,7 @@
         @click="$emit('avatar-click')"
         :aria-label="avatarActionLabel"
       >
-        <img class="hero-avatar" :src="avatarUrl" alt="avatar" />
+        <UserAvatar class="hero-avatar" :src="avatarUrl" />
       </button>
       <button class="hero-avatar-action ripple-trigger" type="button" @click="$emit('avatar-click')">
         {{ avatarActionLabel }}
@@ -32,6 +32,7 @@
 </template>
 
 <script setup>
+import UserAvatar from '../UserAvatar.vue';
 defineProps({
   avatarUrl: {
     type: String,

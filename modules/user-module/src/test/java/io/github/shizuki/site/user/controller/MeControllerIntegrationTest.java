@@ -3,6 +3,7 @@ package io.github.shizuki.site.user.controller;
 import io.github.shizuki.site.user.response.MeResponse;
 import io.github.shizuki.site.user.service.AuthService;
 import io.github.shizuki.site.user.service.UserService;
+import io.github.shizuki.site.user.service.AccountClosureService;
 import java.util.Map;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
@@ -27,6 +28,36 @@ class MeControllerIntegrationTest {
 
     @MockBean
     private AuthService authService;
+
+    @MockBean
+    private AccountClosureService accountClosureService;
+
+    @Test
+    void shouldCloseOnlyTheAuthenticatedAccount() throws Exception {
+        mockMvc.perform(MockMvcRequestBuilders.delete("/api/v1/me/account")
+                .header("X-User-Id", "7")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"confirmation\":\"注销账号\",\"user_id\":99}"))
+            .andExpect(MockMvcResultMatchers.status().isOk());
+        Mockito.verify(accountClosureService).closeAccount(7L, "注销账号");
+    }
+
+    @Test
+    void shouldRejectAnonymousClosure() throws Exception {
+        mockMvc.perform(MockMvcRequestBuilders.delete("/api/v1/me/account")
+                .contentType(MediaType.APPLICATION_JSON).content("{\"confirmation\":\"注销账号\"}"))
+            .andExpect(MockMvcResultMatchers.status().isUnauthorized());
+        Mockito.verifyNoInteractions(accountClosureService);
+    }
+
+    @Test
+    void shouldRejectWrongClosureConfirmation() throws Exception {
+        mockMvc.perform(MockMvcRequestBuilders.delete("/api/v1/me/account")
+                .header("X-User-Id", "7")
+                .contentType(MediaType.APPLICATION_JSON).content("{\"confirmation\":\"删除\"}"))
+            .andExpect(MockMvcResultMatchers.status().isBadRequest());
+        Mockito.verifyNoInteractions(accountClosureService);
+    }
 
     @Test
     void shouldGetCurrentUserSuccessfully() throws Exception {

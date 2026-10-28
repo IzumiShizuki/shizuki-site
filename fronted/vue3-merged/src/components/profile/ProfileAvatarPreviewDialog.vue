@@ -2,7 +2,7 @@
   <transition name="preview-fade">
     <div v-if="visible" class="preview-overlay" role="dialog" aria-modal="true" @click.self="$emit('close')">
       <div class="preview-panel liquid-material">
-        <img class="preview-image" :src="avatarUrl" alt="avatar-preview" />
+        <UserAvatar class="preview-image" :src="avatarUrl" alt="头像预览" />
         <button class="close-btn ripple-trigger" type="button" @click="$emit('close')">关闭</button>
       </div>
     </div>
@@ -10,6 +10,7 @@
 </template>
 
 <script setup>
+import UserAvatar from '../UserAvatar.vue';
 defineProps({
   visible: {
     type: Boolean,

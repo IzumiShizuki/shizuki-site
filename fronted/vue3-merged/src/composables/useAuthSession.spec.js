@@ -38,6 +38,44 @@ describe('useAuthSession', () => {
     globalThis.fetch = originalFetch;
   });
 
+  async function loginForClosure() {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(jsonResponse(200, { data: {
+        result_type: 'TOKEN_ISSUED', access_token: 'closure-access', refresh_token: 'closure-refresh', user_id: 7
+      } }))
+      .mockResolvedValueOnce(jsonResponse(200, { data: { user_id: 7, nickname: 'Member', groups: ['USER'] } }));
+    globalThis.fetch = fetchMock;
+    const auth = useAuthSession();
+    await auth.loginByEmail({ email: 'member@example.test', password: 'test-password' });
+    return { auth, fetchMock };
+  }
+
+  it('clears local identity only after successful account closure', async () => {
+    const { auth, fetchMock } = await loginForClosure();
+    window.sessionStorage.setItem(OAUTH_PENDING_KEY, '{}');
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, { data: { status: 'OK' } }));
+    await auth.closeAccount('注销账号');
+    const [url, options] = fetchMock.mock.calls.at(-1);
+    expect(String(url)).toContain('/api/v1/me/account');
+    expect(options.method).toBe('DELETE');
+    expect(JSON.parse(options.body)).toEqual({ confirmation: '注销账号' });
+    expect(options.headers.Authorization).toBe('Bearer closure-access');
+    expect(auth.isAuthenticated.value).toBe(false);
+    expect(auth.user.value).toBeNull();
+    expect(window.localStorage.getItem(AUTH_STORAGE_KEY)).toBeNull();
+    expect(window.localStorage.getItem(USER_STORAGE_KEY)).toBeNull();
+    expect(window.sessionStorage.getItem(OAUTH_PENDING_KEY)).toBeNull();
+  });
+
+  it('keeps local authentication when account closure fails', async () => {
+    const { auth, fetchMock } = await loginForClosure();
+    fetchMock.mockResolvedValueOnce(jsonResponse(400, { title: 'Bad Request', detail: '最后一个管理员' }));
+    await expect(auth.closeAccount('注销账号')).rejects.toBeTruthy();
+    expect(auth.isAuthenticated.value).toBe(true);
+    expect(auth.user.value.userId).toBe(7);
+    expect(window.localStorage.getItem(AUTH_STORAGE_KEY)).not.toBeNull();
+  });
+
   it('logs in by email and persists refresh token + user snapshot', async () => {
     const fetchMock = vi
       .fn()

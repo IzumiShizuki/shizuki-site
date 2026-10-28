@@ -52,7 +52,7 @@
             >
               <td>
                 <div class="user-cell">
-                  <img class="avatar-thumb" :src="item.avatarUrl || '/images/katanegai.jpg'" alt="" loading="lazy" />
+                  <UserAvatar class="avatar-thumb" :src="item.avatarUrl" alt="" loading="lazy" />
                   <div class="user-cell-text">
                     <span class="user-name">{{ item.nickname || item.username || '-' }}</span>
                     <span class="adm-cell-secondary">@{{ item.username || '-' }}</span>
@@ -93,7 +93,7 @@
         <p class="adm-desc" v-if="!selectedUser">请先在左侧选择一个用户。</p>
         <template v-else>
           <div class="selected-user-line">
-            <img class="avatar-thumb avatar-thumb--lg" :src="selectedUser.avatarUrl || '/images/katanegai.jpg'" alt="" />
+            <UserAvatar class="avatar-thumb avatar-thumb--lg" :src="selectedUser.avatarUrl" alt="" />
             <div class="user-cell-text">
               <span class="user-name">{{ selectedUser.nickname || selectedUser.username || '-' }}</span>
               <span class="adm-cell-secondary">#{{ selectedUser.userId }} · @{{ selectedUser.username || '-' }}</span>
@@ -153,6 +153,7 @@
 <script setup>
 import { computed } from 'vue';
 import GroupBadge from './GroupBadge.vue';
+import UserAvatar from '../UserAvatar.vue';
 
 const props = defineProps({
   loading: { type: Boolean, default: false },

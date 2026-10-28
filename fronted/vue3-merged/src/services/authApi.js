@@ -96,6 +96,13 @@ export async function getMeAccount(accessToken) {
   return unwrapApiResponse(response);
 }
 
+export async function closeMeAccount(confirmation, accessToken) {
+  const response = await backendRequest('/api/v1/me/account', {
+    method: 'DELETE', auth: true, accessToken, body: { confirmation }
+  });
+  return unwrapApiResponse(response);
+}
+
 export async function getMePreferences(accessToken) {
   const response = await backendRequest('/api/v1/me/preferences', {
     method: 'GET',

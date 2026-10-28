@@ -11,8 +11,7 @@
         :aria-label="auth.isAuthenticated.value ? '个人中心' : '登录'"
         @click="goProfile"
       >
-        <img v-if="avatarUrl" :src="avatarUrl" alt="" />
-        <i v-else class="fa-solid fa-circle-user" aria-hidden="true"></i>
+        <UserAvatar :src="avatarUrl" alt="" />
       </button>
     </header>
 
@@ -80,6 +79,7 @@
 </template>
 
 <script setup>
+import UserAvatar from '../../components/UserAvatar.vue';
 import { computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useMobileShell } from '../mobileShellContext';

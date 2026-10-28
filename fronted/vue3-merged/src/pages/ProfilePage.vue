@@ -188,6 +188,7 @@
                   安全退出
                 </button>
               </div>
+              <AccountClosurePanel @closed="handleAccountClosed" />
             </template>
 
             <template #section-email-bind>
@@ -659,6 +660,8 @@ import ProfileHeroCard from '../components/profile/ProfileHeroCard.vue';
 import DailyArtPanel from '../components/profile/DailyArtPanel.vue';
 import WechatNotificationsPanel from '../components/profile/WechatNotificationsPanel.vue';
 import ContactBindingsPanel from '../components/profile/ContactBindingsPanel.vue';
+import AccountClosurePanel from '../components/profile/AccountClosurePanel.vue';
+import defaultUserAvatar from '../assets/default-user-avatar.svg';
 import ProfileSectionAccordion from '../components/profile/ProfileSectionAccordion.vue';
 import { useUiPreferences } from '../composables/useUiPreferences';
 import { listMyPosts } from '../services/blogApi';
@@ -1764,6 +1767,12 @@ async function handleLogout() {
   await router.replace({ path: '/profile', hash: '#settings' });
 }
 
+async function handleAccountClosed() {
+  Object.assign(account, { userId: 0, username: '', nickname: '', email: '', avatarUrl: '', oauthBindings: [] });
+  globalHint.value = '账号已注销';
+  await router.replace({ path: '/profile', hash: '#account' });
+}
+
 const displayName = computed(() => auth.user.value?.nickname || account.nickname || '本地访客');
 const userIdText = computed(() => {
   const id = toNumber(auth.user.value?.userId || account.userId);
@@ -1775,7 +1784,7 @@ const groupsText = computed(() => {
 });
 const avatarPreview = computed(() => {
   if (selectedAvatarPreviewUrl.value) return selectedAvatarPreviewUrl.value;
-  return account.avatarUrl || auth.user.value?.avatarUrl || '/images/katanegai.jpg';
+  return account.avatarUrl || auth.user.value?.avatarUrl || defaultUserAvatar;
 });
 
 const groupCount = computed(() => {

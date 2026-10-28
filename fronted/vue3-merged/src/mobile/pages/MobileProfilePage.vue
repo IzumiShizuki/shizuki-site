@@ -2,8 +2,7 @@
   <div class="m-profile-page">
     <header class="profile-hero m-card">
       <div class="hero-avatar">
-        <img v-if="avatarUrl" :src="avatarUrl" alt="" />
-        <i v-else class="fa-solid fa-circle-user" aria-hidden="true"></i>
+        <UserAvatar :src="avatarUrl" alt="" />
       </div>
       <div class="hero-main">
         <h1 class="hero-name">{{ user?.nickname || '旅人' }}</h1>
@@ -86,6 +85,9 @@
       {{ loggingOut ? '退出中…' : '退出登录' }}
     </button>
 
+    <section class="profile-section m-card">
+      <AccountClosurePanel @closed="accountClosed" />
+    </section>
     <p class="version-line">Shizuki Mobile · v1</p>
   </div>
 </template>
@@ -99,6 +101,8 @@ import { writeMobileShellPreference } from '../mobileMode';
 import { useMobileShell } from '../mobileShellContext';
 import DailyArtPanel from '../../components/profile/DailyArtPanel.vue';
 import ContactBindingsPanel from '../../components/profile/ContactBindingsPanel.vue';
+import UserAvatar from '../../components/UserAvatar.vue';
+import AccountClosurePanel from '../../components/profile/AccountClosurePanel.vue';
 
 const router = useRouter();
 const shell = useMobileShell();
@@ -162,6 +166,11 @@ async function doLogout() {
   } finally {
     loggingOut.value = false;
   }
+}
+
+function accountClosed() {
+  showToast('账号已注销');
+  router.replace('/m/auth');
 }
 
 onMounted(async () => {

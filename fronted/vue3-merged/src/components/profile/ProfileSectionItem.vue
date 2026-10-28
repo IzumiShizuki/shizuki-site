@@ -8,7 +8,7 @@
         :aria-label="avatarActionLabel"
         @click.stop="$emit('avatar-click')"
       >
-        <img class="section-avatar" :src="avatarUrl" alt="section-avatar" />
+        <UserAvatar class="section-avatar" :src="avatarUrl" />
       </button>
 
       <button
@@ -57,6 +57,7 @@
 </template>
 
 <script setup>
+import UserAvatar from '../UserAvatar.vue';
 defineProps({
   sectionKey: {
     type: String,

@@ -254,7 +254,7 @@
           @keydown.space.prevent="openProfileHome"
         >
           <div class="avatar-box">
-            <img class="avatar-image" :src="resolvedAvatarUrl" alt="user-avatar" @error="onAvatarError" />
+            <UserAvatar class="avatar-image" :src="resolvedAvatarUrl" alt="用户头像" @error="onAvatarError" />
           </div>
           <span class="item-label">{{ displayName || '个人页面' }}</span>
         </div>
@@ -322,6 +322,8 @@
 </template>
 
 <script setup>
+import UserAvatar from './UserAvatar.vue';
+import defaultUserAvatar from '../assets/default-user-avatar.svg';
 import { computed, onBeforeUnmount, onMounted, ref, toRefs, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import LiquidSurface from './material/LiquidSurface.vue';
@@ -523,7 +525,7 @@ const activeMainRouteIndex = computed(() => {
 const resolvedAvatarUrl = computed(() => {
   const source = String(avatarUrl.value || '').trim();
   if (!source || avatarLoadFailed.value) {
-    return '/images/katanegai.jpg';
+    return defaultUserAvatar;
   }
   return source;
 });

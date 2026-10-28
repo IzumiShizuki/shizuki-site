@@ -1,15 +1,19 @@
 package io.github.shizuki.site.user.service.auth;
 
 import cn.dev33.satoken.stp.StpUtil;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.shizuki.site.user.auth.AuthGrantResult;
 import io.github.shizuki.site.user.entity.UserAccountEntity;
 import io.github.shizuki.site.user.mapper.UserAccountMapper;
+import io.github.shizuki.common.core.error.BusinessException;
+import io.github.shizuki.common.core.error.ErrorCode;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 @Component
@@ -27,25 +31,31 @@ public class AuthTokenIssuer {
         this.refreshTokenService = refreshTokenService;
     }
 
+    @Transactional
     public AuthGrantResult issueTokenPair(Long userId) {
-        UserAccountEntity account = userAccountMapper.selectById(userId);
-        if (account == null) {
-            throw new IllegalStateException("User not found for token issue: " + userId);
-        }
+        UserAccountEntity account = requireActiveAccount(userId);
         StpUtil.login(userId);
         String accessToken = StpUtil.getTokenValue();
         RefreshTokenService.IssueResult refresh = refreshTokenService.issue(userId);
         return tokenIssuedResult(account, accessToken, refresh.token(), refresh.expiresInSec());
     }
 
+    @Transactional
     public AuthGrantResult issueWithExistingRefresh(Long userId, String refreshToken, Long refreshExpiresInSec) {
-        UserAccountEntity account = userAccountMapper.selectById(userId);
-        if (account == null) {
-            throw new IllegalStateException("User not found for token issue: " + userId);
-        }
+        UserAccountEntity account = requireActiveAccount(userId);
         StpUtil.login(userId);
         String accessToken = StpUtil.getTokenValue();
         return tokenIssuedResult(account, accessToken, refreshToken, refreshExpiresInSec);
+    }
+
+    private UserAccountEntity requireActiveAccount(Long userId) {
+        // Serialize issuance with account closure, so no new session can survive a closure.
+        UserAccountEntity account = userAccountMapper.selectOne(new LambdaQueryWrapper<UserAccountEntity>()
+            .eq(UserAccountEntity::getId, userId).eq(UserAccountEntity::getDeleted, 0).last("FOR UPDATE"));
+        if (account == null) {
+            throw new BusinessException(ErrorCode.UNAUTHORIZED, "账号已注销或不存在");
+        }
+        return account;
     }
 
     private AuthGrantResult tokenIssuedResult(UserAccountEntity account,

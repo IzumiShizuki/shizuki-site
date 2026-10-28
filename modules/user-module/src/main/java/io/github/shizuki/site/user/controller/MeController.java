@@ -9,15 +9,18 @@ import io.github.shizuki.site.common.response.ActionStatusResponse;
 import io.github.shizuki.site.user.response.MeAccountResponse;
 import io.github.shizuki.site.user.response.MeResponse;
 import io.github.shizuki.site.user.request.ProfileUpdateRequest;
+import io.github.shizuki.site.user.request.AccountClosureRequest;
 import io.github.shizuki.site.user.request.PreferenceUpdateRequest;
 import io.github.shizuki.site.user.request.auth.EmailCodePasswordUpdateRequest;
 import io.github.shizuki.site.user.service.AuthService;
 import io.github.shizuki.site.user.service.UserService;
+import io.github.shizuki.site.user.service.AccountClosureService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.util.Map;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -38,15 +41,17 @@ public class MeController {
      */
     private final UserService userService;
     private final AuthService authService;
+    private final AccountClosureService accountClosureService;
 
     /**
      * 构造当前用户控制器。
      *
      * @param userService 用户域服务
      */
-    public MeController(UserService userService, AuthService authService) {
+    public MeController(UserService userService, AuthService authService, AccountClosureService accountClosureService) {
         this.userService = userService;
         this.authService = authService;
+        this.accountClosureService = accountClosureService;
     }
 
     /**
@@ -64,6 +69,14 @@ public class MeController {
     @Operation(summary = "获取账号详情", description = "返回邮箱、头像、绑定 OAuth 等账号信息")
     public ApiResponse<MeAccountResponse> account() {
         return ApiResponse.success(userService.getAccountProfile(requireLoginUserId()));
+    }
+
+    @DeleteMapping("/account")
+    @AuditLog(action = "user.account.close", resource = "usr_account")
+    @Operation(summary = "注销当前账号", description = "删除登录身份与私密绑定，撤销全部会话；保留匿名历史记录")
+    public ApiResponse<ActionStatusResponse> closeAccount(@Valid @RequestBody AccountClosureRequest request) {
+        accountClosureService.closeAccount(requireLoginUserId(), request.confirmation());
+        return ApiResponse.success(new ActionStatusResponse("OK"));
     }
 
     @GetMapping("/preferences")

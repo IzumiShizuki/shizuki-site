@@ -665,6 +665,13 @@ function createAuthSession() {
     return performAuthorizedRequest((token) => authApi.getMeAccount(token), ACCOUNT_REDIRECT_PATH);
   }
 
+  async function closeAccount(confirmation) {
+    await ensureReady();
+    await performAuthorizedRequest((token) => authApi.closeMeAccount(confirmation, token), ACCOUNT_REDIRECT_PATH);
+    clearSession();
+    if (typeof window !== 'undefined') window.sessionStorage.removeItem(OAUTH_PENDING_KEY);
+  }
+
   async function getPreference() {
     await ensureReady();
     return performAuthorizedRequest((token) => authApi.getMePreferences(token), ACCOUNT_REDIRECT_PATH);
@@ -903,6 +910,7 @@ function createAuthSession() {
     handleOAuthCallback,
     confirmConflictBinding,
     logout,
+    closeAccount,
     authorizedFetch,
     authorizedRawFetch,
     refreshAccessToken,
