@@ -139,6 +139,9 @@ public interface MediaService {
      */
     MusicPlaylistBundleResponse getMusicPlaylistBundle(String playlistCode);
 
+    /** Bounded browse page with the same ownership checks as the full bundle. */
+    MusicPlaylistBundleResponse getMusicPlaylistPage(String playlistCode, int offset, int limit);
+
     /**
      * 音乐聚合搜索（支持歌单/歌曲/歌手）。
      *

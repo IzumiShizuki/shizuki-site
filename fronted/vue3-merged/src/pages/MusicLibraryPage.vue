@@ -424,6 +424,7 @@ let foliaWorkspaceCoordinator = null;
 let foliaLatestEntryRequestId = 0;
 let foliaModeGeneration = 0;
 let playlistBrowseLoadGeneration = 0;
+let playlistBrowsePendingRequest = null;
 let musicPlaybackRequestGeneration = 0;
 let musicPlaybackRequestAccountIdentity = '';
 let foliaLikesRefresh = null;
@@ -1660,6 +1661,7 @@ const playlistBrowseProfile = ref({
   cover: ''
 });
 const playlistBrowseTracks = ref([]);
+const playlistBrowseHasUnloadedTracks = ref(false);
 const searchResult = ref({
   query: '',
   type: 'all',
@@ -1720,17 +1722,15 @@ const currentPlaylistTracks = computed(() => {
   }
   return all.slice(0, visible);
 });
-const currentPlaylistHasMore = computed(() => currentPlaylistTracks.value.length < currentPlaylistAllTracks.value.length);
+const currentPlaylistHasMore = computed(() => currentPlaylistTracks.value.length < currentPlaylistAllTracks.value.length
+  || (!isQueueRoute.value && playlistBrowseHasUnloadedTracks.value));
 const currentPlaylistLoading = computed(() => !isQueueRoute.value && Boolean(playlistBrowseLoading.value));
 const currentPlaylistError = computed(() => isQueueRoute.value ? '' : String(playlistBrowseError.value || ''));
 const playerQueueTracks = computed(() => (Array.isArray(player.tracks.value) ? player.tracks.value : []));
-const currentPlaylistTrackIdentity = computed(() => {
-  const track = player.currentTrack?.value;
-  const entryId = String(track?.queueEntryId || '').trim();
-  if (entryId) return `entry:${entryId}`;
-  return `track:${String(track?.provider || '').trim().toLowerCase()}:${String(track?.trackId || track?.track_id || track?.id || '').trim()}`;
-});
 const currentPlaylistTrackIndex = computed(() => resolveCurrentPlaylistTrackIndex());
+const canRevealCurrentPlaylistTrack = computed(() => currentPlaylistTrackIndex.value >= 0
+  || (isPlaylistRoute.value && Boolean(player.currentTrack?.value)
+    && normalizeFoliaSourceContext(player.queueSourceContext?.value).sitePlaylistCode === currentPlaylistCodeFromRoute.value));
 let allSearchCapacityRefreshTimer = 0;
 const fatalErrorText = ref('');
 
@@ -2063,12 +2063,16 @@ function resolveCurrentPlaylistTrackIndex() {
   return index;
 }
 
-function revealCurrentPlaylistTrack() {
+async function revealCurrentPlaylistTrack() {
   if (!isPlaylistRoute.value && !isQueueRoute.value) return;
+  if (currentPlaylistTrackIndex.value < 0 && canRevealCurrentPlaylistTrack.value) {
+    if (!await prepareCurrentPlaylistForPlayback()) return;
+  }
   const index = currentPlaylistTrackIndex.value;
   if (index >= 0 && index + 1 > playlistBrowseVisibleCount.value) {
     playlistBrowseVisibleCount.value = index + 1;
   }
+  if (index >= 0) currentTrackRevealVersion.value += 1;
 }
 
 function growPlaylistBrowseVisibleCount() {
@@ -2678,7 +2682,10 @@ async function retryMusicSearchLoadMore(sectionType = '') {
   await loadMoreMusicSearch();
 }
 
-function loadMoreCurrentPlaylistTracks() {
+async function loadMoreCurrentPlaylistTracks() {
+  if (growPlaylistBrowseVisibleCount()) return;
+  if (!isPlaylistRoute.value || !playlistBrowseHasUnloadedTracks.value || playlistBrowseLoading.value) return;
+  await ensureCurrentRoutePlaylistLoaded({ append: true });
   growPlaylistBrowseVisibleCount();
 }
 
@@ -3259,7 +3266,23 @@ async function handleEnqueueSpotify(item) {
   await enqueueSpotifyTrack(item, false);
 }
 
-async function ensureCurrentRoutePlaylistLoaded(options = {}) {
+function ensureCurrentRoutePlaylistLoaded(options = {}) {
+  const key = JSON.stringify([route.name, currentPlaylistCodeFromRoute.value, Boolean(auth.isAuthenticated.value),
+    String(auth.user.value?.userId || ''), Boolean(options.force), Boolean(options.full),
+    options.append ? playlistBrowseTracks.value.length : 0]);
+  if (playlistBrowsePendingRequest?.key === key && playlistBrowsePendingRequest.generation === playlistBrowseLoadGeneration) {
+    return playlistBrowsePendingRequest.promise;
+  }
+  const request = { key, promise: null, generation: 0 };
+  request.promise = loadCurrentRoutePlaylist(options).finally(() => {
+    if (playlistBrowsePendingRequest === request) playlistBrowsePendingRequest = null;
+  });
+  request.generation = playlistBrowseLoadGeneration;
+  playlistBrowsePendingRequest = request;
+  return request.promise;
+}
+
+async function loadCurrentRoutePlaylist(options = {}) {
   const requestGeneration = ++playlistBrowseLoadGeneration;
   if (!isPlaylistRoute.value) {
     playlistBrowseLoading.value = false;
@@ -3269,6 +3292,7 @@ async function ensureCurrentRoutePlaylistLoaded(options = {}) {
   if (!playlistCode) return;
   ui.setSelectedPlaylistCode(playlistCode);
   const force = options?.force === true;
+  const append = options?.append === true;
   const authenticated = Boolean(auth.isAuthenticated.value);
   const accountId = String(auth.user.value?.userId || '');
   const isCurrentRequest = () => requestGeneration === playlistBrowseLoadGeneration
@@ -3283,7 +3307,7 @@ async function ensureCurrentRoutePlaylistLoaded(options = {}) {
   const engineSourceCode = sourceContext.sitePlaylistCode
     || String(engineProfile.playlistCode || engineProfile.playlist_code || '').trim();
   const hasMatchingEngineQueue = engineSourceCode === playlistCode && engineQueue.length > 0;
-  if (hasMatchingEngineQueue) {
+  if (hasMatchingEngineQueue && !append && !force) {
     const browseProfile = playlistBrowseProfile.value || {};
     const browseProfileCode = String(browseProfile.playlistCode || browseProfile.playlist_code || '').trim();
     const knownProfile = foliaPlaylistOptions.value.find((item) => item.playlistCode === playlistCode);
@@ -3301,27 +3325,39 @@ async function ensureCurrentRoutePlaylistLoaded(options = {}) {
       trackCount: sourceTrackCount || Number(engineProfile.trackCount || engineProfile.track_count || 0)
     }, playlistCode);
     playlistBrowseTracks.value = engineQueue.slice();
+    playlistBrowseHasUnloadedTracks.value = false;
     playlistBrowseError.value = '';
     resetPlaylistBrowseVisibleCount(engineQueue.length);
   }
-  if (!force && currentPlaylistProfile.value.playlistCode === playlistCode && currentPlaylistAllTracks.value.length) {
+  if (!force && !append && currentPlaylistProfile.value.playlistCode === playlistCode && currentPlaylistAllTracks.value.length) {
     playlistBrowseLoading.value = false;
     return;
   }
   playlistBrowseLoading.value = true;
   playlistBrowseError.value = '';
+  const offset = append ? playlistBrowseTracks.value.length : 0;
+  const paged = playlistCode.startsWith('account_netease_') && !options.full;
+  if (!append && currentPlaylistProfile.value.playlistCode !== playlistCode) {
+    playlistBrowseTracks.value = [];
+    playlistBrowseHasUnloadedTracks.value = false;
+    playlistBrowseProfile.value = normalizePlaylistSummary({ playlistCode, name: '歌单加载中' }, playlistCode);
+    resetPlaylistBrowseVisibleCount(0);
+  }
   try {
     const payload = await musicApi.getPlaylistBundleByCode(
       playlistCode,
-      authenticated ? createAccountScopedMusicFetch(accountId) : undefined
+      authenticated ? createAccountScopedMusicFetch(accountId) : undefined,
+      ...(paged ? [{ offset, limit: PLAYLIST_BROWSE_STEP }] : [])
     );
     if (!isCurrentRequest()) return;
     const profile = normalizePlaylistSummary(payload?.profile || payload?.playlist, playlistCode);
-    const tracks = Array.isArray(payload?.tracks) ? payload.tracks.map((item, index) => normalizeApiTrack(item, index)) : [];
+    const tracks = Array.isArray(payload?.tracks) ? payload.tracks.map((item, index) => normalizeApiTrack(item, offset + index)) : [];
+    if (paged && !tracks.length && offset < Number(profile.trackCount || 0)) throw new Error('歌单曲目加载不完整，请重试');
     platformLikes.seedPrograms(tracks);
     playlistBrowseProfile.value = profile;
-    playlistBrowseTracks.value = tracks;
-    resetPlaylistBrowseVisibleCount(tracks.length);
+    playlistBrowseTracks.value = append ? [...playlistBrowseTracks.value, ...tracks] : tracks;
+    playlistBrowseHasUnloadedTracks.value = paged && playlistBrowseTracks.value.length < Number(profile.trackCount || 0);
+    if (!append && !options.full) resetPlaylistBrowseVisibleCount(tracks.length);
     // Keep this lightweight line log for runtime troubleshooting in browser console.
     // eslint-disable-next-line no-console
     console.info('[MUSIC_FRONT_PLAYLIST_BUNDLE_LOADED]', {
@@ -3336,18 +3372,32 @@ async function ensureCurrentRoutePlaylistLoaded(options = {}) {
     });
   } catch (error) {
     if (!isCurrentRequest()) return;
-    if (!hasMatchingEngineQueue) {
+    if (!hasMatchingEngineQueue && !append && !options.full) {
       playlistBrowseProfile.value = normalizePlaylistSummary(
         { playlistCode, name: '歌单加载失败', description: '', cover: '' },
         playlistCode
       );
       playlistBrowseTracks.value = [];
+      playlistBrowseHasUnloadedTracks.value = false;
       resetPlaylistBrowseVisibleCount(0);
     }
     playlistBrowseError.value = parseErrorMessage(error, '歌单加载失败，请稍后重试');
   } finally {
     if (isCurrentRequest()) playlistBrowseLoading.value = false;
   }
+}
+
+async function prepareCurrentPlaylistForPlayback() {
+  if (isQueueRoute.value) return { tracks: currentPlaylistAllTracks.value, profile: currentPlaylistProfile.value };
+  const code = currentPlaylistCodeFromRoute.value;
+  const accountIdentity = `${Boolean(auth.isAuthenticated.value)}:${String(auth.user.value?.userId || '')}`;
+  if (playlistBrowsePendingRequest) await playlistBrowsePendingRequest.promise;
+  if (code !== currentPlaylistCodeFromRoute.value || !isPlaylistRoute.value) return null;
+  if (playlistBrowseHasUnloadedTracks.value) await ensureCurrentRoutePlaylistLoaded({ force: true, full: true });
+  if (code !== currentPlaylistCodeFromRoute.value || !isPlaylistRoute.value
+    || accountIdentity !== `${Boolean(auth.isAuthenticated.value)}:${String(auth.user.value?.userId || '')}`
+    || playlistBrowseError.value || playlistBrowseHasUnloadedTracks.value) return null;
+  return { tracks: currentPlaylistAllTracks.value, profile: currentPlaylistProfile.value };
 }
 
 function beginMusicPlaybackRequest() {
@@ -3449,14 +3499,18 @@ async function playTrackInCurrentPlaylist(index) {
     }
     return;
   }
+  const playlist = playlistBrowseHasUnloadedTracks.value || playlistBrowseLoading.value
+    ? await prepareCurrentPlaylistForPlayback()
+    : { tracks: currentPlaylistAllTracks.value, profile: currentPlaylistProfile.value };
+  if (!playlist || !ownsMusicPlaybackRequest(requestGeneration)) return;
   const replacement = player.replaceQueueWithTracks?.(
-    currentPlaylistAllTracks.value,
+    playlist.tracks,
     safeIndex,
     true,
     {
       sourceType: 'playlist',
-      sourceCode: currentPlaylistProfile.value?.playlistCode || '',
-      playlistProfile: currentPlaylistProfile.value
+      sourceCode: playlist.profile?.playlistCode || '',
+      playlistProfile: playlist.profile
     }
   );
   const expectedQueueEntryId = currentMusicPlaybackQueueEntryId();
@@ -3466,7 +3520,9 @@ async function playTrackInCurrentPlaylist(index) {
     window.alert('该歌曲当前无法播放，请稍后重试');
     return;
   }
-  growPlaylistBrowseVisibleCount();
+  if (playerQueueTracks.value.length === playlist.tracks.length) {
+    playlistBrowseTracks.value = playerQueueTracks.value.slice();
+  }
 }
 
 async function handleSelectTrackFromDock(entryIdOrIndex) {
@@ -3753,6 +3809,9 @@ const musicContext = Object.freeze({
   seedProgramLikes: platformLikes.seedPrograms,
   currentPlaylistTracks,
   currentTrackRevealVersion,
+  canRevealCurrentPlaylistTrack,
+  revealCurrentPlaylistTrack,
+  prepareCurrentPlaylistForPlayback,
   currentPlaylistHasMore,
   currentPlaylistLoading,
   currentPlaylistError,
@@ -3793,12 +3852,6 @@ const musicContext = Object.freeze({
 });
 
 provide(MUSIC_LIBRARY_CONTEXT_KEY, musicContext);
-
-watch(
-  [isPlaylistRoute, isQueueRoute, () => currentPlaylistAllTracks.value.length, currentPlaylistTrackIdentity, currentPlaylistTrackIndex],
-  revealCurrentPlaylistTrack,
-  { immediate: true }
-);
 
 watch(
   () => musicSourceAccounts.value?.netease?.bound,
@@ -4044,7 +4097,6 @@ async function returnToMusicLibrary() {
   const hasCurrentQueue = playerQueueTracks.value.length > 0;
   const source = normalizeFoliaSourceContext(player.queueSourceContext?.value || foliaSourceContext.value || createFoliaSourceContext());
   await setFoliaMode(false);
-  currentTrackRevealVersion.value += 1;
 
   if (!hasCurrentQueue) {
     let playerDetailSource = '';

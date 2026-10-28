@@ -235,6 +235,32 @@ public class NeteaseCookieProvider {
             siteUserId, false, tracks.size(), "netease"), tracks);
     }
 
+    /** One browse page; unlike playback bundles this does not hydrate the rest of the playlist. */
+    public MusicPlaylistBundleResponse accountPlaylistPage(String playlistId, String cookie, Long siteUserId, int offset, int limit) {
+        if (offset < 0 || limit < 1 || limit > 500) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "歌单分页参数无效");
+        }
+        String id = numericId(playlistId);
+        String normalizedCookie = normalizeCookie(cookie);
+        Map<String, Object> detail = ncmRequest("/playlist/detail", Map.of("id", id), normalizedCookie);
+        Map<String, Object> playlist = toStringObjectMap(detail.get("playlist"));
+        if (playlist.isEmpty()) throw invalidNcmResponse();
+        int total = Math.max(0, readInt(playlist.get("trackCount"), 0));
+        List<MusicTrackResponse> tracks = new ArrayList<>();
+        if (offset < total) {
+            Map<String, Object> payload = ncmRequest("/playlist/track/all", Map.of("id", id, "limit", limit, "offset", offset), normalizedCookie);
+            List<Map<String, Object>> songs = requireRows(payload, "songs");
+            if (songs.isEmpty()) throw invalidNcmResponse();
+            for (Map<String, Object> song : songs.subList(0, Math.min(limit, songs.size()))) {
+                tracks.add(toPlatformTrack(song, offset + tracks.size(), Map.of()));
+            }
+        }
+        return new MusicPlaylistBundleResponse(new MusicPlaylistSummaryResponse(
+            "account_netease_" + id, readString(playlist.get("name"), "网易云歌单"), readString(playlist.get("description"), ""),
+            readString(playlist.get("coverImgUrl"), ""), readInt(playlist.get("specialType"), 0) == 5 ? "LIKED" : "CUSTOM",
+            siteUserId, false, total, "netease"), tracks);
+    }
+
     public List<MusicTrackResponse> personalFmTracks(String cookie) {
         List<MusicTrackResponse> result = new ArrayList<>();
         for (Map<String, Object> song : requireRows(ncmRequest("/personal_fm", Map.of(), normalizeCookie(cookie)), "data")) {

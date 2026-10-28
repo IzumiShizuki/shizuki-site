@@ -175,6 +175,35 @@ class NeteasePlatformLibraryTest {
     }
 
     @Test
+    void shouldLoadOnlyRequestedPlaylistPageWithoutListingAccountLibrary() {
+        expect("/playlist/detail", "{\"code\":200,\"playlist\":{\"id\":5,\"name\":\"实时歌单\",\"trackCount\":2000}}");
+        server.expect(requestTo("http://ncm.test/playlist/track/all"))
+            .andExpect(content().json("{\"id\":\"5\",\"limit\":2,\"offset\":100,\"cookie\":\"MUSIC_U=test-secret\"}", false))
+            .andRespond(withSuccess("{\"code\":200,\"songs\":[{\"id\":42},{\"id\":43}]}", MediaType.APPLICATION_JSON));
+        MusicPlaylistBundleResponse result = provider.accountPlaylistPage("5", COOKIE, 7L, 100, 2);
+        Assertions.assertEquals(2000, result.profile().trackCount());
+        Assertions.assertEquals(java.util.List.of("42", "43"), result.tracks().stream().map(track -> track.trackId()).toList());
+        server.verify();
+    }
+
+    @Test
+    void shouldSkipTrackRequestBeyondPlaylistEndAndRejectInvalidPages() {
+        expect("/playlist/detail", "{\"code\":200,\"playlist\":{\"id\":5,\"trackCount\":0}}");
+        Assertions.assertTrue(provider.accountPlaylistPage("5", COOKIE, 7L, 0, 100).tracks().isEmpty());
+        Assertions.assertThrows(BusinessException.class, () -> provider.accountPlaylistPage("5", COOKIE, 7L, -1, 100));
+        Assertions.assertThrows(BusinessException.class, () -> provider.accountPlaylistPage("5", COOKIE, 7L, 0, 501));
+        server.verify();
+    }
+
+    @Test
+    void shouldRejectEmptyUpstreamPageBeforeDeclaredEnd() {
+        expect("/playlist/detail", "{\"code\":200,\"playlist\":{\"id\":5,\"trackCount\":2000}}");
+        expect("/playlist/track/all", "{\"code\":200,\"songs\":[]}");
+        Assertions.assertThrows(BusinessException.class, () -> provider.accountPlaylistPage("5", COOKIE, 7L, 100, 100));
+        server.verify();
+    }
+
+    @Test
     void shouldReturnRealPodcastRecommendationsAndFmTracks() {
         expect("/dj/recommend", "{\"code\":200,\"djRadios\":[{\"id\":90,\"name\":\"声音\"}]}");
         expect("/personal_fm", "{\"code\":200,\"data\":[{\"id\":42,\"name\":\"FM song\"}]}");

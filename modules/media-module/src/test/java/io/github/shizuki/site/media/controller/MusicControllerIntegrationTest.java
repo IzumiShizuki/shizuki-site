@@ -173,6 +173,22 @@ class MusicControllerIntegrationTest {
     }
 
     @Test
+    void shouldDelegateBoundedPlaylistPagesWithoutLoadingLegacyBundle() throws Exception {
+        Mockito.when(mediaService.getMusicPlaylistPage("account_netease_5", 100, 100)).thenReturn(
+            new MusicPlaylistBundleResponse(
+                new MusicPlaylistSummaryResponse("account_netease_5", "Paged", "", "", "CUSTOM", 7L, false, 2000),
+                List.of()
+            )
+        );
+        mockMvc.perform(MockMvcRequestBuilders.get("/api/v1/music/playlists/account_netease_5/bundle")
+                .param("offset", "100").param("limit", "100"))
+            .andExpect(MockMvcResultMatchers.status().isOk())
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.profile.track_count").value(2000));
+        Mockito.verify(mediaService).getMusicPlaylistPage("account_netease_5", 100, 100);
+        Mockito.verify(mediaService, Mockito.never()).getMusicPlaylistBundle(Mockito.anyString());
+    }
+
+    @Test
     void shouldSearchVoiceWorksSuccessfully() throws Exception {
         MusicVoiceWorksResponse response = new MusicVoiceWorksResponse(
             List.of(

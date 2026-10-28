@@ -41,11 +41,23 @@ class PlatformMusicLibraryServiceTest {
     @Test
     void shouldNotReadAnotherUsersAccountWhenAnonymous() {
         Assertions.assertThrows(BusinessException.class, () -> service.playlistBundle("account_netease_42"));
+        Assertions.assertThrows(BusinessException.class, () -> service.accountPlaylistPage("account_netease_42", 100, 100));
         Assertions.assertThrows(BusinessException.class, () -> service.personalPodcasts("netease", "subscribed"));
         Assertions.assertThrows(BusinessException.class, () -> service.likedPrograms("netease"));
         Assertions.assertThrows(BusinessException.class, () -> service.programLikeState("netease", "777"));
         Assertions.assertThrows(BusinessException.class, () -> service.setProgramLiked("netease", "777", false));
         Mockito.verifyNoInteractions(users, netease);
+    }
+
+    @Test
+    void shouldScopePlaylistPagesToCurrentWebsiteAccount() {
+        LoginUserContext.set(new LoginUser(7L, Set.of("USER"), Set.of()));
+        Mockito.when(users.getSourceAccountCookiePlaintext(7L, "netease")).thenReturn("user-seven-cookie");
+        service.accountPlaylistPage("account_netease_42", 100, 100);
+        Mockito.verify(netease).accountPlaylistPage("42", "user-seven-cookie", 7L, 100, 100);
+        LoginUserContext.set(new LoginUser(8L, Set.of("USER"), Set.of()));
+        Assertions.assertThrows(BusinessException.class, () -> service.accountPlaylistPage("account_netease_42", 100, 100));
+        Mockito.verifyNoMoreInteractions(netease);
     }
 
     @Test

@@ -83,7 +83,7 @@ describe('MusicPlaylistDetailView current queue route', () => {
     dispatch.mockRestore();
   });
 
-  it('mounts and reveals the exact current duplicate playlist entry beyond the initial 300 rows', async () => {
+  it('preserves browsing until explicit location reveals the exact late duplicate entry', async () => {
     mocks.route = { name: 'music-library-playlist' };
     const allTracks = Array.from({ length: 1000 }, (_, index) => ({
       id: index === 869 ? 'duplicate-42' : index === 12 ? 'duplicate-42' : `track-${index}`,
@@ -107,6 +107,16 @@ describe('MusicPlaylistDetailView current queue route', () => {
     });
     try {
       await wrapper.vm.$nextTick();
+      expect(wrapper.findAll('.table-row')).toHaveLength(300);
+      expect(HTMLElement.prototype.scrollIntoView).not.toHaveBeenCalled();
+      mocks.context.player.currentTrack.value = allTracks[868];
+      await wrapper.vm.$nextTick();
+      expect(wrapper.findAll('.table-row')).toHaveLength(300);
+      expect(HTMLElement.prototype.scrollIntoView).not.toHaveBeenCalled();
+      mocks.context.player.currentTrack.value = currentTrack;
+      await wrapper.vm.$nextTick();
+      await wrapper.get('.locate-current-track-btn').trigger('click');
+      await wrapper.vm.$nextTick();
       const currentRow = wrapper.findAll('.table-row').find((row) => row.text().includes('Current late duplicate'));
       expect(currentRow).toBeTruthy();
       expect(currentRow.classes()).toContain('active');
@@ -126,5 +136,12 @@ describe('MusicPlaylistDetailView current queue route', () => {
       if (originalScrollIntoView) HTMLElement.prototype.scrollIntoView = originalScrollIntoView;
       else delete HTMLElement.prototype.scrollIntoView;
     }
+  });
+
+  it('disables location when the current song is outside the displayed playlist', async () => {
+    mocks.context.player.currentTrack.value = { id: 'outside', provider: 'netease' };
+    const wrapper = shallowMount(MusicPlaylistDetailView);
+    expect(wrapper.get('.locate-current-track-btn').attributes('disabled')).toBeDefined();
+    wrapper.unmount();
   });
 });

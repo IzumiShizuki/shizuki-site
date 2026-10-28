@@ -109,6 +109,10 @@ public class PlatformMusicLibraryService {
         throw new BusinessException(ErrorCode.BAD_REQUEST, "平台歌单编码无效");
     }
 
+    public MusicPlaylistBundleResponse accountPlaylistPage(String code, int offset, int limit) {
+        return netease.accountPlaylistPage(code.substring("account_netease_".length()), requiredCookie(), requireUserId(), offset, limit);
+    }
+
     private String optionalCookie() {
         long userId = LoginUserContext.get().map(user -> user.getUserId()).orElse(0L);
         return userId > 0 ? users.getSourceAccountCookiePlaintext(userId, "netease") : "";

@@ -939,6 +939,20 @@ public class MediaServiceImpl implements MediaService {
         return buildUserPlaylistBundle(playlist, ownerView);
     }
 
+    @Override
+    public MusicPlaylistBundleResponse getMusicPlaylistPage(String playlistCode, int offset, int limit) {
+        if (offset < 0 || limit < 1 || limit > 500) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "歌单分页参数无效");
+        }
+        String code = normalizePlaylistCode(playlistCode);
+        if (code.startsWith("account_netease_")) {
+            return platformMusicLibraryService.accountPlaylistPage(code, offset, limit);
+        }
+        MusicPlaylistBundleResponse bundle = getMusicPlaylistBundle(code);
+        int start = Math.min(offset, bundle.tracks().size());
+        return new MusicPlaylistBundleResponse(bundle.profile(), bundle.tracks().subList(start, start + Math.min(limit, bundle.tracks().size() - start)));
+    }
+
     /**
      * {@inheritDoc}
      */
