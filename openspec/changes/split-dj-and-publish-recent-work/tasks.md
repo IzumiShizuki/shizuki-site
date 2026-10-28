@@ -11,5 +11,4 @@
 ## 3. Delivery
 
 - [x] 3.1 Run applicable tests/builds and strict OpenSpec validation in both projects.
-- [ ] 3.2 Fetch, integrate as needed and push each verified delivery branch to its GitHub repository; confirm clean synchronized status.
-
+- [x] 3.2 Fetch, integrate as needed and push each verified delivery branch to its GitHub repository; confirm clean synchronized status.

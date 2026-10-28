@@ -23,3 +23,7 @@
 两个仓库保留各自规范和任务，主站 docs/projects.md 给出边界。签名密钥、私有 YAML、node_modules、target 和构建输出不提交；原来主站未跟踪的插件 zip 留在本机，插件源码已在 DJ 项目保存。
 
 本文件的源码验证已完成；远端同步以最终 git status/upstream 核对为准。没有归档历史变更。
+
+## GitHub 同步确认
+
+2026-10-28：首轮交付已成功推送。DJ main 为 7388196f；主站 master 为 d9cb3af9。随后提交本条交付确认与任务收尾，并再次推送；最终状态要求两个工作区干净且 upstream ahead/behind 都为 0。DJ 同时收录旧工作树 e828304c 的最新下载入口验证记录，业务代码基线仍为 dbd3baa1。
