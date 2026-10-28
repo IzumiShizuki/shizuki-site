@@ -36,7 +36,7 @@ jobs:
         continue-on-error: true
         run: |
           set -o pipefail
-          mvn -B -ntp -DskipTests compile | tee backend-compile.log
+          mvn -B -ntp -DskipTests compile 2>&1 | tee backend-compile.log
 
       - name: Unit Tests
         id: backend_tests
@@ -44,13 +44,21 @@ jobs:
         continue-on-error: true
         run: |
           set -o pipefail
-          mvn -B -ntp test -Dsurefire.printSummary=true -DtrimStackTrace=false | tee backend-unit-tests.log
+          mvn -B -ntp test -Dsurefire.printSummary=true -DtrimStackTrace=false 2>&1 | tee backend-unit-tests.log
 
       - name: Backend Stage Summary
         if: always()
+        env:
+          COMPILE_OUTCOME: ${{ steps.backend_compile.outcome }}
+          TESTS_OUTCOME: ${{ steps.backend_tests.outcome }}
         run: |
-          echo "compile outcome = ${{ steps.backend_compile.outcome }}"
-          echo "tests outcome   = ${{ steps.backend_tests.outcome }}"
+          {
+            echo '## Backend verification'
+            echo '| Stage | Outcome |'
+            echo '| --- | --- |'
+            printf '| Compile | %s |\n' "$COMPILE_OUTCOME"
+            printf '| Unit tests | %s |\n' "$TESTS_OUTCOME"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Debug Report Paths
         if: always()
@@ -94,6 +102,7 @@ jobs:
     timeout-minutes: 15
     defaults:
       run:
+        shell: bash
         working-directory: fronted/vue3-merged
     steps:
       - name: Checkout
@@ -109,13 +118,49 @@ jobs:
           install: false
 
       - name: Install Dependencies
-        run: pnpm install --frozen-lockfile
+        id: frontend_install
+        run: |
+          set -o pipefail
+          pnpm install --frozen-lockfile 2>&1 | tee frontend-install.log
 
       - name: Run Unit Tests
-        run: pnpm test:unit
+        id: frontend_tests
+        run: |
+          set -o pipefail
+          pnpm test:unit --reporter=default --reporter=junit --outputFile.junit=test-results/unit.xml 2>&1 | tee frontend-unit-tests.log
 
       - name: Build Frontend
-        run: pnpm build
+        id: frontend_build
+        run: |
+          set -o pipefail
+          pnpm build 2>&1 | tee frontend-build.log
+
+      - name: Frontend Stage Summary
+        if: always()
+        env:
+          INSTALL_OUTCOME: ${{ steps.frontend_install.outcome }}
+          TESTS_OUTCOME: ${{ steps.frontend_tests.outcome }}
+          BUILD_OUTCOME: ${{ steps.frontend_build.outcome }}
+        run: |
+          {
+            echo '## Frontend verification'
+            echo '| Stage | Outcome |'
+            echo '| --- | --- |'
+            printf '| Install dependencies | %s |\n' "$INSTALL_OUTCOME"
+            printf '| Unit tests | %s |\n' "$TESTS_OUTCOME"
+            printf '| Production build | %s |\n' "$BUILD_OUTCOME"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload Frontend Test Reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: frontend-test-reports-${{ github.run_number }}
+          path: |
+            fronted/vue3-merged/frontend-*.log
+            fronted/vue3-merged/test-results/**
+          retention-days: 7
+          if-no-files-found: ignore
 
       - name: Upload Frontend Dist
         if: success()

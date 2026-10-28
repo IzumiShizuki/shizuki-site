@@ -24,6 +24,7 @@ overrides:
   '@tiptap/extension-floating-menu': 3.12.1
 
 allowBuilds:
+  '@parcel/watcher': true
   electron: true
   electron-winstaller: true
   esbuild: true

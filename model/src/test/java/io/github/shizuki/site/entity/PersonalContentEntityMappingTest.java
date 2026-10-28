@@ -71,6 +71,7 @@ class PersonalContentEntityMappingTest {
             "deliveryRevoked", "delivery_revoked_flag"
         ));
         assertMapping(MomentEntity.class, "CTN_MOMENT", "id", fields(
+            "authorUserId", "author_user_id",
             "publicId", "public_id",
             "body", "body_text",
             "lifecycleStatus", "lifecycle_status",

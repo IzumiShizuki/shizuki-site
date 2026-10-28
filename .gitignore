@@ -68,6 +68,7 @@ tmp/
 /fronted/vue3-merged/dist/
 /fronted/vue3-merged/release/
 /fronted/vue3-merged/desktop-release/
+/fronted/vue3-merged/test-results/
 /fronted/vue3-merged/public/media/
 /fronted/vue3-merged/public/media/**
 

@@ -1,12 +1,16 @@
 package io.github.shizuki.site.media.service.impl;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.github.shizuki.common.security.context.LoginUserContext;
+import io.github.shizuki.common.security.model.LoginUser;
 import io.github.shizuki.site.media.config.MediaStorageProperties;
 import io.github.shizuki.site.media.config.WallpaperDiscoveryProperties;
 import io.github.shizuki.site.media.config.WallpaperWorkshopProperties;
 import io.github.shizuki.site.media.response.WorkshopSearchResponse;
 import io.github.shizuki.site.media.service.WallpaperDiscoveryService;
 import io.github.shizuki.site.media.service.WallpaperService;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.io.ByteArrayInputStream;
@@ -17,6 +21,7 @@ import java.net.http.HttpHeaders;
 import java.net.http.HttpResponse;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
@@ -30,6 +35,16 @@ class WallpaperDiscoveryPreviewCacheTest {
 
     private static final String ITEM_ID = "3810145248";
     private static final String PREVIEW_URL = "https://steamuserimages-a.akamaihd.net/preview.jpg";
+
+    @BeforeEach
+    void authorizePreviewFixtures() {
+        LoginUserContext.set(new LoginUser(1L, Set.of("CUSTOM"), Set.of("media.wallpaper.discovery")));
+    }
+
+    @AfterEach
+    void clearAuthorization() {
+        LoginUserContext.clear();
+    }
 
     @Test
     @SuppressWarnings("unchecked")

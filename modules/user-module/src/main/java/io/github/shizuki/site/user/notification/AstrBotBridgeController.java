@@ -4,6 +4,7 @@ import static io.github.shizuki.site.user.notification.WechatNotificationModels.
 import io.github.shizuki.common.core.response.ApiResponse;
 import jakarta.validation.Valid;
 import java.util.List;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.CacheControl;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -19,6 +20,7 @@ public class AstrBotBridgeController {
     public AstrBotBridgeController(WechatNotificationSettings settings, WechatNotificationService service) {
         this(settings, null, service, null);
     }
+    @Autowired
     public AstrBotBridgeController(WechatNotificationSettings settings, AccountContactBindingSettings contactSettings,
                                    WechatNotificationService service,
                                    AccountContactBindingService contactBindings) {
