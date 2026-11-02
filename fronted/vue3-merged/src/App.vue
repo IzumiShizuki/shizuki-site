@@ -179,7 +179,7 @@
 
       <transition name="lyric-fade">
         <div
-          v-if="subtitleVisible && player.currentTrack.value && (!isMusicLibraryRoute || isFocusActive) && !isMobileShellRoute && !isDesktopHomeSurface"
+          v-if="isGlobalLyricBarVisible"
           class="global-lyric-bar liquid-material"
           :style="bottomFloatingStyle(lyricOffset)"
           @pointerdown="startDrag($event)"
@@ -402,6 +402,7 @@ import { resolveRouteScrollMode, RouteScrollMode } from './router/routeScrollMod
 import { getAuthorProfile } from './services/authorApi';
 import { fetchAmbientLibraryStatus, importAmbientLibraryTrack } from './services/ambientLibraryApi';
 import { resolveAppRouteViewKey } from './utils/routeViewKey';
+import { shouldShowGlobalLyricBar } from './utils/globalLyricBarRoute';
 import { resolveTopMenuPresentation } from './utils/topMenuPresentation';
 import { createWallpaperImportPoller, isWallpaperImportTerminalStatus } from './utils/wallpaperImportPolling';
 import { applyFocusSessionEntryUiState } from './utils/focusSessionEntry';
@@ -662,6 +663,14 @@ const isAuthorWorkspaceRoute = computed(() => route.path === '/author');
 const isProfileRoute = computed(() => currentRouteKey.value === 'profile');
 const isMusicLibraryRoute = computed(() => route.path.startsWith('/music-library'));
 const isMobileShellRoute = computed(() => route.path === '/m' || route.path.startsWith('/m/'));
+const isGlobalLyricBarVisible = computed(() => shouldShowGlobalLyricBar({
+  subtitleVisible: subtitleVisible.value,
+  hasCurrentTrack: Boolean(player.currentTrack.value),
+  routePath: route.path,
+  isMusicLibraryRoute: isMusicLibraryRoute.value,
+  isFocusActive: isFocusActive.value,
+  isDesktopHomeSurface
+}));
 const isMusicPlayerDetailRoute = computed(() => route.path.startsWith('/music-library/player'));
 const isAiHubRoute = computed(() => currentRouteKey.value === 'ai-hub');
 const showLevitationBall = computed(() => !runtimeGuards.disableLevitationBall);

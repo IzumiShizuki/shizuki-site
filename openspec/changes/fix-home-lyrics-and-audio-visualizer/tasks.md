@@ -13,3 +13,4 @@
 
 - [x] 3.1 Run focused and full frontend tests, production build, browser regression and visual inspection at desktop/narrow sizes.
 - [x] 3.2 Run OpenSpec verification and strict validation; record results and commit changes locally.
+- [x] 3.3 Hide global lyrics on account routes, cover route boundaries and player visibility guards, and verify with actual local synthetic audio playback on Home/login/register/Home.

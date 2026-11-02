@@ -14,6 +14,7 @@ See proposal.md for motivation. App owns the persisted lyricOffset and uses fixe
 2. Mount MusicVisualizerLayer as an App child with bars/ring wrappers and the existing selected style. Remove App's obsolete DOM level arrays, frequency sampler and visualizer RAF; retain its AudioContext/EQ/analyser provider, which the child can inject directly.
 3. Expand Home bars to a roughly 140px desktop stage and center the wrapper explicitly. The shared painter supplies brighter columns, baseline glow and held falling peak caps; existing styles stay selectable. Detail's current bars-crystal variant must resolve to its named painter when no explicit styleKey is supplied, rather than accidentally using the default neon painter.
 4. Pass runtime/page guards from App and leave pause decay to MusicVisualizerLayer. Test rendering and cleanup using mocked analyser/Canvas/RAF seams, and measure subtitle coordinates using the real browser.
+5. Centralize the global lyric visibility predicate and exclude exact `/auth` and `/m` roots plus their descendants. Preserve active-track, subtitle-toggle, music-focus, and desktop-home guards. Route boundary tests prevent accidental exclusion of `/authentication` or `/museums`.
 
 ## Risks / Trade-offs
 

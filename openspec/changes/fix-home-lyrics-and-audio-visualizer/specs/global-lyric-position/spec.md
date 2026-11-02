@@ -21,3 +21,14 @@ The system SHALL retain the user's global subtitle drag offset across route navi
 #### Scenario: Return from music and reload
 - **WHEN** subtitles are hidden on a music route, the user returns to Home, and reloads
 - **THEN** subtitles SHALL reappear at the previously chosen position
+
+### Requirement: Account pages remain free of global subtitles
+The system SHALL hide global subtitles on `/auth` and its descendants while playback continues, preserve the existing mobile-shell exclusion, and restore subtitles on eligible routes without interrupting audio.
+
+#### Scenario: Navigate through account pages during playback
+- **WHEN** a track with lyrics is playing and the user visits login, registration, or OAuth callback routes
+- **THEN** global subtitles SHALL be hidden and account controls SHALL remain unobstructed by lyrics
+
+#### Scenario: Return to an eligible route
+- **WHEN** the user returns from an account page to an eligible ordinary page while the track continues playing
+- **THEN** global subtitles SHALL reappear according to the existing subtitle toggle and player focus rules
