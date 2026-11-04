@@ -265,9 +265,15 @@
             </template>
 
             <template #section-change-password>
-              <form class="stack-form" @submit.prevent="submitChangePassword">
+              <div v-if="accountSectionLoaded && !account.email" class="stack-form">
+                <p class="helper-text">请先为当前账号绑定邮箱，绑定时即可设置密码。</p>
+                <button class="ghost-btn ripple-trigger" type="button" @click="openAccountSection(ProfileSectionKey.ACCOUNT.EMAIL_BIND)">
+                  绑定邮箱
+                </button>
+              </div>
+              <form v-else-if="account.email" class="stack-form" @submit.prevent="submitChangePassword">
                 <label class="field-label" for="change-email">邮箱</label>
-                <input id="change-email" v-model.trim="changePasswordForm.email" class="field-input" type="email" autocomplete="email" required />
+                <input id="change-email" :value="account.email" class="field-input" type="email" readonly />
 
                 <label class="field-label" for="change-captcha-answer">图形验证码</label>
                 <div class="captcha-row">
@@ -804,7 +810,6 @@ const bindEmailForm = reactive({
 });
 
 const changePasswordForm = reactive({
-  email: '',
   captchaAnswer: '',
   emailCode: '',
   newPassword: '',
@@ -1137,7 +1142,6 @@ async function loadAccountProfile() {
 
     profileForm.nickname = payload.nickname || auth.user.value?.nickname || '';
     bindEmailForm.email = payload.email || '';
-    changePasswordForm.email = payload.email || '';
     success = true;
     void loadMusicAuthorizationState();
   } catch (error) {
@@ -1555,10 +1559,6 @@ async function startOAuthBind(provider) {
 
 async function sendChangePwdCode() {
   changePwdCodeError.value = '';
-  if (!changePasswordForm.email) {
-    changePwdCodeError.value = '请先输入邮箱';
-    return;
-  }
   if (!captcha.captchaId) {
     changePwdCodeError.value = '图形验证码已失效，请先刷新';
     return;
@@ -1571,7 +1571,7 @@ async function sendChangePwdCode() {
   changePwdCodeSubmitting.value = true;
   try {
     const payload = await auth.sendResetPasswordVerification({
-      email: changePasswordForm.email,
+      email: account.email,
       captchaId: captcha.captchaId,
       captchaAnswer: changePasswordForm.captchaAnswer
     });
@@ -1589,11 +1589,12 @@ async function submitChangePassword() {
   changePasswordSubmitting.value = true;
   try {
     await auth.changePasswordByEmail({
-      email: changePasswordForm.email,
+      email: account.email,
       emailCode: changePasswordForm.emailCode,
       newPassword: changePasswordForm.newPassword,
       confirmPassword: changePasswordForm.confirmPassword
     });
+    account.hasPassword = true;
     setGlobalHint('密码修改成功');
     changePasswordForm.emailCode = '';
     changePasswordForm.newPassword = '';
@@ -1720,7 +1721,8 @@ function handleSectionAvatarClick() {
 }
 
 function sectionNeedsCaptcha(sectionKey) {
-  return sectionKey === ProfileSectionKey.ACCOUNT.EMAIL_BIND || sectionKey === ProfileSectionKey.ACCOUNT.CHANGE_PASSWORD;
+  return sectionKey === ProfileSectionKey.ACCOUNT.EMAIL_BIND
+    || (sectionKey === ProfileSectionKey.ACCOUNT.CHANGE_PASSWORD && Boolean(account.email));
 }
 
 function queueAccountSectionFollowUp(sectionKey) {
@@ -2123,9 +2125,10 @@ const accountSections = computed(() => [
     title: '修改密码',
     icon: 'fas fa-key',
     summary: buildSectionSummary(ProfileSectionKey.ACCOUNT.CHANGE_PASSWORD, {
+      email: account.email,
       hasPassword: account.hasPassword
     }),
-    statusText: account.hasPassword ? '可修改' : '需先设置'
+    statusText: account.email ? (account.hasPassword ? '可修改' : '可设置') : '需绑定邮箱'
   }
 ]);
 

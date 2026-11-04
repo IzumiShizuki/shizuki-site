@@ -135,7 +135,8 @@ export function buildSectionSummary(sectionKey, payload = {}) {
     case ProfileSectionKey.ACCOUNT.OAUTH_BIND:
       return payload.oauthBindingCount > 0 ? `已绑定 ${payload.oauthBindingCount} 个平台` : '绑定 GitHub / LinuxDo';
     case ProfileSectionKey.ACCOUNT.CHANGE_PASSWORD:
-      return payload.hasPassword ? '通过邮箱验证码修改密码' : '先设置邮箱后再设置密码';
+      if (!payload.email) return '绑定当前账号的邮箱后即可设置密码';
+      return payload.hasPassword ? '通过已绑定邮箱修改密码' : '通过已绑定邮箱设置密码';
     case ProfileSectionKey.ACCOUNT.MUSIC_AUTH: {
       const configuredCount = Number(payload.configuredCount || 0);
       return configuredCount > 0

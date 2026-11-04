@@ -57,6 +57,29 @@ class AuthEntryFilterTest {
     }
 
     @Test
+    void shouldAllowAnonymousPasswordResetButRequireLoginForAccountPasswordChange() throws Exception {
+        AuthService authService = Mockito.mock(AuthService.class);
+        AuthEntryFilter filter = newFilter(authService, configuredGuestPaths(), configuredPublicPaths(),
+            new GuestAuthorTokenService("test-guest-author-secret", 3600L));
+        MockHttpServletResponse resetResponse = new MockHttpServletResponse();
+        AtomicBoolean resetInvoked = new AtomicBoolean(false);
+        MockHttpServletRequest reset = new MockHttpServletRequest("POST", "/api/v1/auth/password/reset");
+        reset.addHeader("X-User-Id", "42");
+        filter.doFilter(reset, resetResponse, (request, response) -> {
+            assertThat(((HttpServletRequest) request).getHeader("X-User-Id")).isNull();
+            resetInvoked.set(true);
+        });
+        assertThat(resetResponse.getStatus()).isEqualTo(200);
+        assertThat(resetInvoked).isTrue();
+
+        MockHttpServletResponse changeResponse = new MockHttpServletResponse();
+        FilterChain changeChain = Mockito.mock(FilterChain.class);
+        filter.doFilter(new MockHttpServletRequest("PUT", "/api/v1/me/password"), changeResponse, changeChain);
+        assertThat(changeResponse.getStatus()).isEqualTo(401);
+        Mockito.verifyNoInteractions(authService, changeChain);
+    }
+
+    @Test
     void shouldAllowGuestResolvePlaybackWithoutToken() throws Exception {
         AuthService authService = Mockito.mock(AuthService.class);
         AuthEntryFilter filter = newFilter(authService, List.of(RESOLVE_PLAYBACK_PATH));

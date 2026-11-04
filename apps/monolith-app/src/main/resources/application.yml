@@ -460,6 +460,7 @@ shizuki:
       - /sitemap.xml
       - /robots.txt
       - /api/v1/auth/tokens
+      - /api/v1/auth/password/reset
       - /api/v1/auth/register/**
       - /api/v1/auth/oauth/**
       - /api/v1/auth/bindings/**

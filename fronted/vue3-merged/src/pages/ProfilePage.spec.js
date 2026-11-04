@@ -399,6 +399,62 @@ describe('ProfilePage immediate account expansion', () => {
     wrapper.unmount();
   });
 
+  it('uses the current account email to request a code and change the password', async () => {
+    mocked.auth = createAuthMock();
+    const wrapper = await mountProfilePage();
+    await findQuickAction(wrapper, '修改密码').trigger('click');
+    await flushPromises();
+
+    const email = wrapper.get('#change-email');
+    expect(email.element.readOnly).toBe(true);
+    expect(email.element.value).toBe('izumi@example.com');
+
+    const card = findSectionCard(wrapper, 'change-password');
+    await card.get('#change-captcha-answer').setValue('abcd');
+    await card.get('.inline-actions button').trigger('click');
+    expect(mocked.auth.sendResetPasswordVerification).toHaveBeenCalledWith({
+      email: 'izumi@example.com',
+      captchaId: 'captcha-1',
+      captchaAnswer: 'abcd'
+    });
+    await flushPromises();
+
+    await card.get('#change-email-code').setValue('123456');
+    await card.get('#change-new-password').setValue('NewPassword123');
+    await card.get('#change-confirm-password').setValue('NewPassword123');
+    await card.get('form').trigger('submit');
+    expect(mocked.auth.changePasswordByEmail).toHaveBeenCalledWith({
+      email: 'izumi@example.com',
+      emailCode: '123456',
+      newPassword: 'NewPassword123',
+      confirmPassword: 'NewPassword123'
+    });
+    await flushPromises();
+    wrapper.unmount();
+  });
+
+  it('opens email binding from the password panel for an account without an email', async () => {
+    mocked.auth = createAuthMock({
+      getAccountProfile: vi.fn().mockResolvedValue(createAccountProfile({
+        email: null,
+        emailVerified: 0,
+        hasPassword: false
+      }))
+    });
+    const wrapper = await mountProfilePage();
+    await findQuickAction(wrapper, '修改密码').trigger('click');
+    await flushPromises();
+
+    const card = findSectionCard(wrapper, 'change-password');
+    expect(card.find('form').exists()).toBe(false);
+    expect(mocked.auth.createImageCaptcha).not.toHaveBeenCalled();
+    await card.get('.stack-form button').trigger('click');
+    await flushPromises();
+    expect(findSectionCard(wrapper, 'email-bind').classes()).toContain('focused');
+    expect(mocked.auth.createImageCaptcha).toHaveBeenCalledTimes(1);
+    wrapper.unmount();
+  });
+
   it('shows music auth section immediately before account data resolves', async () => {
     const accountDeferred = createDeferred();
     mocked.auth = createAuthMock({
