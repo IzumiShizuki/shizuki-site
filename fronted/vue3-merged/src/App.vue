@@ -1,6 +1,6 @@
 <template>
   <MotionConfig reduced-motion="never">
-    <div class="app-shell">
+    <div class="app-shell site-organic">
       <!-- Accessibility: Skip to content link -->
       <a href="#main-content" class="skip-to-content">跳转到主要内容</a>
 

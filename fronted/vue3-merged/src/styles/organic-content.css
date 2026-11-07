@@ -1,0 +1,405 @@
+/* Content-route compositions, implemented against the shared organic roles.
+   Scope: Home stage, Blog list+detail, Albums, Album detail, Moments.
+   Loaded after global.css and blog-m3e.css; uses .app-shell.site-organic
+   + real route class for strict scoping and specificity wins. */
+
+/* ── 1. BLOG ROUTE — M3 ROLE BRIDGE ──────────────────────────────────────── */
+/* blog-m3e.css reads --m3-* first; without this bridge those vars come from
+   useUiPreferences and may emit brown/purple theme hues. */
+.app-shell.site-organic .m3e-blog-route {
+  --m3-surface: var(--site-canvas);
+  --m3-surface-container-low: var(--site-soft);
+  --m3-surface-container: var(--site-elevated);
+  --m3-surface-container-high: var(--site-elevated);
+  --m3-surface-container-highest: var(--site-soft);
+  --m3-on-surface: var(--site-ink);
+  --m3-on-surface-variant: var(--site-muted);
+  --m3-outline: var(--site-border-strong);
+  --m3-outline-variant: var(--site-border);
+  --m3-primary: var(--site-accent);
+  --m3-primary-container: var(--site-accent-soft);
+  --m3-on-primary: var(--site-on-accent);
+  --m3-on-primary-container: var(--site-ink);
+  --m3-secondary-container: var(--site-accent-soft);
+  --m3-on-secondary-container: var(--site-ink);
+  --m3-tertiary-container: var(--site-soft);
+  --m3-on-tertiary-container: var(--site-ink);
+  /* Ambient blobs: redirect to near-transparent organic tints */
+  --m3-ambient-primary: color-mix(in srgb, var(--site-accent-soft) 25%, transparent);
+  --m3-ambient-companion: color-mix(in srgb, var(--site-soft) 18%, transparent);
+  --m3-scrim: #080d0f;
+}
+
+/* Stop animated blobs from drifting; leave a very faint static organic wash */
+.app-shell.site-organic .m3e-blog-route::before,
+.app-shell.site-organic .m3e-blog-route::after {
+  animation: none !important;
+  transform: none !important;
+  opacity: 0.05 !important;
+  filter: blur(90px) !important;
+  will-change: auto;
+}
+
+/* ── 2. HOME STAGE ────────────────────────────────────────────────────────── */
+/* Context islands: frosted translucent chips over the wallpaper, not solid */
+.app-shell.site-organic .home-time-stage .context-island {
+  background: color-mix(in srgb, var(--site-canvas) 72%, transparent) !important;
+  border: 1px solid color-mix(in srgb, var(--site-border) 75%, transparent) !important;
+  box-shadow: none !important;
+  border-radius: var(--site-control-radius) !important;
+  color: var(--site-ink);
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  transition: background 0.2s ease;
+}
+
+.app-shell.site-organic .home-time-stage .context-island:hover {
+  background: color-mix(in srgb, var(--site-elevated) 80%, transparent) !important;
+}
+
+.app-shell.site-organic .home-time-stage .context-island .island-copy strong {
+  color: var(--site-heading);
+}
+
+.app-shell.site-organic .home-time-stage .context-island .island-copy small,
+.app-shell.site-organic .home-time-stage .context-island .island-copy span {
+  color: var(--site-muted);
+}
+
+/* Home room utilities: small frosted action chips */
+.app-shell.site-organic .home-time-stage .home-room-utility {
+  background: color-mix(in srgb, var(--site-canvas) 65%, transparent) !important;
+  border: 1px solid color-mix(in srgb, var(--site-border) 68%, transparent) !important;
+  box-shadow: none !important;
+  border-radius: var(--site-control-radius) !important;
+  color: var(--site-ink) !important;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  transition: background 0.2s ease;
+}
+
+.app-shell.site-organic .home-time-stage .home-room-utility:hover {
+  background: color-mix(in srgb, var(--site-elevated) 76%, transparent) !important;
+}
+
+/* ── 3. BLOG LIST PAGE ────────────────────────────────────────────────────── */
+/* Category strip: open horizontal pill-rail — no background box */
+.app-shell.site-organic .blog-list-page .category-strip {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+/* Feed hero: editorial cover card with organic radii */
+.app-shell.site-organic .blog-list-page .feed-hero {
+  border-radius: 72px 16px 48px 16px !important;
+  overflow: hidden;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+/* Feed cards: soft surface, minimal presence until hover */
+.app-shell.site-organic .blog-list-page .feed-card {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+  column-gap: 8px;
+  margin-block: 12px 20px;
+}
+
+.app-shell.site-organic .blog-list-page .feed-card:hover,
+.app-shell.site-organic .blog-list-page .feed-card:focus-visible {
+  box-shadow: none !important;
+}
+
+/* Cover pane: natural asymmetric radius — follows card direction */
+.app-shell.site-organic .blog-list-page .feed-card:not(.reverse) .cover-pane {
+  border-radius: 44px 12px 44px 12px;
+  overflow: hidden;
+}
+
+.app-shell.site-organic .blog-list-page .feed-card.reverse .cover-pane {
+  border-radius: 12px 44px 12px 44px;
+  overflow: hidden;
+}
+
+/* Left switch sidebar */
+.app-shell.site-organic .blog-list-page .left-switch {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  border-radius: var(--site-control-radius) !important;
+}
+
+/* Search panel */
+.app-shell.site-organic .blog-list-page .search-panel {
+  background: var(--site-elevated) !important;
+  border: 1px solid var(--site-border) !important;
+  box-shadow: none !important;
+  border-radius: var(--site-control-radius) !important;
+}
+
+/* Right side card */
+.app-shell.site-organic .blog-list-page .side-card {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  border-radius: var(--site-control-radius) !important;
+  padding-block: 12px 20px;
+}
+
+.app-shell.site-organic .blog-list-page :is(.latest-item, .list-row, .blog-author-link) {
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+
+.app-shell.site-organic .blog-list-page :is(.latest-item, .list-row, .blog-author-link):hover,
+.app-shell.site-organic .blog-list-page .list-row.active {
+  background: var(--site-soft) !important;
+}
+
+.app-shell.site-organic .blog-list-page .feed-hero-content {
+  color: #fff8f1;
+}
+
+.app-shell.site-organic .blog-list-page .feed-hero-scrim {
+  background: linear-gradient(180deg, rgb(9 15 19 / 0.08), rgb(9 15 19 / 0.87) 88%);
+}
+
+.app-shell.site-organic .blog-list-page .feed-hero :is(.feed-hero-title, .feed-hero-summary, .feed-hero-meta) {
+  color: #fff8f1;
+}
+
+.app-shell.site-organic .blog-list-page .read-more {
+  color: var(--site-accent);
+}
+
+/* Whisper panel */
+.app-shell.site-organic .blog-list-page .whisper-panel {
+  background: var(--site-soft) !important;
+  border: 1px solid var(--site-border) !important;
+  box-shadow: none !important;
+  border-radius: var(--site-control-radius) !important;
+}
+
+/* ── 4. BLOG DETAIL PAGE ──────────────────────────────────────────────────── */
+.app-shell.site-organic .blog-page--public :is(.left-panel, .right-panel, .center-panel, .detail-view) {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+.app-shell.site-organic .blog-page--public .mine-item {
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+
+.app-shell.site-organic .blog-page--public .mine-item.active {
+  background: var(--site-accent-soft) !important;
+}
+
+.app-shell.site-organic .blog-page--public :is(.detail-head, .markdown-body) {
+  max-width: var(--site-reading-measure);
+  margin-inline: auto;
+}
+
+/* Article scroll area: flat on the canvas, frameless reading experience */
+.app-shell.site-organic .blog-page .detail-scroll {
+  background: var(--site-canvas) !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+}
+
+/* Cover image: real picture gets an organic frame, not just a box */
+.app-shell.site-organic .blog-page .detail-cover-wrap {
+  border-radius: 16px !important;
+  overflow: hidden;
+  border: 1px solid var(--site-border) !important;
+  background: var(--site-soft) !important;
+  box-shadow: none !important;
+}
+
+/* Left and right nav side blocks */
+.app-shell.site-organic .blog-page .side-block {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  border-radius: var(--site-control-radius) !important;
+}
+
+/* ── 5. ALBUMS PAGE ───────────────────────────────────────────────────────── */
+.app-shell.site-organic .life-index-page .life-side-card {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  border-radius: var(--site-control-radius) !important;
+}
+
+.app-shell.site-organic .life-index-page .life-side-card h2 {
+  color: var(--site-heading);
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.app-shell.site-organic .life-index-page .life-side-card p {
+  color: var(--site-muted);
+  font-size: 0.875rem;
+}
+
+/* Life page hero: open editorial header, no card box */
+.app-shell.site-organic .life-index-page .life-page-hero {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  padding-block: var(--site-space-section) var(--site-space-group);
+}
+
+.app-shell.site-organic .life-index-page .life-page-hero h1 {
+  color: var(--site-heading);
+  font-size: clamp(1.75rem, 3vw, 2.5rem);
+  font-weight: 600;
+}
+
+.app-shell.site-organic .life-index-page .life-page-hero p {
+  color: var(--site-muted);
+  max-width: 58ch;
+}
+
+/* Album cards: organic curve, lift on hover */
+.app-shell.site-organic .life-index-page .album-card {
+  border-radius: 0 !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  overflow: visible;
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.app-shell.site-organic .life-index-page .album-card:hover {
+  box-shadow: none !important;
+  transform: translateY(-2px);
+}
+
+.app-shell.site-organic .life-index-page .album-cover {
+  border-radius: 48px 12px 48px 12px;
+}
+
+.app-shell.site-organic .life-index-page .album-card .album-caption strong {
+  color: var(--site-heading);
+}
+
+.app-shell.site-organic .life-index-page .album-card .album-caption small,
+.app-shell.site-organic .life-index-page .album-card .album-caption span {
+  color: var(--site-muted);
+}
+
+/* ── 6. ALBUM DETAIL PAGE ─────────────────────────────────────────────────── */
+.app-shell.site-organic .album-detail-page .album-detail-side {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  border-radius: var(--site-control-radius) !important;
+}
+
+/* Album detail hero: open heading area, no card framing */
+.app-shell.site-organic .album-detail-page .album-detail-hero {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  padding-block: var(--site-space-section) var(--site-space-group);
+}
+
+.app-shell.site-organic .album-detail-page .album-detail-hero h1 {
+  color: var(--site-heading);
+  font-size: clamp(1.75rem, 3vw, 2.4rem);
+  font-weight: 600;
+}
+
+.app-shell.site-organic .album-detail-page .album-detail-hero .album-summary {
+  color: var(--site-muted);
+  max-width: 60ch;
+}
+
+/* Photo frames: each photo gets a natural curved crop */
+.app-shell.site-organic .album-detail-page .photo-frame {
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid var(--site-border);
+  background: var(--site-soft);
+}
+
+.app-shell.site-organic .album-detail-page .photo-frame figcaption {
+  padding: 8px 12px;
+  color: var(--site-muted);
+  font-size: 0.8rem;
+}
+
+/* ── 7. MOMENTS PAGE ──────────────────────────────────────────────────────── */
+.app-shell.site-organic .moments-page .moment-side-card {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  border-radius: var(--site-control-radius) !important;
+}
+
+.app-shell.site-organic .moments-page .moments-hero {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  padding-block: var(--site-space-section) var(--site-space-group);
+}
+
+.app-shell.site-organic .moments-page .moments-hero h1 {
+  color: var(--site-heading);
+  font-size: clamp(1.75rem, 3vw, 2.4rem);
+  font-weight: 600;
+}
+
+.app-shell.site-organic .moments-page .moments-hero p {
+  color: var(--site-muted);
+  max-width: 58ch;
+}
+
+/* Moment cards: clear individual entries separated by space */
+.app-shell.site-organic .moments-page .moment-card {
+  background: transparent !important;
+  border: 0 !important;
+  border-bottom: 1px solid var(--site-border) !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+  transition: border-color 0.2s ease;
+}
+
+.app-shell.site-organic .moments-page .moment-card.targeted {
+  background: var(--site-accent-soft) !important;
+}
+
+/* Photo strip images: individual photos get natural corner rounding */
+.app-shell.site-organic .moments-page .moment-photo-strip figure button img {
+  border-radius: 8px;
+}
+
+/* ── 8. RESPONSIVE ────────────────────────────────────────────────────────── */
+.app-shell.site-organic :is(.life-index-page, .album-detail-page, .moments-page) :is(.life-state, .moment-state, .music-projection) {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+@media (max-width: 900px) {
+  /* Stacked feed cards: cover pane becomes a top banner, not side thumb */
+  .app-shell.site-organic .blog-list-page .feed-card:not(.reverse) .cover-pane,
+  .app-shell.site-organic .blog-list-page .feed-card.reverse .cover-pane {
+    border-radius: 36px 12px 36px 12px;
+  }
+
+  .app-shell.site-organic .life-index-page .life-page-hero,
+  .app-shell.site-organic .moments-page .moments-hero,
+  .app-shell.site-organic .album-detail-page .album-detail-hero {
+    padding-block: var(--site-space-group) 8px;
+  }
+}

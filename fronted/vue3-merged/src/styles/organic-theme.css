@@ -1,0 +1,173 @@
+/* Shared visual authority: the user-approved About canvas, now site-wide.
+   Public composition and operational layouts live in the two companion files. */
+:root {
+  --site-canvas: #1a1f26;
+  --site-heading: #fbf5ee;
+  --site-ink: #e8e6e1;
+  --site-muted: #acb8b2;
+  --site-subtle: #a1aea7;
+  --site-soft: #242c31;
+  --site-elevated: #2b3438;
+  --site-border: #3a4648;
+  --site-border-strong: #596866;
+  --site-shadow: 0 12px 28px rgb(7 13 14 / 0.18);
+  --site-shadow-raised: 0 18px 36px rgb(7 13 14 / 0.25);
+  --site-accent: color-mix(in srgb, rgb(var(--accent-rgb)) 76%, #f6ede3);
+  --site-on-accent: #1a1f26;
+  --site-accent-soft: color-mix(in srgb, rgb(var(--accent-rgb)) 10%, var(--site-canvas));
+  --site-accent-border: color-mix(in srgb, rgb(var(--accent-rgb)) 45%, var(--site-canvas));
+  --site-space-group: 16px;
+  --site-space-section: clamp(32px, 4vw, 56px);
+  --site-space-page: clamp(16px, 3vw, 40px);
+  --site-reading-measure: 72ch;
+  --site-control-radius: 14px;
+}
+
+:root[data-theme-mode='day'] {
+  --site-canvas: #f6f7f3;
+  --site-heading: #22302c;
+  --site-ink: #2e3c36;
+  --site-muted: #52645a;
+  --site-subtle: #536159;
+  --site-soft: #e9eee6;
+  --site-elevated: #fffefa;
+  --site-border: #d0d9ce;
+  --site-border-strong: #a1afa0;
+  --site-shadow: 0 12px 28px rgb(39 61 46 / 0.07);
+  --site-shadow-raised: 0 18px 36px rgb(39 61 46 / 0.11);
+  --site-accent: color-mix(in srgb, rgb(var(--accent-rgb)) 38%, #442d30);
+  --site-on-accent: #fffefa;
+}
+
+/* The preference service writes legacy tokens on :root. The shell bridge keeps
+   its selected accent/wallpaper while sharing the approved neutral roles. */
+.app-shell.site-organic {
+  --theme-surface: var(--site-canvas);
+  --theme-surface-elevated: var(--site-elevated);
+  --theme-surface-soft: var(--site-soft);
+  --theme-panel-surface: var(--site-soft);
+  --theme-panel-surface-elevated: var(--site-elevated);
+  --theme-reader-surface: var(--site-canvas);
+  --theme-input-surface: var(--site-soft);
+  --theme-code-surface: var(--site-soft);
+  --theme-code-border: var(--site-border);
+  --theme-text-primary: var(--site-ink);
+  --theme-text-secondary: var(--site-muted);
+  --theme-text-tertiary: var(--site-subtle);
+  --theme-icon-primary: var(--site-ink);
+  --theme-icon-muted: var(--site-muted);
+  --theme-icon-strong: var(--site-heading);
+  --theme-border: var(--site-border);
+  --theme-border-subtle: var(--site-border);
+  --theme-border-strong: var(--site-border-strong);
+  --theme-divider-soft: var(--site-border);
+  --theme-shadow-soft: var(--site-shadow);
+  --theme-floating-surface: var(--site-elevated);
+  --theme-floating-surface-hover: var(--site-soft);
+  --theme-floating-ink: var(--site-ink);
+  --theme-floating-close-surface: var(--site-soft);
+  --theme-focus-ring: var(--site-accent);
+  --accent-mode-text: var(--site-ink);
+  --accent-mode-text-muted: var(--site-muted);
+  --accent-mode-fill-soft: var(--site-accent-soft);
+  --accent-mode-fill: color-mix(in srgb, rgb(var(--accent-rgb)) 18%, var(--site-canvas));
+  --accent-mode-border: var(--site-accent-border);
+  --accent-mode-shadow: var(--site-shadow);
+  --accent-mode-glow: none;
+  --menu-surface: var(--site-canvas);
+  --menu-surface-raised: var(--site-soft);
+  --menu-ink: var(--site-ink);
+  --menu-ink-muted: var(--site-muted);
+  --menu-selected-bg: var(--site-accent-soft);
+  --menu-on-selected: var(--site-ink);
+  --menu-shadow: var(--site-shadow);
+  --app-shell-backdrop: var(--site-canvas);
+  --glass-bg: var(--site-soft);
+  --glass-border: var(--site-border);
+  --glass-shadow: var(--site-shadow);
+  --glass-blur: none;
+  --about-canvas: var(--site-canvas);
+  --about-text-hero: var(--site-heading);
+  --about-text-primary: var(--site-ink);
+  --about-text-secondary: var(--site-muted);
+  --about-text-tertiary: var(--site-subtle);
+  --about-surface-soft: var(--site-soft);
+  --about-surface-elevated: var(--site-elevated);
+  --about-border-subtle: var(--site-border);
+  --about-border-strong: var(--site-border-strong);
+  --about-shadow-soft: var(--site-shadow);
+  --about-shadow-md: var(--site-shadow-raised);
+  --about-accent-text: var(--site-accent);
+  --about-accent-fill: var(--site-accent-soft);
+  --about-accent-border: var(--site-accent-border);
+  color: var(--site-ink);
+}
+
+/* A page is a canvas, not another framed card behind its own sections. Keep
+   Home transparent because the selected wallpaper is its primary content. */
+.app-shell.site-organic > .workspace-shell > .route-content:not(.route-content-home) {
+  background: var(--site-canvas) !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.app-shell.site-organic .route-content-home {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+.site-organic :where(input, textarea, select) {
+  caret-color: var(--site-accent);
+  accent-color: rgb(var(--accent-rgb));
+}
+
+.site-organic :where(a, button, input, textarea, select, summary, [tabindex]):focus-visible {
+  outline: 3px solid var(--site-accent) !important;
+  outline-offset: 3px;
+}
+
+.site-organic ::selection {
+  color: var(--site-ink);
+  background: color-mix(in srgb, rgb(var(--accent-rgb)) 28%, var(--site-canvas));
+}
+
+.site-organic :where(.route-content, .subtle-scroll-area, .sidebar-column, .content-shell__right, .m-shell-view) {
+  scrollbar-color: var(--site-border-strong) transparent;
+}
+
+.site-organic :where(time, .stat-number, .overview-value, .track-duration) {
+  font-variant-numeric: tabular-nums;
+}
+
+.site-organic .top-menu-root {
+  --liquid-bg: var(--site-canvas);
+  --liquid-border: var(--site-border);
+  --liquid-shadow: var(--site-shadow);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .site-organic :where(.route-content, .subtle-scroll-area) {
+    scroll-behavior: auto;
+  }
+}
+
+/* The compact navigation still occupies the top edge when expanded desktop
+   navigation is closed. Reserve its space on phone-sized first-party pages. */
+@media (max-width: 600px) {
+  .app-shell.site-organic > .workspace-shell {
+    --music-top-offset-collapsed: 72px;
+    --music-top-offset-expanded: 72px;
+    padding: 72px max(8px, env(safe-area-inset-right)) 8px max(8px, env(safe-area-inset-left));
+  }
+
+  .app-shell.site-organic > .workspace-shell.expanded,
+  .app-shell.site-organic > .workspace-shell.author-workspace-active {
+    padding-top: 72px;
+    padding-left: max(8px, env(safe-area-inset-left));
+    padding-right: max(8px, env(safe-area-inset-right));
+  }
+}

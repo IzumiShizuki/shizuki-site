@@ -4087,61 +4087,8 @@ onBeforeUnmount(() => {
 
 }
 
-/* Public About is one canvas. These scoped overrides outrank global.css's
-   forced card skin without changing other routes or author administration. */
-:global(.route-content:has(> .author-page--public-workspace)) {
-  --about-canvas: #1a1f26;
-  background: var(--about-canvas) !important;
-  border: 0 !important;
-  border-radius: 0 !important;
-  box-shadow: none !important;
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-}
-:global(:root[data-theme-mode='day'] .route-content:has(> .author-page--public-workspace)) {
-  --about-canvas: #f6f7f3;
-}
-.author-page--public-workspace {
-  --about-text-hero: #fbf5ee;
-  --about-text-primary: #e8e6e1;
-  --about-text-secondary: #acb8b2;
-  --about-text-tertiary: #a1aea7;
-  --about-surface-soft: #242c31;
-  --about-surface-elevated: #2b3438;
-  --about-border-subtle: #3a4648;
-  --about-border-strong: #596866;
-  --about-shadow-soft: 0 12px 28px rgb(7 13 14 / 0.18);
-  --about-shadow-md: 0 18px 36px rgb(7 13 14 / 0.25);
-  --about-accent-text: color-mix(in srgb, rgb(var(--accent-rgb)) 76%, #f6ede3);
-  --about-accent-fill: color-mix(in srgb, rgb(var(--accent-rgb)) 10%, var(--about-canvas));
-  --about-accent-border: color-mix(in srgb, rgb(var(--accent-rgb)) 45%, var(--about-canvas));
-  --theme-text-primary: var(--about-text-primary);
-  --theme-text-secondary: var(--about-text-secondary);
-  --theme-text-tertiary: var(--about-text-tertiary);
-  --theme-icon-primary: var(--about-text-primary);
-  --theme-icon-muted: var(--about-text-secondary);
-  --theme-panel-surface: var(--about-surface-soft);
-  --theme-panel-surface-elevated: var(--about-surface-elevated);
-  --theme-surface-soft: var(--about-surface-soft);
-  --theme-border: var(--about-border-subtle);
-  --theme-border-subtle: var(--about-border-subtle);
-  --theme-border-strong: var(--about-border-strong);
-  --theme-shadow-soft: var(--about-shadow-soft);
-  color: var(--about-text-primary);
-}
-:root[data-theme-mode='day'] .author-page--public-workspace {
-  --about-text-hero: #22302c;
-  --about-text-primary: #2e3c36;
-  --about-text-secondary: #52645a;
-  --about-text-tertiary: #536159;
-  --about-surface-soft: #e9eee6;
-  --about-surface-elevated: #fffefa;
-  --about-border-subtle: #d0d9ce;
-  --about-border-strong: #a1afa0;
-  --about-shadow-soft: 0 12px 28px rgb(39 61 46 / 0.07);
-  --about-shadow-md: 0 18px 36px rgb(39 61 46 / 0.11);
-  --about-accent-text: color-mix(in srgb, rgb(var(--accent-rgb)) 38%, #442d30);
-}
+/* Shared organic-theme.css supplies the approved About palette.
+   These overrides retain this page's accepted open composition. */
 .author-page--public-workspace .content-panel.content-panel--public-experience,
 .author-page--public-workspace :deep(.author-route-sidebar.liquid-material),
 .author-page--public-workspace :deep(.author-life-widgets .music-projection),

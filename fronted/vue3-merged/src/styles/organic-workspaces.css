@@ -1,0 +1,547 @@
+/* Operational-route compositions, implemented against the shared organic roles.
+   Scope: TopMenu, MusicLibrary, Apps, AiHub, Auth, Profile, mobile shell.
+   Loaded last; uses .app-shell.site-organic + route class for all overrides. */
+
+/* ── 1. TOP MENU ──────────────────────────────────────────────────────────── */
+/* organic-theme.css already bridges --menu-* and --glass-* tokens.
+   This layer refines the pill group shape and nav item color rhythm. */
+.app-shell.site-organic .top-menu-root .top-bar {
+  background: var(--site-canvas) !important;
+  border-color: var(--site-border) !important;
+  box-shadow: var(--site-shadow);
+}
+
+.app-shell.site-organic .top-bar .left-main-btn.active {
+  background: var(--site-accent-soft) !important;
+  box-shadow: none !important;
+}
+
+.app-shell.site-organic .top-bar .left-pill-group {
+  background: color-mix(in srgb, var(--site-canvas) 78%, transparent);
+  border: 1px solid var(--site-border);
+  box-shadow: none;
+  border-radius: 999px;
+  backdrop-filter: blur(12px) saturate(130%);
+  -webkit-backdrop-filter: blur(12px) saturate(130%);
+}
+
+.app-shell.site-organic .top-bar .menu-item-stack {
+  color: var(--site-muted);
+  transition: color 0.15s ease;
+}
+
+.app-shell.site-organic .top-bar .menu-item-stack.active {
+  color: var(--site-ink);
+}
+
+.app-shell.site-organic .top-bar .menu-item-stack:hover {
+  color: var(--site-heading);
+}
+
+/* ── 2. MUSIC LIBRARY OUTER SHELL ─────────────────────────────────────────── */
+/* First-party navigation and surrounding frame adopt the site palette.
+   Folia iframe internals are NOT targeted — only .folia-embed-pane wrapper
+   and .folia-embed-toolbar which are first-party. */
+.app-shell.site-organic .music-library-page {
+  background: var(--site-canvas) !important;
+}
+
+.app-shell.site-organic .music-library-page .music-left-sidebar {
+  background: var(--site-canvas) !important;
+  border-right: 1px solid var(--site-border) !important;
+  border-top: 0 !important;
+  border-bottom: 0 !important;
+  border-left: 0 !important;
+  box-shadow: none !important;
+}
+
+.app-shell.site-organic .music-library-page .music-right-panel {
+  background: var(--site-canvas) !important;
+  border-left: 1px solid var(--site-border) !important;
+  border-top: 0 !important;
+  border-bottom: 0 !important;
+  border-right: 0 !important;
+  box-shadow: none !important;
+}
+
+.app-shell.site-organic .music-library-page .music-cozy-library {
+  color: var(--site-ink);
+}
+
+.app-shell.site-organic .music-library-page .music-cozy-hero.te-hero-stage {
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+.app-shell.site-organic .music-library-page .music-cozy-hero.te-hero-stage::before,
+.app-shell.site-organic .music-library-page .music-cozy-hero.te-hero-stage::after {
+  display: none;
+}
+
+.app-shell.site-organic .music-library-page .hero-copy {
+  box-shadow: none;
+}
+
+.app-shell.site-organic .music-library-page :is(.hero-copy h1, .hero-now-card .now-title) {
+  color: var(--site-heading) !important;
+  -webkit-text-fill-color: var(--site-heading) !important;
+}
+
+.app-shell.site-organic .music-library-page :is(.hero-copy p, .now-meta, .now-note, .now-label) {
+  color: var(--site-muted) !important;
+}
+
+.app-shell.site-organic .music-library-page :is(.hero-now-card, .music-cozy-grid .album-card, .playlist-card) {
+  background: var(--site-soft) !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  border-radius: 14px !important;
+}
+
+.app-shell.site-organic .music-library-page :is(.album-card .title, .album-card .name, .playlist-card .name) {
+  color: var(--site-ink) !important;
+}
+
+.app-shell.site-organic .music-library-page .album-copy h2 {
+  color: var(--site-heading) !important;
+}
+
+.app-shell.site-organic .music-library-page .album-copy p {
+  color: var(--site-muted) !important;
+}
+
+.app-shell.site-organic .music-library-page .album-tag {
+  color: var(--site-ink);
+  background: var(--site-accent-soft);
+}
+
+.app-shell.site-organic .music-library-page :is(.album-card .desc, .playlist-card .desc) {
+  color: var(--site-muted) !important;
+}
+
+.app-shell.site-organic .music-library-page :is(.mood-chip, .nav-item, .list-item) {
+  color: var(--site-ink) !important;
+  background: transparent !important;
+  box-shadow: none;
+}
+
+.app-shell.site-organic .music-library-page :is(.nav-item.active, .list-item.selected) {
+  background: var(--site-accent-soft) !important;
+}
+
+.app-shell.site-organic .music-library-page .music-library-dock :is(.title, .time-row) {
+  color: var(--site-ink) !important;
+}
+
+.app-shell.site-organic .music-library-page .music-library-dock .artist {
+  color: var(--site-muted) !important;
+}
+
+.app-shell.site-organic .music-library-page :is(.music-left-sidebar.mobile, .music-right-panel.mobile) {
+  background: var(--site-elevated) !important;
+}
+
+.app-shell.site-organic .music-library-page .music-search-toolbar {
+  background: var(--site-soft) !important;
+  border-bottom: 1px solid var(--site-border) !important;
+  border-top: 0 !important;
+  border-inline: 0 !important;
+  box-shadow: none !important;
+}
+
+.app-shell.site-organic .music-library-page .music-library-dock {
+  background: var(--site-elevated) !important;
+  border-top: 1px solid var(--site-border) !important;
+  border-bottom: 0 !important;
+  border-inline: 0 !important;
+  box-shadow: none !important;
+}
+
+/* Folia embed pane: the outer frame picks up the theme; iframe interior untouched */
+.app-shell.site-organic .music-library-page .folia-embed-pane {
+  background: var(--site-canvas) !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+.app-shell.site-organic .music-library-page .folia-embed-toolbar {
+  background: var(--site-soft) !important;
+  border-bottom: 1px solid var(--site-border) !important;
+  border-top: 0 !important;
+  border-inline: 0 !important;
+  box-shadow: none !important;
+}
+
+/* ── 3. APPS PAGE ─────────────────────────────────────────────────────────── */
+/* Apps main panel: clear operational surface with organic soft base */
+.app-shell.site-organic .apps-route .apps-main {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  border-radius: var(--site-control-radius) !important;
+}
+
+.app-shell.site-organic .apps-route .catalog-grid {
+  gap: 24px;
+}
+
+.app-shell.site-organic .apps-route .apps-main-head {
+  margin-bottom: 24px;
+  align-items: baseline;
+}
+
+.app-shell.site-organic .apps-route .apps-main-head h2 {
+  font-size: clamp(24px, 2.5vw, 36px);
+  color: var(--site-heading);
+}
+
+/* Catalog app cards: identifiable launch entries */
+.app-shell.site-organic .apps-route .app-card {
+  background: transparent !important;
+  border: 0 !important;
+  border-bottom: 1px solid var(--site-border) !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+  padding: 4px 0 24px;
+  transition: border-color 0.2s ease;
+}
+
+.app-shell.site-organic .apps-route .app-card:hover {
+  box-shadow: none !important;
+  border-color: var(--site-border-strong) !important;
+}
+
+.app-shell.site-organic .apps-route .app-card .card-head h3 {
+  color: var(--site-heading);
+}
+
+.app-shell.site-organic .apps-route .app-card .card-meta {
+  color: var(--site-muted);
+}
+
+/* URL source block and individual items */
+.app-shell.site-organic .apps-route .url-source-block {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  border-radius: var(--site-control-radius) !important;
+}
+
+.app-shell.site-organic .apps-route .url-source-item {
+  background: var(--site-elevated) !important;
+  border: 1px solid var(--site-border) !important;
+  border-radius: 10px !important;
+  transition: border-color 0.15s ease;
+}
+
+.app-shell.site-organic .apps-route .url-source-item:hover {
+  border-color: var(--site-border-strong) !important;
+}
+
+/* ── 4. AI HUB WORKSPACE ──────────────────────────────────────────────────── */
+/* Outer workspace-shell: operational container.
+   Town canvas height/overflow, grid layout and mode functions are untouched. */
+.app-shell.site-organic .ai-hub-page .workspace-shell {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+.app-shell.site-organic .ai-hub-page .workspace-topbar {
+  background: var(--site-elevated) !important;
+  border-bottom: 1px solid var(--site-border) !important;
+  border-top: 0 !important;
+  border-inline: 0 !important;
+  box-shadow: none !important;
+}
+
+/* Workspace main panel (conversation/editor sub-view) */
+.app-shell.site-organic .ai-hub-page .workspace-main {
+  background: var(--site-soft) !important;
+  border: 1px solid var(--site-border) !important;
+  box-shadow: none !important;
+}
+
+/* Asset editor cards */
+.app-shell.site-organic .ai-hub-page .editor-card {
+  background: var(--site-elevated) !important;
+  border: 1px solid var(--site-border) !important;
+  box-shadow: none !important;
+  border-radius: var(--site-control-radius) !important;
+}
+
+.app-shell.site-organic .ai-hub-page .editor-card strong {
+  color: var(--site-heading);
+}
+
+.app-shell.site-organic .ai-hub-page .editor-card p,
+.app-shell.site-organic .ai-hub-page .editor-data-card dt,
+.app-shell.site-organic .ai-hub-page .editor-data-card dd {
+  color: var(--site-muted);
+}
+
+/* ── 5. AUTH PAGE ─────────────────────────────────────────────────────────── */
+/* Auth page has its own pageThemeClass that injects a page-level accent.
+   Map it to the organic neutral base so the form stays readable regardless
+   of which accent the page-theme selects. */
+.app-shell.site-organic .auth-page {
+  background: var(--site-canvas) !important;
+  color: var(--site-ink);
+}
+
+/* Kawaii decorative elements: let them exist but at near-invisible opacity */
+.app-shell.site-organic .auth-page .kawaii-decor {
+  opacity: 0.07;
+  pointer-events: none;
+}
+
+/* bg-aurora: organic canvas already provides the foundation, aurora unneeded */
+.app-shell.site-organic .auth-page .bg-aurora {
+  display: none;
+}
+
+/* Custom bg-image-layer: user's own image — keep but reduce heavy overlay */
+.app-shell.site-organic .auth-page .bg-image-layer {
+  opacity: 0.3;
+}
+
+/* Auth center: centered column, no extra framing */
+.app-shell.site-organic .auth-page .auth-center {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: center;
+  gap: var(--site-space-section);
+  padding: var(--site-space-page);
+  max-width: 1040px;
+  margin-inline: auto;
+}
+
+/* Hero header: strip the forced panel-surface card; use open editorial header */
+.app-shell.site-organic .auth-page .hero {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  text-align: center;
+  padding: 0;
+  width: 100%;
+  min-height: 0;
+  backdrop-filter: none;
+}
+
+.app-shell.site-organic .auth-page .hero h1 {
+  color: var(--site-heading) !important;
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.app-shell.site-organic .auth-page .hero .hero-desc,
+.app-shell.site-organic .auth-page .hero .greeting {
+  color: var(--site-muted) !important;
+}
+
+/* Auth shell: the tabbed form container */
+.app-shell.site-organic .auth-page .auth-shell {
+  background: var(--site-soft) !important;
+  border: 1px solid var(--site-border) !important;
+  box-shadow: none !important;
+  border-radius: var(--site-control-radius) !important;
+  width: 100%;
+  max-width: 460px;
+  justify-self: center;
+}
+
+.app-shell.site-organic .auth-page :is(.field-label, .oauth-title, .state-tip) {
+  color: var(--site-muted);
+}
+
+.app-shell.site-organic .auth-page .field-input {
+  background: var(--site-canvas) !important;
+  border-color: var(--site-border-strong) !important;
+  color: var(--site-ink) !important;
+}
+
+.app-shell.site-organic .auth-page .field-input::placeholder {
+  color: var(--site-subtle);
+}
+
+.app-shell.site-organic .auth-page .auth-tabs {
+  background: transparent;
+  box-shadow: none;
+  padding: 0 0 12px;
+  border-bottom: 1px solid var(--site-border);
+  border-radius: 0;
+}
+
+.app-shell.site-organic .auth-page .tab-btn {
+  min-height: 44px;
+  color: var(--site-muted) !important;
+  border-radius: 12px;
+}
+
+.app-shell.site-organic .auth-page .tab-btn.active {
+  background: var(--site-accent-soft) !important;
+  box-shadow: none;
+  color: var(--site-heading) !important;
+}
+
+.app-shell.site-organic .auth-page :is(.oauth-btn, .customize-btn) {
+  background: var(--site-canvas);
+  border-color: var(--site-border-strong);
+  color: var(--site-accent);
+  box-shadow: none;
+}
+
+/* Field inputs: rounded to match control radius */
+.app-shell.site-organic .auth-page .field-input {
+  border-radius: 10px !important;
+}
+
+/* Sparkle / deco animations: static on organic canvas */
+.app-shell.site-organic .auth-page .sparkle,
+.app-shell.site-organic .auth-page .deco-star,
+.app-shell.site-organic .auth-page .deco-heart,
+.app-shell.site-organic .auth-page .deco-cloud {
+  animation: none !important;
+}
+
+/* ── 6. PROFILE PAGE ──────────────────────────────────────────────────────── */
+/* Profile stage: the liquid-material outer wrapper; trim shadow for the canvas */
+.app-shell.site-organic .profile-page .profile-stage {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+/* Content panel: main reading/editing surface */
+.app-shell.site-organic .profile-page .profile-content-panel {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.app-shell.site-organic .profile-page :is(.profile-hero-shell, .hero-card, .section-item, .head-static) {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+.app-shell.site-organic .profile-page .profile-hero-shell {
+  background: var(--site-canvas) !important;
+  backdrop-filter: none;
+}
+
+.app-shell.site-organic .profile-page .dot-rail-btn {
+  color: var(--site-muted);
+}
+
+.app-shell.site-organic .profile-page .section-item {
+  padding-block: 16px;
+  border-bottom: 1px solid var(--site-border) !important;
+  border-radius: 0 !important;
+}
+
+/* Overview stat cards */
+.app-shell.site-organic .profile-page .overview-card {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+}
+
+.app-shell.site-organic .profile-page .overview-card .overview-value {
+  color: var(--site-heading);
+}
+
+.app-shell.site-organic .profile-page .overview-card .overview-label,
+.app-shell.site-organic .profile-page .overview-card .overview-hint {
+  color: var(--site-muted) !important;
+}
+
+/* Recent activity items */
+.app-shell.site-organic .profile-page .recent-item {
+  background: var(--site-elevated) !important;
+  border: 1px solid var(--site-border) !important;
+  box-shadow: none !important;
+  border-radius: 10px !important;
+}
+
+.app-shell.site-organic .profile-page .recent-item .recent-label {
+  color: var(--site-muted) !important;
+}
+
+/* ── 7. MOBILE SHELL ──────────────────────────────────────────────────────── */
+/* m-shell renders inside .app-shell.site-organic (see App.vue RouterView).
+   Colors flow through the bridged CSS variables; this layer catches
+   any surfaces that mobile.css sets with direct values. */
+.app-shell.site-organic .m-shell {
+  --m-bg: var(--site-canvas);
+  --m-bg-glow-a: transparent;
+  --m-bg-glow-b: transparent;
+  --m-surface: var(--site-soft);
+  --m-surface-strong: var(--site-elevated);
+  --m-surface-soft: var(--site-soft);
+  --m-border: var(--site-border);
+  --m-border-strong: var(--site-border-strong);
+  --m-text: var(--site-ink);
+  --m-text-sub: var(--site-muted);
+  --m-text-faint: var(--site-subtle);
+  --m-shadow: var(--site-shadow-raised);
+  --m-shadow-soft: var(--site-shadow);
+  --m-radius-lg: 16px;
+  --m-radius-md: 14px;
+  background: var(--site-canvas);
+  color: var(--site-ink);
+}
+
+.app-shell.site-organic .m-shell :is(.m-btn-ghost, .m-btn-primary, .m-input, .m-chip) {
+  min-height: 44px;
+}
+
+.app-shell.site-organic .m-shell .m-shell-view {
+  background: var(--site-canvas);
+}
+
+/* Tab bar: organic soft surface with a single separator */
+.app-shell.site-organic .m-shell .m-tabbar {
+  background: var(--site-elevated);
+  border-top: 1px solid var(--site-border);
+  box-shadow: none;
+}
+
+/* Mini player: frosted strip above the tab bar */
+.app-shell.site-organic .m-shell .m-mini {
+  background: color-mix(in srgb, var(--site-elevated) 90%, transparent);
+  border-top: 1px solid var(--site-border);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+/* ── 8. RESPONSIVE ────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .app-shell.site-organic .auth-page .auth-center {
+    grid-template-columns: minmax(0, 1fr);
+    padding: var(--site-space-group);
+  }
+
+  .app-shell.site-organic .auth-page .mascot-frame {
+    transform: scale(0.75);
+    margin-block: -24px;
+  }
+
+  /* Apps main: edge-to-edge on small screens, no inline border */
+  .app-shell.site-organic .apps-route .apps-main {
+    border-radius: 0 !important;
+    border-inline: 0 !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-shell.site-organic .auth-page .kawaii-decor,
+  .app-shell.site-organic .auth-page .mascot-css {
+    transition: none;
+  }
+}
