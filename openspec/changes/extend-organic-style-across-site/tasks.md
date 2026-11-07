@@ -13,7 +13,7 @@
 
 - [x] 3.1 Verify representative routes in both themes and at mobile/intermediate widths, including focus, motion and real loading/empty/error states.
 - [x] 3.2 Run the relevant/full frontend regressions, production build and design checks; record evidence and limitations.
-- [ ] 3.3 Verify the change against specs, validate strictly and create the scoped local commit.
-- [ ] 3.4 Fetch/prune, integrate remote changes if any, rerun applicable checks, push verified refs and confirm remote synchronization.
+- [x] 3.3 Verify the change against specs, validate strictly and create the scoped local commit.
+- [x] 3.4 Fetch/prune, integrate remote changes if any, rerun applicable checks, push verified refs and confirm remote synchronization.
 
-Evidence: verification.md and claude-layout.md. Implementation and browser checks are complete; publication is the remaining handoff step. Native /m routes redirect in this desktop preview, and authenticated/admin states are covered by existing fixtures rather than a live privileged session.
+Evidence: verification.md and claude-layout.md. Implementation, checks and authorized publication are complete. Native /m routes redirect in this desktop preview, and authenticated/admin states are covered by existing fixtures rather than a live privileged session. The final documentation-only commit records the verified publication.

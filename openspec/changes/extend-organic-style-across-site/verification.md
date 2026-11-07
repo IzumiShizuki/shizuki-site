@@ -48,8 +48,12 @@ Measured shared role contrast from settled browser-computed colors (not a claim 
 - No privileged account was used. Signed-in/admin/editor and populated gallery/error states rely on existing component/fixture regressions and unchanged business logic; live guest empty, disabled and authentication states were checked.
 - Folia/embedded documents keep their internal layouts. Their first-party surrounding chrome inherits the shared system.
 - Shared text/neutral-role contrast is measured above; custom wallpapers, custom images and external embeds are not certified by those numbers.
-- No critical implementation issue found. Publication task 3.4 remains pending until verified refs are pushed. No archive or production service commands have been run.
+- No critical implementation issue found. All 9 tasks and all 4 requirements are complete. The implementation follows the shared-foundation/two-module design and retains business logic. No archive or production service commands have been run.
 
 ## Publication
 
-Fetched/pruned origin after integration: both `origin/master` and `origin/codex/local-master-frontend-20261011` still match the base (ahead/behind 0/0). No remote integration was necessary. Final commit/ref evidence will be recorded after publication.
+Fetched/pruned origin after integration: both `origin/master` and `origin/codex/local-master-frontend-20261011` still matched the base (ahead/behind 0/0). No remote integration was necessary. Production build and strict validation passed again before publication; ancestor checks confirmed both ref updates were fast-forward-safe.
+
+Implementation commit `5a8ae638fae3663baa7adb3db0ec187f0147dca6` (`feat: extend organic style across site`) was atomically pushed to both refs without force. `git ls-remote` returned that exact SHA for both and tracking status had no ahead/behind difference. The final documentation-only commit records this completed publication and is published to the same refs.
+
+GitHub accepted the push and started two CI push runs (one per branch). This record does not claim hosted CI success. Local validation is described above. The pre-existing untracked Obsidian publisher dependencies/lockfile were excluded from commits. No user work was removed.
