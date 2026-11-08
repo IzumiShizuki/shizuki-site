@@ -8,5 +8,5 @@
 ## 2. Verification and delivery
 
 - [x] 2.1 Run focused/full frontend tests, font coverage/budget checks, production build, visual/viewport checks and strict OpenSpec validation.
-- [ ] 2.2 Commit and push the verified fix; stage/deploy only the frontend with snapshot, asset/config/container guards and rollback.
-- [ ] 2.3 Re-run ordinary-URL cache, cold/warm loading, glyph/appearance and menu geometry probes on production; record measured results and remaining limits.
+- [x] 2.2 Commit and push the verified fix; stage/deploy only the frontend with snapshot, asset/config/container guards and rollback.
+- [x] 2.3 Re-run ordinary-URL cache, cold/warm loading, glyph/appearance and menu geometry probes on production; record measured results and remaining limits.
