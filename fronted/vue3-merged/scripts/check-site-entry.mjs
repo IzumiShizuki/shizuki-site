@@ -3,6 +3,8 @@ const origin = process.argv[2] || 'https://site.shizuki.online';
 const response = await fetch(new URL('/', origin), { headers: { 'Cache-Control': 'no-cache' } });
 if (!response.ok) throw new Error(`HTML HTTP ${response.status}`);
 if (!/no-cache/.test(response.headers.get('cache-control') || '')) throw new Error('HTML_REVALIDATION_MISSING');
+const directIndex = await fetch(new URL('/index.html', origin));
+if (!directIndex.ok || !/no-cache/.test(directIndex.headers.get('cache-control') || '')) throw new Error('INDEX_REVALIDATION_MISSING');
 const html = await response.text();
 const entry = html.match(/<script[^>]+src="([^"]*\/assets\/index-[^"]+\.js)"/)?.[1];
 if (!entry) throw new Error('CURRENT_ENTRY_MISSING');

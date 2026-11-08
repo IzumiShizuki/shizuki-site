@@ -6,6 +6,7 @@
 
 - Main bundle was the approved `index-De-7ZFz8.js` and organic shell was present. The server had the correct artifact, but HTML lacked Cache-Control; an earlier session retained an old document during the preceding release.
 - Gzip already worked (main entry transferred 283,391 bytes). It was ruled out as the bottleneck.
+- The existing production config already had a no-cache `/index.html`, but its exact `/` location serves that file directly with `try_files /index.html` and does not inherit the index location's headers. The root dispatch also handles DJ and must be preserved when adding the missing root header.
 - Navigation DCL 1,550ms / load 16,292ms. Completed requests included Noto CJK 1,912,696 bytes / 11,833ms, WenKai 1,580,076 bytes / 10,666ms and the default PNG 2,006,550 bytes / 10,097ms. These three resources total 5,499,322 bytes.
 - Collapsing navigation produced `MENU_NOT_DOCKED` at top=115px. A one-variable CSS probe that removed the hidden bar's flex footprint moved the handle to 0px.
 - `node scripts/check-site-entry.mjs` failed against the original deployment with `HTML_REVALIDATION_MISSING`.
