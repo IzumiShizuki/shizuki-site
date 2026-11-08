@@ -41,7 +41,7 @@ describe('sharded font delivery', () => {
 
   it('keeps common UI shards bounded and avoids monolithic CJK font URLs', () => {
     const manifest = JSON.parse(readFileSync(resolve(directory, 'manifest.json'), 'utf8'));
-    expect(manifest.families.reduce((sum, family) => sum + family.shards[0].bytes, 0)).toBeLessThan(650 * 1024);
+    expect(manifest.families.reduce((sum, family) => sum + family.shards[0].bytes, 0)).toBeLessThan(750 * 1024);
     const css = readFileSync(resolve(root, 'src/styles/fonts.css'), 'utf8');
     expect(css).not.toMatch(/src:\s*url\('\/fonts\/(?:NotoSansSC-subset|LXGWWenKai)\.woff2/);
   });

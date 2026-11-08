@@ -70,6 +70,9 @@ for source_name, slug, family, weight in FAMILIES:
     for index, points in enumerate(groups):
         served = set(points) if index == 0 else set(points) - first
         if not served:
+            unused = OUTPUT / f'{slug}-{index:02d}.woff2'
+            assert unused.resolve().parent == OUTPUT.resolve()
+            unused.unlink(missing_ok=True)
             continue
         path = OUTPUT / f'{slug}-{index:02d}.woff2'
         old_file = old_files.get(path.name, {})
