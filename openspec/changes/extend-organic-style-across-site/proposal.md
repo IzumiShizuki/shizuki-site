@@ -23,3 +23,5 @@ None. Existing route and API behavior remains unchanged.
 ## Impact
 
 Frontend shared styles, stylesheet registration, visual shell markers and focused theme/layout regressions. Existing About remains the visual reference. No backend or DJ project changes, new dependencies, fabricated content or deployment commands.
+
+Production follow-up: on 2026-11-08 the user explicitly requested deployment after publication. Release the approved frontend through the established isolated runtime-image workflow on the personal-site server, with a verified restore point, unchanged backend/DJ services and preserved shared assets. Details and evidence are maintained in design.md, tasks.md and deployment-report.md.

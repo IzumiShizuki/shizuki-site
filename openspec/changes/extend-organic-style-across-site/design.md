@@ -25,3 +25,7 @@ Share the approved visual language while fitting each route's purpose. Keep all 
 ## Migration Plan
 
 Ship a scoped frontend commit plus OpenSpec evidence, followed by the publication record. Complete local verification, fetch remote updates, integrate as needed, repeat affected tests and strict validation, then push the verified current branch and fast-forward master. Confirm remote commit IDs. No production service deployment commands are included. Roll back with a scoped revert if necessary.
+
+### Authorized production follow-up (2026-11-08)
+
+The user subsequently explicitly requested deployment. Freeze approved frontend revision `cc258c79287daf5dfc693b74a3ec4b1836b12b11` in a clean independent checkout. Production's deployed marker belongs to a separate release history with backend/DJ differences, so do not use whole-tree reconciliation or rebuild unrelated services. Reuse the established frontend release pattern: existing private SSH/known-hosts configuration and full restore-point helper, production build arguments kept in process, a new runtime image based on the pinned previous frontend image, hash-verified main `index.html`/`assets` overlay that preserves shared DJ/public resources, and activation of only Compose `site` with `--no-deps`. Guard concurrent release markers and unaffected containers, verify health/public resources/production UI and roll back to the pinned image on failure. Record an explicit frontend revision marker rather than claiming the unrelated backend source was deployed.

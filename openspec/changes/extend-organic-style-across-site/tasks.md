@@ -17,3 +17,11 @@
 - [x] 3.4 Fetch/prune, integrate remote changes if any, rerun applicable checks, push verified refs and confirm remote synchronization.
 
 Evidence: verification.md and claude-layout.md. Implementation, checks and authorized publication are complete. Native /m routes redirect in this desktop preview, and authenticated/admin states are covered by existing fixtures rather than a live privileged session. The final documentation-only commit records the verified publication.
+
+## 4. Authorized Production Deployment (2026-11-08)
+
+- [x] 4.1 Freeze the approved frontend release and reuse production build arguments without exposing secrets.
+- [x] 4.2 Create and verify a restore point, stage a frontend-only image, preserve shared assets and guard existing backend/DJ state.
+- [x] 4.3 Activate only the site service, verify public assets, API health and rendered production pages; record deployment and rollback evidence.
+
+Deployment evidence: deployment-report.md. All 12 tasks are complete. Existing unrelated deploy-test drift (`PAGE_SIZE=24` assertion against the current `72` example) is recorded there; no backend or DJ source/runtime update was included in this frontend release.
