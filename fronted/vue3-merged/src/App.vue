@@ -901,7 +901,7 @@ const activeImageBackground = computed(() => {
   if (restoredWallpaperPreviewId.value === activeBackgroundId.value && restoredWallpaperPreviewUrl.value) {
     return restoredWallpaperPreviewUrl.value;
   }
-  return activeBackground.value?.preview || `${import.meta.env.BASE_URL}images/original-bg.png`;
+  return activeBackground.value?.preview || `${import.meta.env.BASE_URL}images/original-bg.webp`;
 });
 
 const activeL2dVisible = computed(() => {
@@ -1042,7 +1042,7 @@ function setWallpaperBgvRef(el) {
 }
 
 function normalizeAssetPath(path) {
-  if (!path) return `${import.meta.env.BASE_URL}images/original-bg.png`;
+  if (!path) return `${import.meta.env.BASE_URL}images/original-bg.webp`;
   if (path.startsWith('http') || path.startsWith('/')) return path;
   return `${import.meta.env.BASE_URL}${path.replace(/^\/+/, '')}`;
 }
@@ -1546,8 +1546,8 @@ function normalizeWallpaperProfile(raw, index = 0) {
     id: itemId,
     wallpaperId,
     name: String(readRecordField(raw, 'title', 'title', `壁纸 ${index + 1}`) || `壁纸 ${index + 1}`),
-    src: visualUrl || normalizeAssetPath('images/original-bg.png'),
-    preview: previewUrl || visualUrl || normalizeAssetPath('images/original-bg.png'),
+    src: visualUrl || normalizeAssetPath('images/original-bg.webp'),
+    preview: previewUrl || visualUrl || normalizeAssetPath('images/original-bg.webp'),
     type,
     sceneType,
     visibility,
@@ -1744,8 +1744,8 @@ function loadEmergencySingleBackgroundFallback({ preserveSelectedProfile = true 
       id: 'fallback-default',
       wallpaperId: 0,
       name: '默认背景',
-      src: `${import.meta.env.BASE_URL}images/original-bg.png`,
-      preview: `${import.meta.env.BASE_URL}images/original-bg.png`,
+      src: `${import.meta.env.BASE_URL}images/original-bg.webp`,
+      preview: `${import.meta.env.BASE_URL}images/original-bg.webp`,
       type: 'static',
       sceneType: 'STATIC',
       visibility: 'PUBLIC',

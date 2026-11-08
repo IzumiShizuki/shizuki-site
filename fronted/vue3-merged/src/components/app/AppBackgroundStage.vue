@@ -2,7 +2,7 @@
   <div class="bg-layer" :class="{ home: isHomeRoute }" aria-hidden="true">
     <img
       class="bg-image"
-      :src="activeImageBackground"
+      :src="displayImageBackground"
       alt="background"
       decoding="async"
       @load="$emit('image-load')"
@@ -23,7 +23,7 @@
       v-if="activeL2dVisible"
       :model-url="modelUrl"
       :model-entry="modelEntry"
-      :fallback-src="activeImageBackground"
+      :fallback-src="displayImageBackground"
       @error="$emit('l2d-error')"
     />
     <audio
@@ -48,10 +48,12 @@
 </template>
 
 <script setup>
+import { computed } from 'vue';
+import { efficientBuiltinWallpaperSource } from '../../utils/builtinWallpaperSource';
 import SceneEffectLayer from '../SceneEffectLayer.vue';
 import WallpaperL2dCanvas from '../WallpaperL2dCanvas.vue';
 
-defineProps({
+const props = defineProps({
   activeImageBackground: { type: String, default: '' },
   activeVideoBackground: { type: String, default: '' },
   videoFailed: { type: Boolean, default: false },
@@ -69,6 +71,8 @@ defineProps({
   setWallpaperBgmRef: { type: Function, default: null },
   setWallpaperBgvRef: { type: Function, default: null }
 });
+
+const displayImageBackground = computed(() => efficientBuiltinWallpaperSource(props.activeImageBackground));
 
 defineEmits(['video-error', 'l2d-error', 'image-load', 'image-error']);
 </script>

@@ -3367,4 +3367,22 @@ button.author-info-item:focus-visible {
     transition-delay: 0s !important;
   }
 }
+/* Hidden navigation must not reserve a full bar above the compact handle. */
+@media (min-width: 901px) and (orientation: landscape) {
+  .fixed-nav-wrapper.compact {
+    transform: translateY(0);
+  }
+
+  .fixed-nav-wrapper.compact .top-bar {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    translate: -50% 0;
+  }
+
+  .fixed-nav-wrapper.compact .toggle-tab {
+    margin-top: 0;
+    border-radius: 0 0 14px 14px;
+  }
+}
 </style>

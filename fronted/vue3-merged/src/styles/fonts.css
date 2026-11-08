@@ -1,8 +1,10 @@
+@import './font-subsets.css';
+
 /* ============================================================
  * Shizuki Site · 字体系统
  * 显示/标题：Zen Maru Gothic（仅拉丁圆体）+ LXGW 文楷（全部中日文：汉字+假名统一）
  * 正文/界面：Roboto + Noto Sans SC 子集（含完整假名，日文歌名/歌词与中文同源渲染）
- * 全部自托管 woff2 子集，整体体积约 3.7MB（原 27MB 裸 TTF）
+ * 自托管 CJK 字体按 Unicode 范围分片，保留字形而避免首屏下载完整字体。
  * 注：Zen Maru 子集只含拉丁字符，并用 unicode-range 显式限定，
  *     保证任何 CJK（含日文汉字与假名）都稳定落到同一款中文字体上，
  *     避免"假名一种字体、汉字另一种字体"的混排感。
@@ -17,14 +19,8 @@
   font-display: swap;
 }
 
-/* —— 正文中文（Noto Sans SC 可变字重子集）—— */
-@font-face {
-  font-family: 'Noto Sans SC';
-  src: url('/fonts/NotoSansSC-subset.woff2') format('woff2');
-  font-weight: 300 800;
-  font-style: normal;
-  font-display: swap;
-}
+/* CJK glyphs retain their faces and full coverage, downloaded by Unicode range.
+   Generated assets live in src so production URLs receive build hashes. */
 
 /* —— 显示圆体·仅拉丁（Zen Maru Gothic，unicode-range 限定拉丁区）—— */
 @font-face {
@@ -50,15 +46,6 @@
   font-style: normal;
   font-display: swap;
   unicode-range: U+0000-024F, U+1E00-1EFF, U+2000-206F, U+2070-20CF, U+2100-218F;
-}
-
-/* —— 显示圆体·中文（LXGW 文楷，温润手写感）—— */
-@font-face {
-  font-family: 'LXGW WenKai Screen';
-  src: url('/fonts/LXGWWenKai.woff2') format('woff2');
-  font-weight: 400 700;
-  font-style: normal;
-  font-display: swap;
 }
 
 :root {
