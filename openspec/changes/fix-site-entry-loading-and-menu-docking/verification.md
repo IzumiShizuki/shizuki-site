@@ -16,11 +16,15 @@
 
 - HTML revalidation and immutable compiled assets are isolated Nginx locations; API proxy directives remain unchanged. Asset 404 responses do not receive the immutable success cache header.
 - Built-in default uses the existing 80,536-byte WebP, including legacy renderer URLs. Custom URL, blob, signed/query and video/L2D sources are preserved.
-- Generated 94 disjoint WOFF2 shards retain all 7,230 Noto and 7,164 WenKai cmap entries. Families, weights, glyph designs, name/license metadata and swap behavior remain intact. The two common shards total 556,692 bytes; actual About font requests were about 0.95MB in the local browser. Source hashes, generated asset hashes and full coverage are checked by regression tests. Production/CI needs no Python tool or new dependency.
+- Generated WOFF2 assets are served through 94 disjoint Unicode ranges, retaining all 7,230 Noto and 7,164 WenKai cmap entries. Families, weights, glyph designs, name/license metadata and swap behavior remain intact. Source hashes, generated asset hashes and full served coverage are checked by regressions. Production/CI needs no Python tool or new dependency.
 - The compact desktop bar is taken out of normal flow while hidden; the handle settles at y=0px. Expanded navigation, theme switching and phone layout were inspected using real rendering. No document horizontal overflow at 375/768/1024/1440px; focus remains visible. Approved About imagery/typography and real 12/3/4 stats remain.
 - `pnpm test:unit --maxWorkers=4 --minWorkers=1`: 286 files / 1,835 tests passed.
 - Production build passed; existing Sass and large chunk warnings remain. Impeccable scan of affected components reported no findings. `git diff --check` and strict OpenSpec validation passed.
 
 ## Production follow-up
 
-Pending: publish the verified artifact, stage additive cache configuration over the current production Nginx configuration, activate only site, and rerun the original HTTP/menu/cold-load probes. Preserve the preceding frontend release's snapshot, file, shared-resource and unaffected-container guards. Production timings will be recorded after activation, without projecting local network performance onto the public site.
+The first live font split reduced bytes but requested 42 CJK shards on About; cold load was 17.3–21.2s, so it did not satisfy the performance objective. Warm document load was 254ms with zero font bytes transferred, confirming the cache policy works but not excusing the cold cost.
+
+The final priority set promotes About/shared-shell bootstrap characters into the common faces. The two common binaries total 574,492 bytes. Rare binaries retain their stable groups, while narrower CSS ranges exclude promoted glyphs; the served ranges remain non-overlapping and preserve full coverage. Local About now requests only two CJK assets, about 0.97MB including all fonts. Priority data is stored as Unicode sets, not copied user text.
+
+Pending: stage the priority-font iteration, rerun the original public cold/warm/menu/HTTP probes and record actual production results. Retain the current cache policy, the verified full snapshot and a current-image rollback tag. A local network measurement is not a production speed guarantee.
