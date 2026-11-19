@@ -41,6 +41,34 @@ class AuthEntryFilterTest {
         "/api/v1/media/med_012345678901234567890123456/variants/DISPLAY_WEBP";
 
     @Test
+    void todoDevCredentialIsNarrowAndDoesNotSupplyAccountHeaders() throws Exception {
+        AuthService service = Mockito.mock(AuthService.class);
+        AuthEntryFilter filter = newFilter(service, List.of());
+        String base = "/api/v1/light-apps/todos/dev";
+        MockHttpServletRequest tool = new MockHttpServletRequest("POST", base + "/42/progress");
+        tool.addHeader("X-Todo-Dev-Token", "opaque-device-token");
+        tool.addHeader("X-User-Id", "99");
+        AtomicBoolean called = new AtomicBoolean();
+        filter.doFilter(tool, new MockHttpServletResponse(), (request, response) -> {
+            var sanitized = (HttpServletRequest) request;
+            assertThat(sanitized.getHeader("X-User-Id")).isNull();
+            assertThat(sanitized.getHeader("X-Todo-Dev-Token")).isEqualTo("opaque-device-token");
+            called.set(true);
+        });
+        assertThat(called).isTrue();
+        for (String path : List.of(base + "/42/approve", base + "/42/enable", "/api/v1/light-apps/todos")) {
+            MockHttpServletRequest request = new MockHttpServletRequest("POST", path);
+            request.addHeader("X-Todo-Dev-Token", "opaque-device-token");
+            MockHttpServletResponse response = new MockHttpServletResponse();
+            FilterChain chain = Mockito.mock(FilterChain.class);
+            filter.doFilter(request, response, chain);
+            assertThat(response.getStatus()).as(path).isEqualTo(401);
+            Mockito.verifyNoInteractions(chain);
+        }
+        Mockito.verifyNoInteractions(service);
+    }
+
+    @Test
     void shouldAllowPublicReaderAndDiscoveryDocumentsWithoutCredentials() throws Exception {
         AuthService authService = Mockito.mock(AuthService.class);
         AuthEntryFilter filter = newFilter(authService, configuredGuestPaths(), configuredPublicPaths(),

@@ -3,6 +3,8 @@ package io.github.shizuki.site.monolith.filter;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.shizuki.common.core.error.BusinessException;
 import io.github.shizuki.common.core.error.ErrorCode;
+import io.github.shizuki.site.content.tododev.TodoDevController;
+import io.github.shizuki.site.content.tododev.TodoDevCredential;
 import io.github.shizuki.site.monolith.auth.GuestAuthorTokenService;
 import io.github.shizuki.site.monolith.config.GatewayAuthProperties;
 import io.github.shizuki.site.user.response.auth.AuthIntrospectResponse;
@@ -78,6 +80,14 @@ public class AuthEntryFilter extends OncePerRequestFilter {
         String path = resolveRequestPath(sanitizedRequest);
         boolean guestPath = isGuestPath(path);
 
+        // The selected handlers verify their own narrower, project-bound credential.
+        // Never provide an authenticated account identity for this credential.
+        if (sanitizedRequest.getHeader(TodoDevCredential.HEADER) != null
+            && isTodoDevCredentialRoute(sanitizedRequest.getMethod(), path)) {
+            filterChain.doFilter(sanitizedRequest, response);
+            return;
+        }
+
         if ("OPTIONS".equalsIgnoreCase(sanitizedRequest.getMethod()) || isPublicPath(path)) {
             filterChain.doFilter(sanitizedRequest, response);
             return;
@@ -146,6 +156,12 @@ public class AuthEntryFilter extends OncePerRequestFilter {
                 "unexpected", path, guestPath, currentGuestPolicy(), ex);
             serviceUnavailable(response, "Auth service temporarily unavailable");
         }
+    }
+
+    static boolean isTodoDevCredentialRoute(String method, String path) {
+        String prefix = TodoDevController.PREFIX;
+        return ("GET".equals(method) && (prefix.equals(path) || path.matches(prefix + "/[0-9]+")))
+            || ("POST".equals(method) && path.matches(prefix + "/[0-9]+/(progress|submit)"));
     }
 
     private AuthContext parseAuthContext(AuthIntrospectResponse response) {

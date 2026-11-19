@@ -1,0 +1,34 @@
+-- Opt-in workflow; never backfill or rewrite existing Todo/reminder rows.
+CREATE TABLE IF NOT EXISTS CTN_LA_TODO_DEV (
+    todo_id BIGINT NOT NULL,
+    repository_ref VARCHAR(255) NOT NULL,
+    stage_code VARCHAR(32) NOT NULL,
+    status_code VARCHAR(32) NOT NULL,
+    next_step_text VARCHAR(1000),
+    version_num INT NOT NULL DEFAULT 0,
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT PK_CTN_LA_TODO_DEV PRIMARY KEY (todo_id),
+    CONSTRAINT FK_CTN_LA_TODO_DEV_1 FOREIGN KEY (todo_id)
+        REFERENCES CTN_LA_TODO(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS CTN_LA_TODO_DEV_EVENT (
+    id BIGINT AUTO_INCREMENT NOT NULL,
+    todo_id BIGINT NOT NULL,
+    request_id VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    request_hash VARCHAR(64) NOT NULL,
+    event_type VARCHAR(32) NOT NULL,
+    stage_code VARCHAR(32) NOT NULL,
+    status_code VARCHAR(32) NOT NULL,
+    source_code VARCHAR(32) NOT NULL,
+    summary_text VARCHAR(2000) NOT NULL,
+    artifacts_json TEXT,
+    resulting_version_num INT NOT NULL,
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT PK_CTN_LA_TODO_DEV_EVENT PRIMARY KEY (id),
+    CONSTRAINT AK_CTN_LA_TODO_DEV_EVENT_1 UNIQUE (todo_id, request_id),
+    CONSTRAINT FK_CTN_LA_TODO_DEV_EVENT_1 FOREIGN KEY (todo_id)
+        REFERENCES CTN_LA_TODO_DEV(todo_id) ON DELETE CASCADE,
+    KEY IX_CTN_LA_TODO_DEV_EVENT_1 (todo_id, id)
+) ENGINE=InnoDB;
