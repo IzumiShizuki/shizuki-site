@@ -5,7 +5,14 @@ import { describe, expect, it, vi } from 'vitest';
 import { MOBILE_SHELL_CONTEXT_KEY } from '../mobileShellContext';
 import MobileMusicHomePage from './MobileMusicHomePage.vue';
 
-async function renderHome() {
+const access = vi.hoisted(() => ({ visible: vi.fn() }));
+vi.mock('../../router/voiceRouteAccess', () => ({
+  voiceRouteAccountKey: () => 'fixture',
+  resolveVoiceRouteVisible: access.visible
+}));
+
+async function renderHome(visible = true) {
+  access.visible.mockResolvedValue(visible);
   const Empty = { template: '<div />' };
   const router = createRouter({
     history: createMemoryHistory(),
@@ -24,10 +31,17 @@ async function renderHome() {
   const wrapper = mount(MobileMusicHomePage, {
     global: { plugins: [router], provide: { [MOBILE_SHELL_CONTEXT_KEY]: shell } }
   });
+  await flushPromises();
   return { wrapper, router, shell };
 }
 
 describe('mobile music home navigation', () => {
+  it('does not advertise an unavailable voice catalogue', async () => {
+    const { wrapper } = await renderHome(false);
+    expect(wrapper.find('a.voice-entry').exists()).toBe(false);
+    wrapper.unmount();
+  });
+
   it('opens the existing voice catalogue without asking playback to change', async () => {
     const { wrapper, router, shell } = await renderHome();
     const link = wrapper.get('a.voice-entry');

@@ -7,7 +7,7 @@ import {
   mapMobilePathToDesktop,
   shouldUseMobileShell
 } from '../mobile/mobileMode';
-import * as musicApi from '../services/musicApi';
+import { resolveVoiceRouteVisible } from './voiceRouteAccess';
 import { resolveOAuthCallbackRedirect } from './oauthCallbackGuard';
 import { RouteScrollMode } from './routeScrollMode';
 
@@ -52,52 +52,11 @@ export const routePathByKey = {
   moments: '/moments'
 };
 
-const VOICE_ACCESS_CACHE_TTL_MS = 60 * 1000;
-const voiceAccessCache = {
-  key: '',
-  visible: false,
-  expiresAt: 0
-};
-
 function normalizeRedirectPath(path) {
   if (!path || typeof path !== 'string') return '/profile';
   if (!path.startsWith('/')) return '/profile';
   if (path.startsWith('/auth')) return '/profile';
   return path;
-}
-
-function normalizeProviderRows(payload) {
-  return Array.isArray(payload) ? payload : [];
-}
-
-function isAsmrVoiceVisible(payload) {
-  const rows = normalizeProviderRows(payload);
-  const asmr = rows.find((item) => String(item?.provider || item?.providerCode || '').trim().toLowerCase() === 'asmr');
-  if (!asmr) return false;
-  const enabled = Boolean(asmr?.enabled);
-  const visible = Boolean(asmr?.visible);
-  return enabled && visible;
-}
-
-async function resolveVoiceRouteVisible(auth) {
-  const userId = auth?.isAuthenticated?.value ? String(auth?.user?.value?.userId || auth?.user?.value?.id || 'me') : 'guest';
-  const cacheKey = `${userId}`;
-  const now = Date.now();
-  if (voiceAccessCache.key === cacheKey && voiceAccessCache.expiresAt > now) {
-    return voiceAccessCache.visible;
-  }
-  try {
-    const providers = await musicApi.listMusicProviders(
-      auth?.isAuthenticated?.value ? auth.authorizedFetch : undefined
-    );
-    const visible = isAsmrVoiceVisible(providers);
-    voiceAccessCache.key = cacheKey;
-    voiceAccessCache.visible = visible;
-    voiceAccessCache.expiresAt = now + VOICE_ACCESS_CACHE_TTL_MS;
-    return visible;
-  } catch {
-    return false;
-  }
 }
 
 const routes = [
