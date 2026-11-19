@@ -471,13 +471,26 @@ export function usePlayerEngine(options = {}) {
 
   const queueDisplayTracks = computed(() => {
     if (playMode.value !== 'random' || !randomQueue.value.length) return tracks.value;
-    const remaining = tracks.value.slice();
+    const trackList = tracks.value;
+    const buckets = new Map();
+    for (let index = 0; index < trackList.length; index += 1) {
+      const id = trackList[index].id;
+      if (!buckets.has(id)) buckets.set(id, { indices: [], cursor: 0 });
+      buckets.get(id).indices.push(index);
+    }
+    const picked = new Uint8Array(trackList.length);
     const ordered = [];
-    randomQueue.value.forEach((id) => {
-      const index = remaining.findIndex((track) => track.id === id);
-      if (index >= 0) ordered.push(remaining.splice(index, 1)[0]);
-    });
-    return [...ordered, ...remaining];
+    for (const id of randomQueue.value) {
+      const bucket = buckets.get(id);
+      if (!bucket || bucket.cursor >= bucket.indices.length) continue;
+      const index = bucket.indices[bucket.cursor++];
+      picked[index] = 1;
+      ordered.push(trackList[index]);
+    }
+    for (let index = 0; index < trackList.length; index += 1) {
+      if (!picked[index]) ordered.push(trackList[index]);
+    }
+    return ordered;
   });
 
   const expectedDuration = computed(() => {
@@ -882,14 +895,13 @@ export function usePlayerEngine(options = {}) {
   function getNextPreparationTrack() {
     if (!currentTrack.value || tracks.value.length < 2 || playMode.value === 'single') return null;
     if (playMode.value === 'random') {
-      if (randomQueue.value.length !== tracks.value.length || !randomQueue.value.includes(currentTrackId.value)) {
-        resetRandomQueue(currentTrackId.value);
-      }
+      if (randomQueue.value.length !== tracks.value.length) return null;
       const currentOrderIndex = randomQueue.value.indexOf(currentTrackId.value);
+      if (currentOrderIndex < 0) return null;
       const nextId = randomQueue.value[(currentOrderIndex + 1) % randomQueue.value.length];
       return tracks.value.find((track) => track.id === nextId) || null;
     }
-    const current = tracks.value.findIndex((track) => track.queueEntryId === currentTrack.value?.queueEntryId);
+    const current = currentIndex.value;
     if (current < 0) return null;
     return tracks.value[(current + 1) % tracks.value.length] || null;
   }
@@ -945,8 +957,10 @@ export function usePlayerEngine(options = {}) {
     return prepared.payload;
   }
 
+  const nextPreparationTrack = computed(getNextPreparationTrack);
+
   function scheduleNextTrackPreparation() {
-    const nextTrack = getNextPreparationTrack();
+    const nextTrack = nextPreparationTrack.value;
     const canPrepare = nextTrack && supportsPlaybackResolve(nextTrack.provider);
     const context = canPrepare ? getPreparationContext(nextTrack) : null;
     const key = context ? getPreparationKey(nextTrack, context) : '';
@@ -983,7 +997,7 @@ export function usePlayerEngine(options = {}) {
           forceRefresh: Boolean(nextTrack.audio)
         }, context.authorizedFetch);
         const stillCurrent = generation === preparationGeneration
-          && getPreparationKey(getNextPreparationTrack()) === key
+          && getPreparationKey(nextPreparationTrack.value) === key
           && getAuthorizedFetch() === context.authorizedFetch
           && getPreparationContext(nextTrack).authorizationKey === context.authorizationKey;
         if (stillCurrent && payload && typeof payload === 'object' && String(payload.audio || '').trim()) {
@@ -1007,7 +1021,7 @@ export function usePlayerEngine(options = {}) {
   }
 
   watch(
-    [tracks, currentTrackId, playMode, randomQueue, isPlaying, currentTime, duration, expectedDuration, () => playlistProfile.value?.playlistCode, () => getAuthorizedFetch(), () => options?.getPlaybackAuthorizationKey?.()],
+    [nextPreparationTrack, isPlaying, currentTime, duration, expectedDuration, () => playlistProfile.value?.playlistCode, () => getAuthorizedFetch(), () => options?.getPlaybackAuthorizationKey?.()],
     scheduleNextTrackPreparation,
     { flush: 'post' }
   );

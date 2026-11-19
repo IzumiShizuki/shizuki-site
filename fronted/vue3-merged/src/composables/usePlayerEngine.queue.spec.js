@@ -1069,6 +1069,29 @@ describe('usePlayerEngine queue identity', () => {
     expect([...displayedEntryIds].sort()).toEqual(engine.tracks.value.map((track) => track.queueEntryId).sort());
   });
 
+  it('keeps every repeated track entry in large randomized queues', async () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0.25);
+    const engine = usePlayerEngine();
+    await engine.replaceQueueWithTracks(
+      Array.from({ length: 1500 }, (_, i) => ({
+        provider: 'local', trackId: `song-${i % 233}`, title: `Occurrence ${i}`,
+        audio: `https://audio.example.com/${i}.mp3`
+      })),
+      0,
+      false
+    );
+
+    engine.playMode.value = 'random';
+
+    const original = engine.tracks.value;
+    const ordered = engine.queueDisplayTracks.value;
+    const entries = ordered.map((track) => track.queueEntryId);
+    expect(new Set(entries).size).toBe(1500);
+    expect([...entries].sort()).toEqual(original.map((track) => track.queueEntryId).sort());
+    const duplicateEntries = (tracks) => tracks.filter((track) => track.id === 'song-0').map((track) => track.queueEntryId);
+    expect(duplicateEntries(ordered)).toEqual(duplicateEntries(original));
+  });
+
   it('keeps the queueEntryId stable when a track is lazily resolved for playback', async () => {
     vi.mocked(resolvePlaybackTrack).mockResolvedValue({
       audio: 'https://audio.example.com/resolved.mp3',
