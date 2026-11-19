@@ -1455,4 +1455,16 @@ watch(
     grid-column: auto;
   }
 }
+.todo-query-row .chip-btn.active { background: var(--tp-tint); color: var(--tp-ink) !important; border-color: var(--tp-active); }
+.todo-list { gap: 4px; }
+.todo-item { border-radius: 7px; padding: 8px 10px; }
+.todo-item.done { opacity: 1; }
+.todo-item.done .todo-main > p { text-decoration: line-through; color: var(--tp-secondary); }
+.todo-main > p { font-weight: 620; }
+.todo-meta { font-size: .75rem; }
+.todo-check span { border-color: var(--tp-secondary); }
+.todo-check input:checked + span { border-color: var(--tp-active); background: var(--tp-tint); }
+.recurring-panel { --liquid-bg: var(--tp-quiet); }
+.recurring-list li { background: var(--tp-card); }
 </style>
+<style scoped src="./timePrismWorkSurface.css"></style>
