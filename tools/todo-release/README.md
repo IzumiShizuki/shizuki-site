@@ -32,3 +32,16 @@ listed in `overlay_backend.py`. No frontend artifacts are involved here.
    applied migration checksums, unexpected active DJ entrypoint/feature
    changes, or missing rollback proof. Re-read the ledger again before
    any separately authorized activation.
+
+## November 19 gateway provenance
+
+The live DJ gateway source at `429bd902` is byte-identical to
+`AuthEntryFilter.java` on DJ's published development commit
+`75cc34f561f14604cc412e1f0c22a8c71ee03e90`. Its Git blob bytes have SHA-256
+`5045a616c2aa3e9e54766cd4bc030a45f9e1fb8065ef0ef26143076f64cc04b6`.
+Use that file in a separate checkout of the exact live backend source,
+then apply `dj-auth-gateway.patch` from this folder. The patch is additive;
+the merged source (UTF-8 with LF) has SHA-256
+`f9d60e922dacfcc3ac86d3c9515dc5e0bc04f57a90fd149fe3f2a62e6b2e23ac`.
+The forward mainline gateway in this branch is not a replacement for the
+DJ gateway in the existing Docker image.
