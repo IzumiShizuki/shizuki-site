@@ -3,44 +3,33 @@ package io.github.shizuki.site.content.tododev;
 import io.github.shizuki.common.core.error.BusinessException;
 import io.github.shizuki.common.core.error.ErrorCode;
 import io.github.shizuki.common.security.context.LoginUserContext;
+import io.github.shizuki.site.content.mcp.AccountMcpTokenService;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.util.HexFormat;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
-/** First rollout: a single opt-in credential bound to one owner's project. */
 @Component
 public class TodoDevCredential {
-    public static final String HEADER = "X-Todo-Dev-Token";
-    private final byte[] digest;
-    private final long ownerId;
-    private final long projectId;
+    /** Recognized only to reject the retired credential, not to authenticate it. */
+    public static final String RETIRED_HEADER = "X-Todo-Dev-Token";
+    private final AccountMcpTokenService accountTokens;
 
-    public TodoDevCredential(
-        @Value("${shizuki.todo-dev.token-sha256:${SHIZUKI_TODO_DEV_TOKEN_SHA256:}}") String digestHex,
-        @Value("${shizuki.todo-dev.owner-id:${SHIZUKI_TODO_DEV_OWNER_ID:0}}") long ownerId,
-        @Value("${shizuki.todo-dev.project-id:${SHIZUKI_TODO_DEV_PROJECT_ID:0}}") long projectId
-    ) {
-        this.digest = digestHex.matches("[0-9a-fA-F]{64}") ? HexFormat.of().parseHex(digestHex) : null;
-        this.ownerId = ownerId;
-        this.projectId = projectId;
+    public TodoDevCredential(AccountMcpTokenService accountTokens) {
+        this.accountTokens = accountTokens;
     }
 
-    Actor agent(String token) {
-        if (ownerId <= 0 || projectId <= 0 || digest == null || token == null
-            || !token.matches("[A-Za-z0-9_-]{32,256}") || !MessageDigest.isEqual(digest, sha256(token))) {
-            throw new BusinessException(ErrorCode.UNAUTHORIZED, "Invalid Todo development credential");
+    Actor agent(String accountToken, String retiredToken) {
+        if (retiredToken != null) {
+            throw new BusinessException(ErrorCode.UNAUTHORIZED, "Use the website MCP account token");
         }
-        return new Actor(ownerId, projectId, "MCP");
+        var grant = accountTokens.authorize(accountToken, AccountMcpTokenService.TODO_DEV);
+        return new Actor(grant.userId(), grant.projectId(), "MCP");
     }
 
-    Actor human(String token) {
-        if (token != null) {
-            throw new BusinessException(ErrorCode.FORBIDDEN, "This action requires a website login");
-        }
-        long id = LoginUserContext.get().map(user -> user.getUserId()).filter(value -> value > 0)
+    Actor human() {
+        long id = LoginUserContext.get().filter(user -> !user.inGroup("GUEST") && !user.inGroup("GUEST_AUTHOR"))
+            .map(user -> user.getUserId()).filter(value -> value > 0)
             .orElseThrow(() -> new BusinessException(ErrorCode.UNAUTHORIZED, "Login required"));
         return new Actor(id, null, "WEB");
     }

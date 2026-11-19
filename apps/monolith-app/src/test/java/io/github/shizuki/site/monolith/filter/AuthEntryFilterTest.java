@@ -46,19 +46,19 @@ class AuthEntryFilterTest {
         AuthEntryFilter filter = newFilter(service, List.of());
         String base = "/api/v1/light-apps/todos/dev";
         MockHttpServletRequest tool = new MockHttpServletRequest("POST", base + "/42/progress");
-        tool.addHeader("X-Todo-Dev-Token", "opaque-device-token");
+        tool.addHeader("X-MCP-Token", "opaque-device-token");
         tool.addHeader("X-User-Id", "99");
         AtomicBoolean called = new AtomicBoolean();
         filter.doFilter(tool, new MockHttpServletResponse(), (request, response) -> {
             var sanitized = (HttpServletRequest) request;
             assertThat(sanitized.getHeader("X-User-Id")).isNull();
-            assertThat(sanitized.getHeader("X-Todo-Dev-Token")).isEqualTo("opaque-device-token");
+            assertThat(sanitized.getHeader("X-MCP-Token")).isEqualTo("opaque-device-token");
             called.set(true);
         });
         assertThat(called).isTrue();
-        for (String path : List.of(base + "/42/approve", base + "/42/enable", "/api/v1/light-apps/todos")) {
+        for (String path : List.of(base + "/42/approve", base + "/42/enable", "/api/v1/light-apps/todos", "/api/v1/mcp/account-token/rotate")) {
             MockHttpServletRequest request = new MockHttpServletRequest("POST", path);
-            request.addHeader("X-Todo-Dev-Token", "opaque-device-token");
+            request.addHeader("X-MCP-Token", "opaque-device-token");
             MockHttpServletResponse response = new MockHttpServletResponse();
             FilterChain chain = Mockito.mock(FilterChain.class);
             filter.doFilter(request, response, chain);

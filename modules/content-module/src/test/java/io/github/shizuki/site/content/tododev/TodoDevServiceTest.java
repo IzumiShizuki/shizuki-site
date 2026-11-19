@@ -15,7 +15,6 @@ import io.github.shizuki.site.content.mapper.LightAppTodoDevMapper;
 import io.github.shizuki.site.content.mapper.LightAppTodoMapper;
 import io.github.shizuki.site.content.tododev.TodoDevContract.*;
 import io.github.shizuki.site.content.tododev.TodoDevCredential.Actor;
-import java.util.HexFormat;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -95,18 +94,6 @@ class TodoDevServiceTest {
         expect(ErrorCode.CONFLICT, () -> service.progress(agent, 42L,
             new Write(0, "progress1", "Different", null, null, List.of())));
         verify(events, times(1)).insert(any(LightAppTodoDevEventEntity.class));
-    }
-
-    @Test
-    void integrationCredentialMustBeExplicitAndCannotImpersonateWebsite() {
-        String raw = "development-only-test-token-123456789";
-        String digest = HexFormat.of().formatHex(TodoDevCredential.sha256(raw));
-        var credential = new TodoDevCredential(digest, 1, 10);
-        assertThat(credential.agent(raw)).isEqualTo(agent);
-        expect(ErrorCode.UNAUTHORIZED, () -> new TodoDevCredential("", 1, 10).agent(raw));
-        expect(ErrorCode.UNAUTHORIZED, () -> new TodoDevCredential(digest, 1, 0).agent(raw));
-        expect(ErrorCode.UNAUTHORIZED, () -> credential.agent("development-only-test-token-123456788"));
-        expect(ErrorCode.FORBIDDEN, () -> credential.human(raw));
     }
 
     private void verifyNoMoreInteractionsAfterReads() {
