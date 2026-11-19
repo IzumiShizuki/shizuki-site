@@ -214,7 +214,7 @@ class MusicControllerIntegrationTest {
             1,
             24,
             true,
-            List.of(new MusicVoiceTagResponse(1L, "耳搔"))
+            List.of(new MusicVoiceTagResponse(1L, "雨音", "雨声"))
         );
         Mockito.when(mediaService.searchVoiceWorks("", 1, 24, "release", "desc", "1", "general,r15"))
             .thenReturn(response);
@@ -233,7 +233,9 @@ class MusicControllerIntegrationTest {
             .andExpect(MockMvcResultMatchers.jsonPath("$.code").value("OK"))
             .andExpect(MockMvcResultMatchers.jsonPath("$.data.items[0].work_id").value(1001))
             .andExpect(MockMvcResultMatchers.jsonPath("$.data.items[0].age_category").value("R15"))
-            .andExpect(MockMvcResultMatchers.jsonPath("$.data.available_tags[0].tag_id").value(1));
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.available_tags[0].tag_id").value(1))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.available_tags[0].name").value("雨音"))
+            .andExpect(MockMvcResultMatchers.jsonPath("$.data.available_tags[0].display_name").value("雨声"));
     }
 
     @Test

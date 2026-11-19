@@ -112,6 +112,7 @@ export async function listMusicProviders(authorizedFetch) {
 export async function searchVoiceWorks(options = {}, authorizedFetch) {
   const payload = {
     method: 'GET',
+    ...(options.signal ? { signal: options.signal } : {}),
     query: {
       q: String(options?.q || '').trim(),
       page: Number.isFinite(Number(options?.page)) ? Number(options.page) : 1,

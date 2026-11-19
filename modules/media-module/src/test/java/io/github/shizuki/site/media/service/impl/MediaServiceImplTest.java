@@ -845,14 +845,15 @@ class MediaServiceImplTest {
         List<Map<String, Object>> allWorks = new ArrayList<>();
         for (int id = 1; id <= 6; id++) {
             allWorks.add(Map.of("id", id, "title", "rain-" + id,
-                "tags", List.of(Map.of("id", id <= 3 ? 99 : 11, "name", id <= 3 ? "Other" : "Rain"))));
+                "tags", List.of(Map.of("id", id <= 3 ? 99 : 11, "name", id <= 3 ? "Other" : "Rain",
+                    "i18n", Map.of("zh-cn", Map.of("name", "雨声"))))));
         }
         HttpServer upstream = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         upstream.createContext("/", exchange -> {
             String path = exchange.getRequestURI().getPath();
             Object response;
             if ("/api/tags/".equals(path)) {
-                response = List.of(Map.of("id", 11, "name", "Rain"));
+                response = List.of(Map.of("id", 11, "name", "Rain", "i18n", Map.of("zh-cn", Map.of("name", "雨声"))));
             } else {
                 Map<String, Object> body = "POST".equals(exchange.getRequestMethod())
                     ? json.readValue(exchange.getRequestBody(), Map.class) : Map.of();
@@ -885,6 +886,8 @@ class MediaServiceImplTest {
             MusicVoiceWorksResponse second = mediaService.searchVoiceWorks("", 2, 2, "release", "desc", "11", "");
 
             assertThat(first.items()).extracting(item -> item.workId()).containsExactly(4L, 5L);
+            assertThat(first.availableTags().get(0).name()).isEqualTo("Rain");
+            assertThat(first.availableTags().get(0).displayName()).isEqualTo("雨声");
             assertThat(first.hasMore()).isTrue();
             assertThat(second.items()).extracting(item -> item.workId()).containsExactly(6L);
             assertThat(second.hasMore()).isFalse();

@@ -3693,7 +3693,7 @@ public class MediaServiceImpl implements MediaService {
             if (tagId <= 0L && !StringUtils.hasText(name)) {
                 continue;
             }
-            result.add(new MusicVoiceTagResponse(tagId, name));
+            result.add(new MusicVoiceTagResponse(tagId, name, extractVoiceTagName(item.displayName())));
         }
         return result;
     }

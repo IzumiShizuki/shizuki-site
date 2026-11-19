@@ -782,7 +782,8 @@ public class AsmrMusicProvider {
             if (tagId <= 0L && !StringUtils.hasText(name)) {
                 continue;
             }
-            result.add(new TagSummary(tagId, name));
+            String zhName = readString(asObjectMap(asObjectMap(map.get("i18n")).get("zh-cn")).get("name"), "");
+            result.add(new TagSummary(tagId, name, zhName));
         }
         return result;
     }
@@ -1189,7 +1190,10 @@ public class AsmrMusicProvider {
                               Map<String, Object> extra) {
     }
 
-    public record TagSummary(long tagId, String name) {
+    public record TagSummary(long tagId, String name, String displayName) {
+        public TagSummary(long tagId, String name) {
+            this(tagId, name, "");
+        }
     }
 
     public record VoiceActorSummary(String actorId, String name) {
