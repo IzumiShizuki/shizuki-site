@@ -1,6 +1,7 @@
 <template>
   <transition name="m-mini">
-    <div v-if="track" class="m-mini m-press" role="button" tabindex="0" @click="$emit('expand')" @keydown.enter="$emit('expand')">
+    <div v-if="track" class="m-mini">
+      <button type="button" class="mini-expand" aria-label="展开播放器" @click="$emit('expand')"></button>
       <div class="mini-progress" aria-hidden="true">
         <span :style="{ width: `${progressPercent}%` }"></span>
       </div>
@@ -77,6 +78,17 @@ const progressPercent = computed(() => {
   overflow: hidden;
 }
 
+.mini-expand {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  z-index: 1;
+}
+
+.mini-expand:focus-visible { outline-offset: -3px; }
+
 .mini-progress {
   position: absolute;
   top: 0;
@@ -147,9 +159,11 @@ const progressPercent = computed(() => {
 }
 
 .mini-btn {
+  position: relative;
+  z-index: 2;
   flex-shrink: 0;
-  width: 38px;
-  height: 38px;
+  width: 44px;
+  height: 44px;
   display: grid;
   place-items: center;
   border: none;

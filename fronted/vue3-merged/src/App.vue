@@ -666,6 +666,7 @@ const isMobileShellRoute = computed(() => route.path === '/m' || route.path.star
 const isGlobalLyricBarVisible = computed(() => shouldShowGlobalLyricBar({
   subtitleVisible: subtitleVisible.value,
   hasCurrentTrack: Boolean(player.currentTrack.value),
+  isPlaying: player.isPlaying.value,
   routePath: route.path,
   isMusicLibraryRoute: isMusicLibraryRoute.value,
   isFocusActive: isFocusActive.value,

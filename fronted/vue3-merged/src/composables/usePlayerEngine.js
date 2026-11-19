@@ -1138,6 +1138,16 @@ export function usePlayerEngine(options = {}) {
     audioElement.pause();
     clearAudioSource();
     isPlaying.value = false;
+    if (!autoPlay && options.deferMedia === true) {
+      const inline = readLyricTrackTexts(track);
+      applyLyricTimeline(buildSiteLyricTimeline({
+        lyricText: inline.original,
+        tlyricText: inline.translation,
+        romalrcText: inline.furigana
+      }));
+      clearPendingAutoplay();
+      return true;
+    }
     const shouldRefreshPlayback = Boolean(
       autoPlay
       && track?.audio
@@ -1241,10 +1251,9 @@ export function usePlayerEngine(options = {}) {
       isPlaying.value = false;
       return false;
     }
-    if (!currentTrack.value.audio) {
+    if (!currentTrack.value.audio || !hasActiveAudioSource()) {
       const idx = currentIndex.value >= 0 ? currentIndex.value : 0;
-      await selectTrackByIndex(idx, true);
-      return;
+      return selectTrackByIndex(idx, true);
     }
 
     const queueEntryId = currentTrack.value.queueEntryId;
@@ -1326,6 +1335,7 @@ export function usePlayerEngine(options = {}) {
     const idx = currentIndex.value;
     if (idx >= 0 && duration.value > 0) {
       const track = tracks.value[idx];
+      if (track?.playableDurationSec === duration.value && Number(track?.durationSec) > 0) return duration.value;
       const next = {
         ...track,
         playableDurationSec: duration.value
@@ -1428,33 +1438,6 @@ export function usePlayerEngine(options = {}) {
     return formatMediaTime(sec, { fallback: '--:--' });
   }
 
-  function hydrateTrackDurations() {
-    tracks.value.forEach((track, idx) => {
-      if (!track?.audio || (track.durationLabel && track.durationLabel !== '--:--')) return;
-      const probe = new Audio();
-      probe.preload = 'metadata';
-      probe.src = track.audio;
-
-      const cleanup = () => {
-        probe.removeEventListener('loadedmetadata', onLoaded);
-        probe.removeEventListener('error', onError);
-      };
-
-      const onLoaded = () => {
-        const label = formatDuration(probe.duration);
-        if (tracks.value[idx] && tracks.value[idx].id === track.id) {
-          tracks.value[idx].durationLabel = label;
-        }
-        cleanup();
-      };
-
-      const onError = () => cleanup();
-
-      probe.addEventListener('loadedmetadata', onLoaded);
-      probe.addEventListener('error', onError);
-    });
-  }
-
   function adjustVolume(delta) {
     setVolume(volume.value + Number(delta || 0));
   }
@@ -1504,6 +1487,8 @@ export function usePlayerEngine(options = {}) {
           tlyric: item?.tlyric,
           romalrc: item?.romalrc,
           metadata: item?.metadata,
+          durationSec: readPositiveTrackDurationSec(item),
+          durationLabel: item?.durationLabel ?? item?.duration_label,
           sort: item?.sort
         },
         idx
@@ -1546,7 +1531,6 @@ export function usePlayerEngine(options = {}) {
       tracks.value = normalizedTracks;
       lyricResolveAttempted.value = new Set();
       playbackResolveAttempted.value = new Set();
-      hydrateTrackDurations();
     } catch (error) {
       if (!isCurrentLoad()) return false;
       tracks.value = [];
@@ -1586,7 +1570,7 @@ export function usePlayerEngine(options = {}) {
     const persistedIndex = canReuseCurrentTrack ? tracks.value.findIndex((item) => item.id === currentTrackId.value) : -1;
     const initialIndex = persistedIndex >= 0 ? persistedIndex : 0;
     const selectedEntryId = tracks.value[initialIndex]?.queueEntryId;
-    await selectTrackByIndex(initialIndex, false);
+    await selectTrackByIndex(initialIndex, false, { deferMedia: true });
     if (!isCurrentLoadWithoutSelection() || currentQueueEntryId.value !== selectedEntryId) return false;
     resetRandomQueue(tracks.value[initialIndex]?.id || '');
   }

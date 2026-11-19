@@ -307,6 +307,45 @@ describe('usePlayerEngine queue identity', () => {
     expect(engine.tracks.value.map((track) => track.trackId)).toEqual(['explicit']);
   });
 
+  it('loads a large playlist without creating stream probes and starts selected media only on Play', async () => {
+    const createAudio = vi.fn(function () { return new FakeAudio(); });
+    globalThis.Audio = createAudio;
+    globalThis.fetch = vi.fn();
+    vi.mocked(getPlaylistBundleByCode).mockResolvedValue({
+      tracks: Array.from({ length: 1000 }, (_, i) => ({
+        provider: 'local', trackId: String(i), title: `Track ${i}`, audio: `/tracks/${i}.mp3`,
+        ...(i === 0 ? { lyricText: '[00:00.00]inline', lyric: '/tracks/0.lrc' } : {}),
+        ...(i === 1 ? { duration_sec: 127 } : {})
+      }))
+    });
+    const engine = usePlayerEngine();
+    await engine.loadPlaylistByCode('catalogue');
+    expect(createAudio).toHaveBeenCalledTimes(1);
+    expect(engine.audioElement.src).toBe('');
+    expect(engine.currentTrack.value?.title).toBe('Track 0');
+    expect(engine.lyricContext.value.current).toBe('inline');
+    expect(engine.tracks.value[1]).toMatchObject({ durationSec: 127, durationLabel: '02:07' });
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+    await expect(engine.togglePlay()).resolves.toBe(true);
+    expect(engine.audioElement.src).toBe('/tracks/0.mp3');
+    expect(engine.audioElement.paused).toBe(false);
+    await engine.togglePlay();
+    expect(engine.audioElement.paused).toBe(true);
+    await engine.togglePlay();
+    expect(engine.audioElement.paused).toBe(false);
+    await engine.playNext(true);
+    expect(engine.audioElement.src).toBe('/tracks/1.mp3');
+  });
+
+  it('does not replace the queue for repeated readiness events with the same duration', async () => {
+    const engine = usePlayerEngine();
+    await engine.replaceQueueWithTracks([{ provider: 'local', trackId: 'stable', audio: '/stable.mp3' }], 0, false);
+    const queueAfterDuration = engine.tracks.value;
+    engine.audioElement._emit('durationchange');
+    engine.audioElement._emit('canplay');
+    expect(engine.tracks.value).toBe(queueAfterDuration);
+  });
+
   it('preserves API playlist track counts from either naming convention', async () => {
     vi.mocked(getPlaylistBundleByCode).mockResolvedValue({
       profile: { playlist_code: 'counted', name: 'Counted list', track_count: 2238 },
