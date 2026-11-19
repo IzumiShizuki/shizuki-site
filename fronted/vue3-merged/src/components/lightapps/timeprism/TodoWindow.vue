@@ -21,6 +21,17 @@
         >
           <i class="fas fa-repeat" aria-hidden="true"></i>
         </button>
+        <button
+          v-if="devOverviewReady"
+          class="icon-btn toolbar-btn ripple-trigger"
+          type="button"
+          title="刷新研发进度"
+          aria-label="刷新所有研发进度"
+          :disabled="devOverviewLoading"
+          @click="refreshDevOverview(true)"
+        >
+          <i class="fas fa-arrows-rotate" aria-hidden="true"></i>
+        </button>
     </LightAppTopToolbar>
 
     <CollapsiblePanel :visible="showCreateForm" tag="form" class="todo-create" @submit.prevent="createTodoItem">
@@ -177,6 +188,7 @@
     </div>
 
     <p v-if="errorText" class="error-text">{{ errorText }}</p>
+    <p v-if="devOverviewError" class="error-text" role="alert">{{ devOverviewError }}</p>
 
     <ul v-if="filteredTodos.length" class="todo-list">
       <li v-for="item in filteredTodos" :key="item.todoId" class="todo-item" :class="{ done: item.done }">
@@ -193,8 +205,26 @@
             </span>
             <span v-if="item.dueAt">{{ formatTaskDateLabel(item.dueAt, item.timePrecision) }}</span>
           </small>
+          <template v-if="devOverview.get(String(item.todoId))">
+            <small class="todo-dev-summary">{{ devSummaryLabel(item.todoId) }}</small>
+            <small v-if="devOverview.get(String(item.todoId)).next_step" class="todo-dev-next">
+              下一步：{{ devOverview.get(String(item.todoId)).next_step }}
+            </small>
+          </template>
         </div>
         <div class="todo-actions">
+          <button
+            v-if="devOverviewReady && (devOverview.has(String(item.todoId)) || item.projectId || !item.done)"
+            class="icon-btn ripple-trigger"
+            :class="{ 'is-dev-expanded': selectedDevTodoId === String(item.todoId) }"
+            type="button"
+            :title="devOverview.has(String(item.todoId)) ? '研发详情' : '设置研发模式'"
+            :aria-label="devOverview.has(String(item.todoId)) ? '研发详情' : '设置研发模式'"
+            :aria-expanded="selectedDevTodoId === String(item.todoId)"
+            @click="toggleDevelopment(item.todoId)"
+          >
+            <i class="fas fa-code" aria-hidden="true"></i>
+          </button>
           <button class="icon-btn ripple-trigger" title="编辑" @click="startTodoEdit(item)">
             <i class="fas fa-pen"></i>
           </button>
@@ -208,6 +238,14 @@
             <i class="fas fa-trash"></i>
           </button>
         </div>
+        <TodoDevelopmentPanel
+          v-if="devOverviewReady && selectedDevTodoId === String(item.todoId)"
+          class="todo-dev-detail"
+          :todo-id="selectedDevTodoId"
+          :project-id="item.projectId"
+          :authorized-fetch="devAuthorizedFetch"
+          @updated="applyDevContext"
+        />
       </li>
     </ul>
     <p v-else class="empty-hint">暂无待办，先添加一条开始。</p>
@@ -258,6 +296,8 @@ import {
 } from './taskTimePrecision';
 import CollapsiblePanel from '../CollapsiblePanel.vue';
 import LightAppTopToolbar from '../LightAppTopToolbar.vue';
+import TodoDevelopmentPanel from './TodoDevelopmentPanel.vue';
+import { listTodoDevelopment, TODO_DEV_STAGES, TODO_DEV_STATUSES } from '../../../services/todoDevelopmentApi';
 
 const props = defineProps({
   windowId: {
@@ -281,6 +321,17 @@ const localProjectFilters = ref([]);
 const todoRecurringRules = ref([]);
 const editingTodoId = ref(0);
 const editingRecurringRuleId = ref(0);
+const devOverview = ref(new Map());
+const devOverviewReady = ref(false);
+const devOverviewLoading = ref(false);
+const devOverviewError = ref('');
+const selectedDevTodoId = ref('');
+let devOverviewGeneration = 0;
+const devOwner = computed(() => auth.isAuthenticated.value ? String(auth.user?.value?.userId || '') : '');
+const devAuthorizedFetch = computed(() => {
+  const owner = devOwner.value;
+  return (path, options) => auth.authorizedFetch(path, options, { expectedUserId: owner });
+});
 
 const draft = reactive({
   title: '',
@@ -328,6 +379,72 @@ const filteredTodos = computed(() => {
 });
 
 const openCount = computed(() => todos.value.filter((item) => !item.done).length);
+
+function toggleDevelopment(todoId) {
+  const key = String(todoId);
+  selectedDevTodoId.value = selectedDevTodoId.value === key ? '' : key;
+}
+
+function devSummaryLabel(todoId) {
+  const state = devOverview.value.get(String(todoId));
+  return `${TODO_DEV_STAGES[state.stage] || state.stage} · ${TODO_DEV_STATUSES[state.status] || state.status}`;
+}
+
+function applyDevContext(todoId, context) {
+  const key = String(todoId);
+  const current = devOverview.value.get(key);
+  if (!context) {
+    devOverview.value.delete(key);
+  } else if (!current || current.version <= context.version) {
+    const { stage, status, version, next_step } = context;
+    devOverview.value.set(key, { stage, status, version, next_step });
+  }
+}
+
+async function refreshDevOverview(showError = false) {
+  if (!devOwner.value) return;
+  const generation = ++devOverviewGeneration;
+  devOverviewLoading.value = true;
+  devOverviewError.value = '';
+  const startingRows = new Map(devOverview.value);
+  try {
+    const overview = await listTodoDevelopment(devAuthorizedFetch.value);
+    if (generation !== devOverviewGeneration) return;
+    const next = new Map(overview.map((row) => [String(row.todo_id), row]));
+    // The selected pane may have fetched or committed a newer revision while this request was running.
+    for (const [id, row] of devOverview.value) {
+      if (row !== startingRows.get(id) && (!next.has(id) || next.get(id).version < row.version)) {
+        next.set(id, row);
+      }
+    }
+    for (const id of startingRows.keys()) {
+      if (!devOverview.value.has(id)) next.delete(id);
+    }
+    devOverview.value = next;
+    devOverviewReady.value = true;
+  } catch {
+    // An older server may not expose this route. Do not disrupt ordinary Todo use.
+    if (generation === devOverviewGeneration && showError) {
+      devOverviewError.value = '研发进度刷新失败，待办列表未受影响。';
+    }
+  } finally {
+    if (generation === devOverviewGeneration) devOverviewLoading.value = false;
+  }
+}
+
+watch(
+  devOwner,
+  (owner) => {
+    ++devOverviewGeneration;
+    devOverview.value = new Map();
+    devOverviewReady.value = false;
+    devOverviewLoading.value = false;
+    devOverviewError.value = '';
+    selectedDevTodoId.value = '';
+    if (owner) refreshDevOverview();
+  },
+  { immediate: true, flush: 'sync' }
+);
 
 function sortTodos(items) {
   return items
@@ -914,6 +1031,7 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
+  ++devOverviewGeneration;
   window.removeEventListener(TIMEPRISM_FOCUS_ITEM_EVENT, handleFocusItemEvent);
   window.removeEventListener(TIMEPRISM_COMPLETE_ITEM_EVENT, handleCompleteFocusItemEvent);
 });
@@ -1188,6 +1306,33 @@ watch(
 
 .todo-main small {
   color: var(--la-muted);
+}
+
+.todo-dev-summary,
+.todo-dev-next {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.todo-dev-summary {
+  margin-top: 4px;
+  font-weight: 650;
+}
+
+.todo-dev-next {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+.todo-dev-detail {
+  grid-column: 1 / -1;
+}
+
+.icon-btn.is-dev-expanded {
+  border-color: rgba(var(--accent-rgb), 0.58);
+  background: rgba(var(--accent-rgb), 0.24);
 }
 
 .todo-meta {
