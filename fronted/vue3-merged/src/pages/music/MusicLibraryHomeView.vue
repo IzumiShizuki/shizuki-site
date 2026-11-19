@@ -1,17 +1,23 @@
 <template>
   <section class="music-center-view music-home-view">
-    <p v-if="displayErrorText" class="state-text error">{{ displayErrorText }}</p>
+    <p v-if="!music.hasActiveSearch.value && displayErrorText" class="state-text error" role="alert">{{ displayErrorText }}</p>
 
     <template v-if="music.hasActiveSearch.value">
-      <section class="panel liquid-material">
+      <section class="panel liquid-material" aria-label="搜索结果" :aria-busy="Boolean(music.searchLoading.value)">
         <header class="panel-head te-section-head">
           <h2>搜索结果<span class="te-section-sub" aria-hidden="true">/ SEARCH RESULTS</span></h2>
-          <span class="te-section-count">{{ searchSummaryText }}</span>
+          <span v-if="!music.searchLoading.value && !music.searchError.value" class="te-section-count">{{ searchSummaryText }}</span>
         </header>
-
-        <p v-if="music.searchResult.value?.partial" class="state-text warn-subtle">
-          部分平台返回失败：{{ failedProvidersText }}
-        </p>
+        <p class="state-text" role="status">{{ music.searchLoading.value ? '正在搜索' : '搜索：' }}「{{ music.committedSearch.value.keyword }}」</p>
+        <div v-if="music.searchError.value" class="search-recovery" role="alert">
+          <p class="state-text error">{{ music.searchError.value }}</p>
+          <button class="pager-retry-btn ripple-trigger" type="button" @click="music.refreshMusicSearch()">重试此次搜索</button>
+        </div>
+        <template v-else-if="!music.searchLoading.value">
+        <div v-if="music.searchResult.value?.partial" class="search-recovery" role="status">
+          <p class="state-text warn-subtle">部分来源或类别不可用{{ failedProvidersText ? `：${failedProvidersText}` : '' }}</p>
+          <button class="pager-retry-btn ripple-trigger" type="button" @click="music.refreshMusicSearch()">重试此次搜索</button>
+        </div>
 
         <section v-if="showPlaylistResults" class="provider-block">
           <div class="provider-head te-provider-head">
@@ -108,7 +114,7 @@
                 <i class="fas fa-play te-cover-play" aria-hidden="true"></i>
               </span>
               <span class="track-title-copy">
-                <span class="track-title-text">{{ item.title || '未知标题' }}</span>
+                <button class="track-title-text track-title-button" type="button" :aria-label="'播放 ' + (item.title || '未知歌曲')" @click.stop="music.playSearchTrack(item, index)">{{ item.title || '未知标题' }}</button>
                 <span class="provider-badge">{{ providerLabel(item.provider) }}</span>
               </span>
             </span>
@@ -252,6 +258,7 @@
             {{ music.searchLoadingMoreError.value }}
           </button>
         </footer>
+        </template>
       </section>
     </template>
 
@@ -414,7 +421,7 @@
               <span class="track-cover" :class="{ empty: !item.cover }" :style="trackCoverStyle(item)"></span>
               <i class="fas fa-play te-cover-play" aria-hidden="true"></i>
             </span>
-            <span class="track-title-text">{{ item.title || '未知标题' }}</span>
+            <button class="track-title-text track-title-button" type="button" :aria-label="'播放 ' + (item.title || '未知歌曲')" @click.stop="music.playFeaturedTrack(item, index)">{{ item.title || '未知标题' }}</button>
           </span>
           <span class="artist-col">{{ item.artist || '未知歌手' }}</span>
           <span class="album-col">{{ item.album || '未知专辑' }}</span>
@@ -688,7 +695,7 @@ const cozyFeaturedCards = computed(() => {
 
   return cards.slice(0, 4);
 });
-const searchType = computed(() => String(music.ui.globalSearchType.value || 'all'));
+const searchType = computed(() => String(music.committedSearch.value.type || 'all'));
 const searchPlaylists = computed(() => (Array.isArray(music.searchResult.value?.playlists) ? music.searchResult.value.playlists : []));
 const searchTracks = computed(() => (Array.isArray(music.searchResult.value?.tracks) ? music.searchResult.value.tracks : []));
 const searchArtists = computed(() => (Array.isArray(music.searchResult.value?.artists) ? music.searchResult.value.artists : []));
@@ -719,7 +726,7 @@ const hiddenTracksCount = computed(() => Math.max(0, searchTracks.value.length -
 const hiddenArtistsCount = computed(() => Math.max(0, searchArtists.value.length - visibleSearchArtists.value.length));
 const failedProvidersText = computed(() => {
   const list = Array.isArray(music.searchResult.value?.failedProviders) ? music.searchResult.value.failedProviders : [];
-  return list.length ? list.join(' / ') : '-';
+  return list.map((code) => ({ playlist: '歌单', track: '歌曲', artist: '歌手' })[code] || providerLabel(code)).join(' / ');
 });
 const showPlaylistResults = computed(() => searchType.value === 'all' || searchType.value === 'playlist');
 const showTrackResults = computed(() => searchType.value === 'all' || searchType.value === 'track');
@@ -1990,6 +1997,29 @@ onBeforeUnmount(() => {
     grid-template-columns: 40px minmax(0, 1.65fr) minmax(0, 0.9fr) minmax(0, 0.9fr) 58px 122px;
     gap: 6px;
   }
+}
+.track-title-button {
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  text-align: left;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.track-title-button:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 1px;
+  border-radius: 3px;
+}
+
+.search-recovery {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
 }
 </style>
 

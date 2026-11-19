@@ -50,6 +50,7 @@ export async function getMusicLibraryHome(authorizedFetch) {
 export async function searchMusic(query, options = {}, authorizedFetch) {
   const payload = {
     method: 'GET',
+    ...(options.signal ? { signal: options.signal } : {}),
     query: {
       q: String(query || '').trim(),
       type: String(options?.type || 'all').trim(),

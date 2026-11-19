@@ -183,7 +183,9 @@
             :keyword="ui.globalSearchKeyword.value"
             :type="ui.globalSearchType.value"
             :loading="searchLoading"
-            :error-text="searchError"
+            :error-text="''"
+            :show-actions="hasActiveSearch"
+            :draft-changed="searchDraftChanged"
             :show-filters="showSearchToolbarFilters"
             :search-history="musicSearchHistory"
             :type-options="SEARCH_TYPE_OPTIONS"
@@ -196,6 +198,7 @@
             @toggle-provider="ui.toggleGlobalSearchProvider($event)"
             @search="triggerMusicSearch"
             @refresh="refreshMusicSearch"
+            @clear="clearMusicSearchFromToolbar"
           />
 
           <header v-if="isMobileViewport" class="mobile-switch-bar">
@@ -1605,6 +1608,7 @@ const platformLikes = usePlatformMusicLikes({
 });
 let sidebarRequestVersion = 0;
 const searchLoading = ref(false);
+let searchController = new AbortController();
 const searchLoadingMore = ref(false);
 const searchLoadingMoreError = ref('');
 const searchError = ref('');
@@ -2104,6 +2108,8 @@ function growSearchAllVisibleCount(section) {
 }
 
 function clearSearchState(options = {}) {
+  searchController.abort();
+  searchController = new AbortController();
   const resetDraft = options?.resetDraft !== false;
   if (resetDraft) {
     ui.resetGlobalSearch();
@@ -2337,6 +2343,11 @@ async function runMusicSearch(criteria = committedSearch.value, options = {}) {
   if (append && isAllType) {
     return;
   }
+  if (!append) {
+    searchController.abort();
+    searchController = new AbortController();
+  }
+  const { signal } = searchController;
 
   if (append) {
     searchLoadingMore.value = true;
@@ -2360,22 +2371,29 @@ async function runMusicSearch(criteria = committedSearch.value, options = {}) {
           type: 'playlist',
           providers,
           page: 1,
+          signal,
           limit: allPlaylistLimit
         }, searchAuthorizedFetch),
         musicApi.searchMusic(keyword, {
           type: 'track',
           providers,
           page: 1,
+          signal,
           limit: allTrackLimit
         }, searchAuthorizedFetch),
         musicApi.searchMusic(keyword, {
           type: 'artist',
           providers,
           page: 1,
+          signal,
           limit: allArtistLimit
         }, searchAuthorizedFetch)
       ]);
 
+      if (signal.aborted) return;
+      if ([playlistsResponse, tracksResponse, artistsResponse].every((response) => response.status === 'rejected')) {
+        throw tracksResponse.reason;
+      }
       const playlistsPayload = playlistsResponse.status === 'fulfilled' ? playlistsResponse.value : null;
       const tracksPayload = tracksResponse.status === 'fulfilled' ? tracksResponse.value : null;
       const artistsPayload = artistsResponse.status === 'fulfilled' ? artistsResponse.value : null;
@@ -2455,8 +2473,10 @@ async function runMusicSearch(criteria = committedSearch.value, options = {}) {
       type,
       providers,
       page: targetPage,
+      signal,
       limit: SEARCH_PAGE_SIZE
     }, searchAuthorizedFetch);
+    if (signal.aborted) return;
     const normalizedTracks = Array.isArray(payload?.tracks)
       ? payload.tracks.map((item, index) => normalizeSearchTrack(item, index))
       : [];
@@ -2520,6 +2540,7 @@ async function runMusicSearch(criteria = committedSearch.value, options = {}) {
       artists: parsedHasMore.artists || fallbackHasMore.artists
     };
   } catch (error) {
+    if (signal.aborted) return;
     const message = parseErrorMessage(error, append ? '加载更多失败，请继续滑动或点击重试' : '搜索失败，请稍后重试');
     if (append) {
       searchLoadingMoreError.value = message;
@@ -2530,12 +2551,22 @@ async function runMusicSearch(criteria = committedSearch.value, options = {}) {
       searchPage.value = 1;
     }
   } finally {
-    if (append) {
-      searchLoadingMore.value = false;
-    } else {
-      searchLoading.value = false;
+    if (!signal.aborted) {
+      if (append) searchLoadingMore.value = false;
+      else searchLoading.value = false;
     }
   }
+}
+
+const searchDraftChanged = computed(() => hasActiveSearch.value && (
+  normalizedGlobalSearchKeyword.value !== committedSearch.value.keyword
+  || ui.globalSearchType.value !== committedSearch.value.type
+  || [...normalizeSearchProviderList(ui.globalSearchProviders.value)].sort().join(',')
+    !== [...committedSearch.value.providers].sort().join(',')
+));
+
+function clearMusicSearchFromToolbar() {
+  clearSearchState();
 }
 
 function triggerMusicSearch() {
@@ -2558,6 +2589,7 @@ function applyMusicSearchHistory(keyword) {
   const normalized = String(keyword || '').trim();
   if (!normalized) return;
   ui.setGlobalSearchKeyword(normalized);
+  triggerMusicSearch();
 }
 
 function clearMusicSearchHistoryRecords() {
@@ -2594,6 +2626,7 @@ async function loadMoreMusicSearchSection(sectionType, options = {}) {
     providers: committedSearch.value.providers
   };
 
+  const { signal } = searchController;
   searchSectionLoading.value = { ...searchSectionLoading.value, [section]: true };
   searchSectionError.value = { ...searchSectionError.value, [section]: '' };
   try {
@@ -2602,8 +2635,10 @@ async function loadMoreMusicSearchSection(sectionType, options = {}) {
       type: criteria.type,
       providers: criteria.providers,
       page: nextPage,
+      signal,
       limit: sectionLimit
     }, searchAuthorizedFetch);
+    if (signal.aborted) return;
     const parsedHasMore = parseSearchHasMore(payload);
     const playlists = Array.isArray(payload?.playlists) ? payload.playlists.map((item) => normalizeSearchPlaylist(item)) : [];
     const tracks = Array.isArray(payload?.tracks) ? payload.tracks.map((item, index) => normalizeSearchTrack(item, index)) : [];
@@ -2664,12 +2699,13 @@ async function loadMoreMusicSearchSection(sectionType, options = {}) {
       growSearchAllVisibleCount(section);
     }
   } catch (error) {
+    if (signal.aborted) return;
     searchSectionError.value = {
       ...searchSectionError.value,
       [section]: parseErrorMessage(error, '加载失败，继续滑动或点击重试')
     };
   } finally {
-    searchSectionLoading.value = { ...searchSectionLoading.value, [section]: false };
+    if (!signal.aborted) searchSectionLoading.value = { ...searchSectionLoading.value, [section]: false };
   }
 }
 
@@ -3791,6 +3827,8 @@ const musicContext = Object.freeze({
   searchSectionError,
   searchError,
   searchResult,
+  committedSearch,
+  refreshMusicSearch,
   searchHasMore,
   searchAllVisibleCount,
   searchPlaylistRowCapacity,

@@ -1,6 +1,6 @@
 <template>
   <div class="m-search-page">
-    <header class="search-head">
+    <form class="search-head" role="search" @submit.prevent="submitSearch()">
       <div class="search-box m-card">
         <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
         <input
@@ -10,16 +10,17 @@
           type="search"
           enterkeyhint="search"
           placeholder="搜索歌曲、歌单、歌手"
-          @keydown.enter="submitSearch()"
+          aria-label="搜索歌曲、歌单或歌手"
+          @keydown.enter="guardComposition"
         />
         <button v-if="keyword" type="button" class="clear-btn" aria-label="清空" @click="clearKeyword">
           <i class="fa-solid fa-circle-xmark" aria-hidden="true"></i>
         </button>
       </div>
-      <button type="button" class="search-go m-press" :disabled="!keyword.trim() || searching" @click="submitSearch()">
+      <button type="submit" class="search-go m-press" :disabled="!keyword.trim()">
         搜索
       </button>
-    </header>
+    </form>
 
     <section v-if="!hasSearched" class="search-idle">
       <template v-if="historyItems.length">
@@ -45,15 +46,16 @@
       </div>
     </section>
 
-    <template v-else>
-      <div v-if="searching" class="search-skeletons">
+    <section v-else :aria-busy="searching" aria-label="搜索结果">
+      <p class="result-context" role="status">{{ searching ? '正在搜索' : '搜索：' }}「{{ result.query }}」</p>
+      <div v-if="searching" class="search-skeletons" aria-hidden="true">
         <div v-for="n in 6" :key="n" class="m-skeleton skeleton-row"></div>
       </div>
 
-      <div v-else-if="searchError" class="m-empty">
+      <div v-else-if="searchError" class="m-empty" role="alert">
         <i class="fa-solid fa-cloud-bolt" aria-hidden="true"></i>
         <span>{{ searchError }}</span>
-        <button type="button" class="m-btn-ghost" @click="submitSearch()">重试</button>
+        <button type="button" class="m-btn-ghost" @click="runSearch(result.query)">重试</button>
       </div>
 
       <template v-else>
@@ -92,6 +94,7 @@
               :key="`${item.provider}:${item.playlistCode || item.id || item.name}`"
               type="button"
               class="playlist-row m-card m-press"
+              :disabled="!item.playlistCode"
               @click="openSearchPlaylist(item)"
             >
               <div class="pl-cover">
@@ -127,10 +130,10 @@
 
         <div v-if="!result.tracks.length && !result.playlists.length && !result.artists.length" class="m-empty">
           <i class="fa-solid fa-ghost" aria-hidden="true"></i>
-          <span>没有找到「{{ result.query }}」相关内容</span>
+          <span>没找到「{{ result.query }}」的相关内容。试试换个歌名或歌手。</span>
         </div>
       </template>
-    </template>
+    </section>
 
     <MobileSheet :visible="Boolean(menuTrack)" :title="menuTrack?.title || ''" @close="menuTrack = null">
       <div class="menu-actions">
@@ -148,8 +151,9 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue';
-import { searchMusic, getPlaylistBundleByCode } from '../../services/musicApi';
+import { computed, onUnmounted, ref, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
+import { searchMusic } from '../../services/musicApi';
 import { formatMediaTime } from '../../utils/mediaTime';
 import MobileSheet from '../components/MobileSheet.vue';
 import MobileTrackRow from '../components/MobileTrackRow.vue';
@@ -158,6 +162,8 @@ import { useMobileShell } from '../mobileShellContext';
 const HISTORY_KEY = 'shizuki.mobile.searchHistory.v1';
 const HISTORY_LIMIT = 10;
 
+const route = useRoute();
+const router = useRouter();
 const shell = useMobileShell();
 const { auth, player, showToast } = shell;
 
@@ -167,7 +173,9 @@ const searching = ref(false);
 const hasSearched = ref(false);
 const searchError = ref('');
 const menuTrack = ref(null);
-const historyItems = ref([]);
+const historyItems = ref(readHistory());
+let requestSequence = 0;
+let searchController = null;
 const result = ref(createEmptyResult());
 
 const currentTrackId = computed(() => player.currentTrack.value?.id || '');
@@ -204,11 +212,30 @@ function clearHistory() {
   writeHistory([]);
 }
 
+function resetResults() {
+  requestSequence += 1;
+  searchController?.abort();
+  searchController = null;
+  searching.value = false;
+  hasSearched.value = false;
+  searchError.value = '';
+  menuTrack.value = null;
+  result.value = createEmptyResult();
+}
+
 function clearKeyword() {
   keyword.value = '';
-  hasSearched.value = false;
-  result.value = createEmptyResult();
-  inputRef.value?.focus?.();
+  resetResults();
+  if ('q' in route.query) {
+    const query = { ...route.query };
+    delete query.q;
+    router.replace({ query });
+  }
+  inputRef.value?.focus();
+}
+
+function guardComposition(event) {
+  if (event.isComposing || event.keyCode === 229) event.preventDefault();
 }
 
 function normalizeTrack(raw, index) {
@@ -244,18 +271,34 @@ function normalizePlaylist(raw) {
   };
 }
 
-async function submitSearch(term) {
-  const nextKeyword = String(term ?? keyword.value ?? '').trim();
-  if (!nextKeyword || searching.value) return;
+function submitSearch(term) {
+  const nextKeyword = typeof term === 'string' ? term.trim() : keyword.value.trim();
+  if (!nextKeyword) return;
   keyword.value = nextKeyword;
+  if (nextKeyword !== route.query.q) {
+    router.replace({ query: { ...route.query, q: nextKeyword } });
+  } else if (!searching.value) {
+    runSearch(nextKeyword);
+  }
+}
+
+async function runSearch(nextKeyword) {
+  if (!nextKeyword) return;
+  searchController?.abort();
+  const controller = new AbortController();
+  searchController = controller;
+  const sequence = ++requestSequence;
   searching.value = true;
   hasSearched.value = true;
   searchError.value = '';
+  menuTrack.value = null;
+  result.value = createEmptyResult(nextKeyword);
   pushHistory(nextKeyword);
 
   try {
     const authorizedFetch = auth.isAuthenticated.value ? auth.authorizedFetch : undefined;
-    const payload = await searchMusic(nextKeyword, { type: 'all', page: 1, limit: 24 }, authorizedFetch);
+    const payload = await searchMusic(nextKeyword, { type: 'all', page: 1, limit: 24, signal: controller.signal }, authorizedFetch);
+    if (sequence !== requestSequence) return;
     result.value = {
       query: String(payload?.query || nextKeyword),
       partial: Boolean(payload?.partial),
@@ -270,10 +313,13 @@ async function submitSearch(term) {
         : []
     };
   } catch (error) {
-    result.value = createEmptyResult(nextKeyword);
+    if (sequence !== requestSequence) return;
     searchError.value = error?.detail || error?.message || '搜索失败，请稍后重试';
   } finally {
-    searching.value = false;
+    if (sequence === requestSequence) {
+      searching.value = false;
+      searchController = null;
+    }
   }
 }
 
@@ -300,34 +346,19 @@ async function menuPlayNext() {
   showToast(ok ? '已加入下一首播放' : '无法加入队列');
 }
 
-async function openSearchPlaylist(item) {
-  if (!item?.playlistCode) {
-    showToast('该歌单缺少可打开的编号');
-    return;
-  }
-  try {
-    const authorizedFetch = auth.isAuthenticated.value ? auth.authorizedFetch : undefined;
-    const payload = await getPlaylistBundleByCode(item.playlistCode, authorizedFetch);
-    const rawTracks = Array.isArray(payload?.tracks) ? payload.tracks : [];
-    if (!rawTracks.length) {
-      showToast('歌单里暂时没有可播放的歌曲');
-      return;
-    }
-    const ok = await player.replaceQueueWithTracks(rawTracks, 0, true, {
-      sourceCode: item.playlistCode,
-      sourceName: item.name,
-      sourceType: 'search-playlist',
-      cover: item.cover
-    });
-    if (ok) shell.openPlayer();
-  } catch (error) {
-    showToast(error?.detail || error?.message || '歌单加载失败');
-  }
+function openSearchPlaylist(item) {
+  if (!item?.playlistCode) return;
+  router.push({ name: 'mobile-playlist', params: { playlistCode: item.playlistCode } });
 }
 
-onMounted(() => {
-  historyItems.value = readHistory();
-});
+watch(() => route.query.q, (value) => {
+  const query = typeof value === 'string' ? value.trim() : '';
+  keyword.value = query;
+  if (query) runSearch(query);
+  else resetResults();
+}, { immediate: true });
+
+onUnmounted(resetResults);
 </script>
 
 <style scoped>
@@ -418,6 +449,13 @@ onMounted(() => {
   display: flex;
   flex-wrap: wrap;
   gap: 9px;
+}
+
+.result-context {
+  margin: 0 0 8px;
+  color: var(--m-text-faint);
+  font-size: 13px;
+  overflow-wrap: anywhere;
 }
 
 .search-skeletons {
