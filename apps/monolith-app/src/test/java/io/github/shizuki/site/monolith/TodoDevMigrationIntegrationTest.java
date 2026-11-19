@@ -35,7 +35,7 @@ class TodoDevMigrationIntegrationTest {
     @Test
     void migrationsDoNotBackfillLegacyRowsAndKeepEventsTiedToOneWorkflow() throws SQLException {
         verify(MYSQL, "monolith/db/migration/V438__light_app_todo_dev_workflow.sql");
-        verify(POSTGRES, "monolith/db/migration-pg/V1108__light_app_todo_dev_workflow.sql");
+        verify(POSTGRES, "monolith/db/migration-pg/V1106.1__light_app_todo_dev_workflow.sql");
     }
 
     private void verify(JdbcDatabaseContainer<?> database, String resource) throws SQLException {
