@@ -92,6 +92,7 @@ function isSectionOpen(sectionKey) {
   grid-column: span 8;
 }
 
+.section-accordion :deep(.section-item[data-section-key='mcp-token']),
 .section-accordion :deep(.section-item[data-section-key='music-auth']),
 .section-accordion :deep(.section-item[data-section-key='email-bind']),
 .section-accordion :deep(.section-item[data-section-key='change-password']) {
@@ -118,7 +119,8 @@ function isSectionOpen(sectionKey) {
     grid-column: span 1;
   }
 
-  .section-accordion :deep(.section-item[data-section-key='music-auth']),
+  .section-accordion :deep(.section-item[data-section-key='mcp-token']),
+.section-accordion :deep(.section-item[data-section-key='music-auth']),
   .section-accordion :deep(.section-item[data-section-key='email-bind']),
   .section-accordion :deep(.section-item[data-section-key='change-password']) {
     grid-column: 1 / -1;
@@ -140,7 +142,8 @@ function isSectionOpen(sectionKey) {
   .section-accordion :deep(.section-item[data-section-key='quick-actions']),
   .section-accordion :deep(.section-item[data-section-key='workspace']),
   .section-accordion :deep(.section-item[data-section-key='archive']),
-  .section-accordion :deep(.section-item[data-section-key='music-auth']),
+  .section-accordion :deep(.section-item[data-section-key='mcp-token']),
+.section-accordion :deep(.section-item[data-section-key='music-auth']),
   .section-accordion :deep(.section-item[data-section-key='appearance']),
   .section-accordion :deep(.section-item[data-section-key='email-bind']),
   .section-accordion :deep(.section-item[data-section-key='change-password']) {

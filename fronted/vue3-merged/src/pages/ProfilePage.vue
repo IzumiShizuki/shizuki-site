@@ -76,6 +76,9 @@
                 <button v-if="auth.isAuthenticated.value" class="quick-btn ripple-trigger" type="button" @click="openAccountSection(ProfileSectionKey.ACCOUNT.MUSIC_AUTH)">
                   音乐授权与排序
                 </button>
+                <button v-if="auth.isAuthenticated.value" class="quick-btn ripple-trigger" type="button" data-testid="profile-mcp-quick" @click="openMcpTokenSettings">
+                  管理 MCP Token
+                </button>
                 <button v-if="auth.isAuthenticated.value" class="quick-btn ripple-trigger" type="button" @click="openAccountSection(ProfileSectionKey.ACCOUNT.CHANGE_PASSWORD)">
                   修改密码
                 </button>
@@ -319,6 +322,13 @@
 
             <template #section-contact-bindings>
               <ContactBindingsPanel />
+            </template>
+
+            <template #section-mcp-token>
+              <button class="ghost-btn ripple-trigger" type="button" data-testid="profile-mcp-toggle" :aria-expanded="mcpTokenSettingsOpen" @click="mcpTokenSettingsOpen = !mcpTokenSettingsOpen">
+                {{ mcpTokenSettingsOpen ? '关闭 MCP Token 管理' : '打开 MCP Token 管理' }}
+              </button>
+              <McpAccountTokenPanel v-if="mcpTokenSettingsOpen && isActiveGroup(ProfileTabKey.ACCOUNT)" class="profile-mcp-panel" />
             </template>
 
             <template #section-music-auth>
@@ -668,6 +678,7 @@ import WechatNotificationsPanel from '../components/profile/WechatNotificationsP
 import ContactBindingsPanel from '../components/profile/ContactBindingsPanel.vue';
 import AccountClosurePanel from '../components/profile/AccountClosurePanel.vue';
 import defaultUserAvatar from '../assets/default-user-avatar.svg';
+import McpAccountTokenPanel from '../components/profile/McpAccountTokenPanel.vue';
 import ProfileSectionAccordion from '../components/profile/ProfileSectionAccordion.vue';
 import { useUiPreferences } from '../composables/useUiPreferences';
 import { listMyPosts } from '../services/blogApi';
@@ -713,6 +724,10 @@ const ui = useUiPreferences();
 const avatarFileInput = ref(null);
 const profileScrollFrameRef = ref(null);
 const activeGroup = ref(ProfileTabKey.PROFILE);
+const mcpTokenSettingsOpen = ref(false);
+watch(activeGroup, group => {
+  if (group !== ProfileTabKey.ACCOUNT) mcpTokenSettingsOpen.value = false;
+});
 const navGroups = [
   { key: ProfileTabKey.PROFILE, label: '个人', icon: 'fas fa-id-card' },
   { key: ProfileTabKey.ACCOUNT, label: '账号', icon: 'fas fa-shield-halved' },
@@ -1735,6 +1750,12 @@ function queueAccountSectionFollowUp(sectionKey) {
   })();
 }
 
+async function openMcpTokenSettings() {
+  if (!auth.isAuthenticated.value) return;
+  mcpTokenSettingsOpen.value = true;
+  await openAccountSection(ProfileSectionKey.ACCOUNT.MCP_TOKEN);
+}
+
 async function openAccountSection(sectionKey) {
   if (!auth.isAuthenticated.value) {
     await goToLogin();
@@ -2074,6 +2095,12 @@ const accountSections = computed(() => [
     title: '微信提醒与订阅',
     icon: 'fab fa-weixin',
     summary: buildSectionSummary(ProfileSectionKey.ACCOUNT.WECHAT_NOTIFICATIONS)
+  },
+  {
+    key: ProfileSectionKey.ACCOUNT.MCP_TOKEN,
+    title: 'MCP Token',
+    icon: 'fas fa-plug',
+    summary: buildSectionSummary(ProfileSectionKey.ACCOUNT.MCP_TOKEN)
   },
   {
     key: ProfileSectionKey.ACCOUNT.AVATAR,
@@ -2577,6 +2604,8 @@ select.field-input:focus-visible,
   color: rgba(206, 237, 249, 0.95);
   box-shadow: inset 0 0 0 1px rgba(90, 202, 232, 0.34);
 }
+
+.profile-mcp-panel { margin-top: 12px; }
 
 .helper-text {
   color: rgba(174, 202, 228, 0.9);

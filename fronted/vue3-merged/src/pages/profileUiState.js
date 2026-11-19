@@ -29,7 +29,8 @@ export const ProfileSectionKey = Object.freeze({
     CHANGE_PASSWORD: 'change-password',
     MUSIC_AUTH: 'music-auth',
     CONTACT_BINDINGS: 'contact-bindings',
-    WECHAT_NOTIFICATIONS: 'wechat-notifications'
+    WECHAT_NOTIFICATIONS: 'wechat-notifications',
+    MCP_TOKEN: 'mcp-token'
   }),
   ARTICLES: Object.freeze({
     WORKSPACE: 'workspace',
@@ -137,6 +138,8 @@ export function buildSectionSummary(sectionKey, payload = {}) {
     case ProfileSectionKey.ACCOUNT.CHANGE_PASSWORD:
       if (!payload.email) return '绑定当前账号的邮箱后即可设置密码';
       return payload.hasPassword ? '通过已绑定邮箱修改密码' : '通过已绑定邮箱设置密码';
+    case ProfileSectionKey.ACCOUNT.MCP_TOKEN:
+      return '集中管理账号的 MCP 凭据与模块授权';
     case ProfileSectionKey.ACCOUNT.MUSIC_AUTH: {
       const configuredCount = Number(payload.configuredCount || 0);
       return configuredCount > 0

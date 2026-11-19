@@ -247,6 +247,36 @@ let originalCancelAnimationFrame;
 let scrollIntoViewCalls = [];
 
 describe('ProfilePage immediate account expansion', () => {
+  it('opens the account MCP entry lazily and clears the one-time token when leaving it', async () => {
+    const tokenPath = '/api/v1/mcp/account-token';
+    const mockStatus = { active: false, scopes: [], todoProjectId: null };
+    mocked.auth = createAuthMock({
+      authorizedFetch: vi.fn(async (path) => {
+        if (path === tokenPath) return { data: mockStatus };
+        if (path.endsWith('/projects')) return { data: [] };
+        if (path === tokenPath + '/rotate') return { data: { ...mockStatus, active: true, token: 'example-once' } };
+        return { data: {} };
+      })
+    });
+    const { wrapper, router } = await mountProfilePageWithRouter();
+    try {
+      expect(mocked.auth.authorizedFetch.mock.calls.some(([path]) => path.startsWith(tokenPath))).toBe(false);
+      await wrapper.get('[data-testid="profile-mcp-quick"]').trigger('click');
+      await flushPromises();
+      expect(findGroup(wrapper, 'account').attributes('data-active')).toBe('true');
+      expect(wrapper.get('[data-testid="profile-mcp-toggle"]').attributes('aria-expanded')).toBe('true');
+      await wrapper.get('[data-testid="mcp-rotate"]').trigger('click');
+      await flushPromises();
+      expect(wrapper.get('[data-testid="mcp-plaintext"]').text()).toBe('example-once');
+      await router.replace('/profile#settings');
+      await flushPromises();
+      expect(wrapper.find('[data-testid="mcp-plaintext"]').exists()).toBe(false);
+    } finally {
+      wrapper.unmount();
+    }
+  });
+
+
   beforeEach(() => {
     originalScrollIntoView = HTMLElement.prototype.scrollIntoView;
     originalRequestAnimationFrame = window.requestAnimationFrame;
