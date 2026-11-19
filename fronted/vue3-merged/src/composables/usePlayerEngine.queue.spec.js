@@ -75,6 +75,118 @@ describe('usePlayerEngine queue identity', () => {
     globalThis.fetch = originalFetch;
   });
 
+  async function createNextFixture(engineOptions) {
+    const pending = new Map();
+    vi.mocked(resolvePlaybackTrack).mockImplementation(({ trackId }) => new Promise((resolve, reject) => {
+      pending.set(trackId, { resolve, reject });
+    }));
+    const engine = usePlayerEngine(engineOptions);
+    await engine.replaceQueueWithTracks([
+      { provider: 'local', trackId: 'old', title: 'Playing', audio: 'https://audio.example.com/old.mp3' },
+      { provider: 'netease', trackId: 'next', title: 'Next pending', lyricText: '[00:00.00]next' },
+      { provider: 'netease', trackId: 'last', title: 'Latest pending', lyricText: '[00:00.00]last' }
+    ], 0, true);
+    await vi.waitFor(() => expect(pending.has('next')).toBe(true));
+    return { engine, pending };
+  }
+
+  it('keeps the old audio and metadata until the manual Next URL is ready', async () => {
+    const { engine, pending } = await createNextFixture();
+    const handoff = engine.playNext();
+    expect(engine.currentTrack.value.trackId).toBe('old');
+    expect(engine.pendingNextTrack.value.trackId).toBe('next');
+    expect(engine.audioElement.paused).toBe(false);
+    expect(engine.audioElement.src).toContain('old.mp3');
+    pending.get('next').resolve({ audio: 'https://audio.example.com/next.mp3' });
+    await expect(handoff).resolves.toBe(true);
+    expect(engine.currentTrack.value.trackId).toBe('next');
+    expect(engine.audioElement.src).toContain('next.mp3');
+    expect(engine.pendingNextTrack.value).toBeNull();
+  });
+
+  it('rapid Next advances from the pending target and an old natural end does not skip it', async () => {
+    const { engine, pending } = await createNextFixture();
+    const first = engine.playNext();
+    const second = engine.playNext();
+    expect(engine.pendingNextTrack.value.trackId).toBe('last');
+    expect(engine.currentTrack.value.trackId).toBe('old');
+    engine.audioElement.ended = true;
+    engine.audioElement._emit('ended');
+    expect(engine.pendingNextTrack.value.trackId).toBe('last');
+    pending.get('last').resolve({ audio: 'https://audio.example.com/last.mp3' });
+    await expect(second).resolves.toBe(true);
+    pending.get('next').resolve({ audio: 'https://audio.example.com/late.mp3' });
+    await expect(first).resolves.toBe(false);
+    expect(engine.currentTrack.value.trackId).toBe('last');
+    expect(engine.audioElement.src).toContain('last.mp3');
+  });
+
+  it('pausing during resolution cancels Next and preserves the paused source for resume', async () => {
+    const { engine, pending } = await createNextFixture();
+    const handoff = engine.playNext();
+    engine.audioElement.currentTime = 12;
+    await engine.togglePlay();
+    expect(engine.pendingNextTrack.value).toBeNull();
+    expect(engine.audioElement.src).toContain('old.mp3');
+    expect(engine.audioElement.currentTime).toBe(12);
+    expect(engine.audioElement.paused).toBe(true);
+    pending.get('next').resolve({ audio: 'https://audio.example.com/late.mp3' });
+    await expect(handoff).resolves.toBe(false);
+    await engine.togglePlay();
+    expect(engine.currentTrack.value.trackId).toBe('old');
+    expect(engine.audioElement.paused).toBe(false);
+  });
+
+  it('keeps old audio on resolution failure and allows retry of the exact entry', async () => {
+    const { engine, pending } = await createNextFixture();
+    const handoff = engine.playNext();
+    const preparing = pending.get('next');
+    preparing.reject(new Error('offline'));
+    await vi.waitFor(() => expect(pending.get('next')).not.toBe(preparing));
+    const resolving = pending.get('next');
+    resolving.resolve({});
+    await expect(handoff).resolves.toBe(false);
+    expect(engine.nextTransitionError.value.trackId).toBe('next');
+    expect(engine.currentTrack.value.trackId).toBe('old');
+    expect(engine.audioElement.paused).toBe(false);
+    const retry = engine.retryNext();
+    await vi.waitFor(() => expect(pending.get('next')).not.toBe(resolving));
+    pending.get('next').resolve({ audio: 'https://audio.example.com/retry.mp3' });
+    await expect(retry).resolves.toBe(true);
+    expect(engine.nextTransitionError.value).toBeNull();
+    expect(engine.audioElement.src).toContain('retry.mp3');
+  });
+
+  it('starts after a failed target when the user chooses Next again instead of retry', async () => {
+    const { engine, pending } = await createNextFixture();
+    const handoff = engine.playNext();
+    const preparing = pending.get('next');
+    preparing.resolve({});
+    await vi.waitFor(() => expect(pending.get('next')).not.toBe(preparing));
+    pending.get('next').reject(new Error('unavailable'));
+    await expect(handoff).resolves.toBe(false);
+    const skip = engine.playNext();
+    expect(engine.pendingNextTrack.value.trackId).toBe('last');
+    pending.get('last').resolve({ audio: 'https://audio.example.com/last.mp3' });
+    await expect(skip).resolves.toBe(true);
+    expect(engine.currentTrack.value.trackId).toBe('last');
+  });
+
+  it.each(['queue reorder', 'playback mode', 'authorization'])('invalidates a deferred Next on %s', async (change) => {
+    const identity = ref('account-1');
+    const { engine, pending } = await createNextFixture({ getPlaybackAuthorizationKey: () => identity.value });
+    const handoff = engine.playNext();
+    const originalRequest = pending.get('next');
+    if (change === 'queue reorder') engine.reorderTracks(1, 2);
+    if (change === 'playback mode') engine.playMode.value = 'single';
+    if (change === 'authorization') identity.value = 'account-2';
+    expect(engine.pendingNextTrack.value).toBeNull();
+    originalRequest.resolve({ audio: 'https://audio.example.com/stale.mp3' });
+    await expect(handoff).resolves.toBe(false);
+    expect(engine.audioElement.src).toContain('old.mp3');
+    expect(engine.audioElement.paused).toBe(false);
+  });
+
   it('publishes selected track metadata while its cold audio URL is resolving', async () => {
     let finishResolve;
     vi.mocked(resolvePlaybackTrack).mockImplementation(() => new Promise((resolve) => { finishResolve = resolve; }));

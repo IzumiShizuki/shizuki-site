@@ -425,6 +425,19 @@ export function usePlayerEngine(options = {}) {
   const PREPARED_PLAYBACK_TTL_MS = 30_000;
   let selectionGeneration = 0;
   let pendingAutoplaySelection = null;
+  let failedNextAnchor = null;
+  const pendingNextEntryId = ref(null);
+  const nextTransitionError = ref(null);
+  const nextTransitionPhases = ['click', 'resolved', 'loadstart', 'playing', 'failed'];
+
+  // Bounded, local Performance Timeline diagnostic; no track IDs, URLs or user data.
+  function markNextTransition(phase) {
+    if (typeof globalThis.performance?.mark !== 'function') return;
+    if (phase === 'click') {
+      for (const item of nextTransitionPhases) globalThis.performance.clearMarks(`music-next:${item}`);
+    }
+    globalThis.performance.mark(`music-next:${phase}`);
+  }
   let disposed = false;
   let preparationGeneration = 0;
   let preparationInFlight = null;
@@ -468,6 +481,9 @@ export function usePlayerEngine(options = {}) {
     if (currentIndex.value < 0) return null;
     return tracks.value[currentIndex.value] || null;
   });
+
+  const pendingNextTrack = computed(() => pendingNextEntryId.value
+    ? tracks.value.find((track) => track.queueEntryId === pendingNextEntryId.value) || null : null);
 
   const queueDisplayTracks = computed(() => {
     if (playMode.value !== 'random' || !randomQueue.value.length) return tracks.value;
@@ -1053,6 +1069,7 @@ export function usePlayerEngine(options = {}) {
         },
         getAuthorizedFetch()
       );
+      if (options?.requireFreshAudio && !String(payload?.audio || '').trim()) return null;
       const resolved = normalizeTrack(
         {
           ...mergeResolvedPlaybackTrack(track, payload),
@@ -1076,7 +1093,7 @@ export function usePlayerEngine(options = {}) {
       });
       return resolved;
     } catch {
-      return track;
+      return options?.requireFreshAudio ? null : track;
     }
   }
 
@@ -1126,9 +1143,25 @@ export function usePlayerEngine(options = {}) {
     if (index < 0 || index >= tracks.value.length) return false;
     const generation = ++selectionGeneration;
     const queueEntryId = tracks.value[index]?.queueEntryId;
-    pendingAutoplaySelection = autoPlay ? { generation, queueEntryId } : null;
+    const preservePlayingMedia = options.manualNext === true
+      && isPlaying.value && hasActiveAudioSource() && !audioElement.paused && !audioElement.ended;
+    const nextMode = playMode.value;
+    const nextQueueGeneration = queueReplacementGeneration;
+    // A second manual Next may use the failed/pending anchor to skip ahead, but ordinary
+    // selections reset it. Do not expose an unplayable target as the current track.
+    failedNextAnchor = null;
+    nextTransitionError.value = null;
+    pendingNextEntryId.value = options.manualNext ? queueEntryId : null;
+    let mediaCommitted = false;
+    pendingAutoplaySelection = autoPlay ? {
+      generation, queueEntryId, manualNext: options.manualNext === true,
+      preservePlayingMedia, nextMode, nextQueueGeneration, mediaCommitted: false
+    } : null;
     const clearPendingAutoplay = () => {
-      if (pendingAutoplaySelection?.generation === generation) pendingAutoplaySelection = null;
+      if (pendingAutoplaySelection?.generation === generation) {
+        pendingAutoplaySelection = null;
+        pendingNextEntryId.value = null;
+      }
     };
     const initialTrack = tracks.value[index];
     const authContext = getPreparationContext(initialTrack);
@@ -1136,22 +1169,34 @@ export function usePlayerEngine(options = {}) {
       && !disposed
       && tracks.value.some((item) => item.queueEntryId === queueEntryId)
       && getAuthorizedFetch() === authContext.authorizedFetch
-      && getPreparationContext(initialTrack).authorizationKey === authContext.authorizationKey;
+      && getPreparationContext(initialTrack).authorizationKey === authContext.authorizationKey
+      && (!options.manualNext || mediaCommitted
+        || (nextMode === playMode.value && nextQueueGeneration === queueReplacementGeneration
+          && authContext.playlistCode === getPreparationContext(initialTrack).playlistCode));
+    function reportNextFailure() {
+      if (!options.manualNext || generation !== selectionGeneration) return;
+      failedNextAnchor = { queueEntryId, nextMode, nextQueueGeneration };
+      nextTransitionError.value = initialTrack;
+      markNextTransition('failed');
+    }
     const shouldResolve = options?.resolveIfMissing === true || (options?.resolveIfMissing !== false && autoPlay);
     let track = tracks.value[index];
-    currentTrackId.value = track.id;
-    currentQueueEntryId.value = queueEntryId;
-    currentTime.value = 0;
-    duration.value = 0;
-    lyricLoadGeneration += 1;
-    lyricEntries.value = [];
-    lyricTimeline.value = [];
-    currentLyricIndex.value = -1;
-    currentLyricEntryIndex.value = -1;
-    currentLyricLine.value = '';
-    audioElement.pause();
-    clearAudioSource();
-    isPlaying.value = false;
+    function switchVisibleTrack(nextTrack, clearSource = true) {
+      currentTrackId.value = nextTrack.id;
+      currentQueueEntryId.value = queueEntryId;
+      currentTime.value = 0;
+      duration.value = 0;
+      lyricLoadGeneration += 1;
+      lyricEntries.value = [];
+      lyricTimeline.value = [];
+      currentLyricIndex.value = -1;
+      currentLyricEntryIndex.value = -1;
+      currentLyricLine.value = '';
+      audioElement.pause();
+      if (clearSource) clearAudioSource();
+      isPlaying.value = false;
+    }
+    if (!preservePlayingMedia) switchVisibleTrack(track);
     if (!autoPlay && options.deferMedia === true) {
       const inline = readLyricTrackTexts(track);
       applyLyricTimeline(buildSiteLyricTimeline({
@@ -1186,11 +1231,17 @@ export function usePlayerEngine(options = {}) {
           return false;
         }
       }
+      if (!isCurrentSelection()) {
+        clearPendingAutoplay();
+        return false;
+      }
       const preparedKey = preparedPayload ? candidateKey : '';
-      track = await resolveTrackPlayback(index, {
+      const latestIndex = tracks.value.findIndex((entry) => entry.queueEntryId === queueEntryId);
+      track = await resolveTrackPlayback(latestIndex, {
         force: shouldRefreshPlayback || Boolean(preparedPayload),
         bypassCache: shouldRefreshPlayback && !preparedPayload,
         preparedPayload,
+        requireFreshAudio: preservePlayingMedia,
         isCurrent: isCurrentSelection
       });
       if (!isCurrentSelection()) {
@@ -1203,7 +1254,13 @@ export function usePlayerEngine(options = {}) {
       clearPendingAutoplay();
       return false;
     }
+    if (preservePlayingMedia && !track?.audio) {
+      reportNextFailure();
+      clearPendingAutoplay();
+      return false;
+    }
     if (!track) {
+      reportNextFailure();
       clearPendingAutoplay();
       return false;
     }
@@ -1216,10 +1273,19 @@ export function usePlayerEngine(options = {}) {
       duration.value = 0;
       isPlaying.value = false;
       loadSelectedTrackLyrics(track, queueEntryId, isCurrentSelection);
+      reportNextFailure();
       clearPendingAutoplay();
       return false;
     }
 
+    if (options.manualNext) {
+      markNextTransition('resolved');
+      pendingAutoplaySelection.mediaCommitted = true;
+      mediaCommitted = true;
+    }
+    // Setting/loading the new source resets the old one. Avoid an extra empty load
+    // in this handoff; the existing single audio element remains the sole output.
+    if (preservePlayingMedia) switchVisibleTrack(track, false);
     currentTrackId.value = track.id;
     currentQueueEntryId.value = queueEntryId;
     audioElement.src = track.audio;
@@ -1234,16 +1300,29 @@ export function usePlayerEngine(options = {}) {
           return false;
         }
         isPlaying.value = true;
+        if (options.manualNext) markNextTransition('playing');
         clearPendingAutoplay();
         scheduleNextTrackPreparation();
         return true;
-      } catch {
+      } catch (error) {
         if (!isCurrentSelection()) {
           clearPendingAutoplay();
           return false;
         }
+        if (options.manualNext && error?.name === 'NotAllowedError') {
+          // The browser blocked playback, not this URL. A fresh media link cannot fix that.
+          reportNextFailure();
+          clearPendingAutoplay();
+          return false;
+        }
+        if (!options.manualNext) clearPendingAutoplay();
+        const recovered = await recoverPlaybackWithFreshSource(queueEntryId, track.audio, isCurrentSelection);
+        if (options.manualNext && isCurrentSelection()) {
+          if (recovered) markNextTransition('playing');
+          else reportNextFailure();
+        }
         clearPendingAutoplay();
-        return recoverPlaybackWithFreshSource(queueEntryId, track.audio, isCurrentSelection);
+        return recovered;
       }
     }
     clearPendingAutoplay();
@@ -1257,11 +1336,17 @@ export function usePlayerEngine(options = {}) {
       return;
     }
     if (!currentTrack.value) return;
-    if (pendingAutoplaySelection?.queueEntryId === currentTrack.value.queueEntryId) {
+    if (pendingAutoplaySelection?.generation === selectionGeneration
+      && (pendingAutoplaySelection.preservePlayingMedia
+        || pendingAutoplaySelection.queueEntryId === currentTrack.value.queueEntryId)) {
+      const keepSource = pendingAutoplaySelection.preservePlayingMedia && !pendingAutoplaySelection.mediaCommitted;
       selectionGeneration += 1;
       pendingAutoplaySelection = null;
+      pendingNextEntryId.value = null;
+      failedNextAnchor = null;
+      nextTransitionError.value = null;
       audioElement.pause();
-      clearAudioSource();
+      if (!keepSource) clearAudioSource();
       isPlaying.value = false;
       return false;
     }
@@ -1302,27 +1387,44 @@ export function usePlayerEngine(options = {}) {
   }
 
   async function playNext(forceSequential = false, options = {}) {
-    if (!tracks.value.length) return;
-    const idx = currentIndex.value < 0 ? 0 : currentIndex.value;
+    if (!tracks.value.length) return false;
+    const manualNext = options?.stopAtTail !== true;
     const mode = forceSequential ? 'sequential' : playMode.value;
-    if (mode === 'sequential' && options?.stopAtTail === true && idx >= tracks.value.length - 1) {
+    const anchor = manualNext && [pendingAutoplaySelection?.manualNext ? pendingAutoplaySelection : null, failedNextAnchor]
+      .find((candidate) => candidate?.nextMode === playMode.value
+        && candidate.nextQueueGeneration === queueReplacementGeneration);
+    const pendingIndex = anchor
+      ? tracks.value.findIndex((entry) => entry.queueEntryId === anchor.queueEntryId) : -1;
+    const idx = pendingIndex >= 0 ? pendingIndex : Math.max(0, currentIndex.value);
+    if (mode === 'sequential' && !manualNext && idx >= tracks.value.length - 1) {
       audioElement.pause();
       isPlaying.value = false;
-      return;
+      return false;
     }
+    if (manualNext) markNextTransition('click');
+    const selectionOptions = { manualNext };
     if (mode === 'random') {
-      if (randomQueue.value.length !== tracks.value.length || !randomQueue.value.includes(currentTrackId.value)) {
-        resetRandomQueue(currentTrackId.value);
-      }
-      const q = randomQueue.value;
-      const qi = q.indexOf(currentTrackId.value);
-      const nextId = q[(qi + 1 + q.length) % q.length];
-      const nextIndex = tracks.value.findIndex((t) => t.id === nextId);
-      await selectTrackByIndex(nextIndex >= 0 ? nextIndex : 0, true);
-      return;
+      // The rendered order keeps duplicate entries distinct, so rapid Next advances
+      // from the latest pending occurrence rather than from its shared track ID.
+      const anchorEntryId = tracks.value[idx]?.queueEntryId;
+      const ordered = queueDisplayTracks.value;
+      const position = ordered.findIndex((entry) => entry.queueEntryId === anchorEntryId);
+      const nextEntryId = ordered[(position + 1) % ordered.length]?.queueEntryId;
+      const nextIndex = tracks.value.findIndex((entry) => entry.queueEntryId === nextEntryId);
+      return selectTrackByIndex(nextIndex >= 0 ? nextIndex : 0, true, selectionOptions);
     }
     const nextIndex = pickNextIndex({ mode, currentIndex: idx, tracksLen: tracks.value.length });
-    await selectTrackByIndex(nextIndex, true);
+    return selectTrackByIndex(nextIndex, true, selectionOptions);
+  }
+
+  async function retryNext() {
+    const anchor = failedNextAnchor;
+    if (!anchor || anchor.nextMode !== playMode.value
+      || anchor.nextQueueGeneration !== queueReplacementGeneration) return false;
+    const index = tracks.value.findIndex((entry) => entry.queueEntryId === anchor.queueEntryId);
+    if (index < 0) return false;
+    markNextTransition('click');
+    return selectTrackByIndex(index, true, { manualNext: true });
   }
 
   async function playPrev() {
@@ -1408,6 +1510,19 @@ export function usePlayerEngine(options = {}) {
     lyricRenderMode.value = mode;
   }
 
+  function clearDeferredNext() {
+    if (pendingAutoplaySelection?.manualNext && !pendingAutoplaySelection.mediaCommitted) {
+      selectionGeneration += 1;
+      pendingAutoplaySelection = null;
+      pendingNextEntryId.value = null;
+    }
+    failedNextAnchor = null;
+    nextTransitionError.value = null;
+  }
+
+  watch([playMode, queueSourceContext, () => getAuthorizedFetch(), () => options?.getPlaybackAuthorizationKey?.()],
+    clearDeferredNext, { flush: 'sync' });
+
   function cyclePlayMode() {
     const idx = MODE_ORDER.indexOf(playMode.value);
     playMode.value = MODE_ORDER[(idx + 1) % MODE_ORDER.length];
@@ -1476,6 +1591,7 @@ export function usePlayerEngine(options = {}) {
       item.sort = i + 1;
     });
     queueReplacementGeneration += 1;
+    clearDeferredNext();
     tracks.value = next;
     if (playMode.value === 'random') resetRandomQueue(currentTrackId.value);
   }
@@ -1513,6 +1629,7 @@ export function usePlayerEngine(options = {}) {
   }
 
   async function loadPlaylistByCode(playlistCode = DEFAULT_PLAYLIST_CODE, loadOptions = {}) {
+    clearDeferredNext();
     const loadGeneration = ++playlistLoadGeneration;
     const replacementAtStart = queueReplacementGeneration;
     const selectionAtStart = selectionGeneration;
@@ -1591,6 +1708,7 @@ export function usePlayerEngine(options = {}) {
 
   async function replaceQueueWithTracks(rawTracks, startIndex = 0, autoPlay = true, source = {}) {
     const replacementGeneration = ++queueReplacementGeneration;
+    clearDeferredNext();
     const input = Array.isArray(rawTracks) ? rawTracks : [];
     if (!input.length) return false;
     const normalized = input.map((item, idx) => normalizeTrack(item, idx));
@@ -1687,6 +1805,7 @@ export function usePlayerEngine(options = {}) {
 
     if (replaceQueue) {
       queueReplacementGeneration += 1;
+      clearDeferredNext();
       tracks.value = [{ ...normalized, sort: 1 }];
       queueSourceContext.value = { kind: 'single' };
       lyricResolveAttempted.value = new Set();
@@ -1712,6 +1831,7 @@ export function usePlayerEngine(options = {}) {
         queueEntryId: next[existingIndex].queueEntryId
       };
       queueReplacementGeneration += 1;
+      clearDeferredNext();
       tracks.value = next;
       if (autoPlay) {
         const selected = await selectTrackByIndex(existingIndex, true);
@@ -1723,6 +1843,7 @@ export function usePlayerEngine(options = {}) {
         sort: idx + 1
       }));
       queueReplacementGeneration += 1;
+      clearDeferredNext();
       if (autoPlay) {
         const selected = await selectTrackByIndex(tracks.value.length - 1, true);
         return selected === true;
@@ -1786,6 +1907,7 @@ export function usePlayerEngine(options = {}) {
       sort: idx + 1
     }));
     queueReplacementGeneration += 1;
+    clearDeferredNext();
 
     if (playMode.value === 'random') resetRandomQueue(currentTrackId.value || normalized.id);
     return true;
@@ -1847,6 +1969,7 @@ export function usePlayerEngine(options = {}) {
       sort: idx + 1
     }));
     queueReplacementGeneration += 1;
+    clearDeferredNext();
 
     if (playMode.value === 'random') resetRandomQueue(currentTrackId.value);
     return true;
@@ -1881,6 +2004,7 @@ export function usePlayerEngine(options = {}) {
     });
     tracks.value = next;
     queueReplacementGeneration += 1;
+    clearDeferredNext();
 
     if (removed && (removed.queueEntryId === currentQueueEntryId.value
       || (!currentQueueEntryId.value && removed.id === currentTrackId.value))) {
@@ -1903,6 +2027,7 @@ export function usePlayerEngine(options = {}) {
 
   function clearQueue() {
     queueReplacementGeneration += 1;
+    clearDeferredNext();
     tracks.value = [];
     randomQueue.value = [];
     lyricResolveAttempted.value = new Set();
@@ -1925,6 +2050,10 @@ export function usePlayerEngine(options = {}) {
     return enqueueExternalTrack(rawTrack, true, options);
   }
 
+  audioElement.addEventListener('loadstart', () => {
+    if (pendingAutoplaySelection?.manualNext && pendingAutoplaySelection.mediaCommitted
+      && pendingAutoplaySelection.generation === selectionGeneration) markNextTransition('loadstart');
+  });
   audioElement.addEventListener('loadedmetadata', syncDuration);
   audioElement.addEventListener('durationchange', syncDuration);
   audioElement.addEventListener('canplay', syncDuration);
@@ -1943,6 +2072,8 @@ export function usePlayerEngine(options = {}) {
 
   audioElement.addEventListener('error', async () => {
     if (disposed || !hasActiveAudioSource()) return;
+    // The active Next play promise owns recovery until the handoff succeeds or fails.
+    if (pendingAutoplaySelection?.manualNext && pendingAutoplaySelection.mediaCommitted) return;
     const idx = currentIndex.value;
     if (idx < 0 || idx >= tracks.value.length) {
       isPlaying.value = false;
@@ -1962,6 +2093,13 @@ export function usePlayerEngine(options = {}) {
 
   audioElement.addEventListener('ended', async () => {
     if (disposed || !hasActiveAudioSource()) return;
+    if (pendingAutoplaySelection?.manualNext && !pendingAutoplaySelection.mediaCommitted
+      && pendingAutoplaySelection.generation === selectionGeneration
+      && pendingAutoplaySelection.nextMode === playMode.value
+      && pendingAutoplaySelection.nextQueueGeneration === queueReplacementGeneration) {
+      isPlaying.value = false;
+      return;
+    }
     await playNext(false, { stopAtTail: true });
   });
 
@@ -2005,6 +2143,7 @@ export function usePlayerEngine(options = {}) {
       disposed = true;
       selectionGeneration += 1;
       pendingAutoplaySelection = null;
+      pendingNextEntryId.value = null;
       playlistLoadGeneration += 1;
       lyricLoadGeneration += 1;
       preparationGeneration += 1;
@@ -2045,6 +2184,9 @@ export function usePlayerEngine(options = {}) {
     selectTrackByIndex,
     togglePlay,
     playNext,
+    pendingNextTrack,
+    nextTransitionError,
+    retryNext,
     playPrev,
     seekToPercent,
     seekToTime,

@@ -4,6 +4,7 @@ from urllib.parse import urlsplit
 from playwright.async_api import async_playwright
 
 root = Path(sys.argv[1])
+keep_playing = "--keep-playing" in sys.argv[2:]
 class Server(http.server.SimpleHTTPRequestHandler):
     def log_message(self, *args): pass
 server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), functools.partial(Server, directory=str(root)))
@@ -50,7 +51,7 @@ async def smoke():
                 if path.startswith("/api/"): return await r.fulfill(status=404, json={})
                 await r.continue_()
             await ctx.route("**/*",route)
-            await ctx.add_init_script("""window.__plays=[];window.__shift=0;const ctor=Audio;window.Audio=new Proxy(ctor,{construct(target,args){const a=Reflect.construct(target,args);a.addEventListener('playing',()=>window.__plays.push([a.currentSrc,performance.now()]));return a}});const now=Date.now.bind(Date);Date.now=()=>now()+window.__shift;localStorage.setItem('shizuki.musicPlayer.v2',JSON.stringify({isPlayerExpanded:true,isPinned:true}));""")
+            await ctx.add_init_script("""window.__plays=[];window.__pauses=[];window.__shift=0;const ctor=Audio;window.Audio=new Proxy(ctor,{construct(target,args){const a=Reflect.construct(target,args);a.addEventListener('playing',()=>window.__plays.push([a.currentSrc,performance.now()]));const pause=a.pause.bind(a);a.pause=()=>{if(!a.paused)window.__pauses.push(performance.now());return pause()};return a}});const now=Date.now.bind(Date);Date.now=()=>now()+window.__shift;localStorage.setItem('shizuki.musicPlayer.v2',JSON.stringify({isPlayerExpanded:true,isPinned:true}));""")
             page=await ctx.new_page()
             page.on("pageerror", lambda e: errors.append(str(e)))
             await page.goto(origin+"/#/"+("m/music" if mobile else "blog"))
@@ -64,7 +65,16 @@ async def smoke():
             async def next_to(i):
                 await next_button.evaluate("(b)=>{window.__click=performance.now();window.__titleMs=null; window.__obs?.disconnect();const i="+str(i)+";window.__obs=new MutationObserver(()=>{if(document.body.innerText.includes('Fixture '+i)){window.__titleMs=performance.now()-window.__click;window.__obs.disconnect()}});window.__obs.observe(document.body,{childList:true,characterData:true,subtree:true});b.click()}")
                 await page.wait_for_function(f"__plays.some(([u])=>u.includes('sample-{i}'))")
-                return await page.evaluate(f"() => [Math.round(__titleMs),Math.round(__plays.find(([u])=>u.includes('sample-{i}'))[1]-__click)]")
+                return await page.evaluate(f"""() => {{
+                  const elapsed = t => Math.round(t-__click);
+                  const played = __plays.find(([u])=>u.includes('sample-{i}'))[1];
+                  const paused = __pauses.find(t => t >= __click);
+                  const stages = Object.fromEntries(performance.getEntriesByType('mark')
+                    .filter(m => m.name.startsWith('music-next:')).map(m => [m.name.split(':')[1], elapsed(m.startTime)]));
+                  return {{title:Math.round(__titleMs), playing:elapsed(played),
+                    pause:paused == null ? null : elapsed(paused),
+                    inactive:paused == null ? null : Math.round(played-paused), stages}};
+                }}""")
             warm=await next_to(2)
             await page.wait_for_timeout(1000)
             await page.evaluate("window.__shift=31_000") # expire prepared result without a 31s wait
@@ -95,8 +105,13 @@ async def smoke():
             assert all(size == actual for size, _, actual in queue_bench), queue_bench
             print(json.dumps({"mobile":mobile,"warm_title_play_ms":warm,"expired_title_play_ms":cold,
                               "rapid_next_media":rapid,"shuffle_compute_ms":queue_bench,"requests":counts,"errors":errors}),flush=True)
-            assert warm[0] < 100 and cold[0] < 100
-            assert cold[1] >= warm[1] + 600
+            assert cold["playing"] >= warm["playing"] + 600
+            if keep_playing:
+                assert cold["pause"] >= 650 and cold["inactive"] < 650, cold
+                assert {"click", "resolved", "loadstart", "playing"} <= cold["stages"].keys(), cold
+            else:
+                assert warm["title"] < 100 and cold["title"] < 100
+                assert cold["pause"] < 100 and cold["inactive"] >= 650, cold
             assert not any("sample-4" in path for path in rapid) and any("sample-5" in path for path in rapid)
             assert not errors
             await ctx.close()

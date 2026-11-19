@@ -23,3 +23,16 @@ The compact player SHALL expose separate native actions for expand, play/pause a
 #### Scenario: Audio is paused outside the music library
 - **WHEN** a selected song is not playing
 - **THEN** its global lyrics do not cover the unrelated page
+
+### Requirement: Keep the current track audible during a user-initiated next track lookup
+While an existing track is playing, a manual Next request SHALL keep its audio and current metadata until the latest eligible target returns a playable source. The player SHALL continue using one audio element and SHALL NOT fetch another audio stream while resolving this target. Metadata and playback SHALL hand over together when the new source starts loading; buffering after that handover remains possible.
+
+#### Scenario: Several requests arrive before a playable source is found
+- **WHEN** Next is pressed again before the previous target is ready
+- **THEN** the new request advances from the latest queued target and only the last eligible target can replace the playing source
+- **AND** automatic end-of-track handling does not start an extra selection while that request is pending.
+
+#### Scenario: The next source cannot be resolved
+- **WHEN** no authorized playable source is returned for the pending target
+- **THEN** its failure is exposed for retry or skip without interrupting the current audio
+- **AND** withdrawing the request or changing the active queue order or authorization prevents the superseded response from committing.
