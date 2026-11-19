@@ -84,7 +84,11 @@ function createServer(api) {
 }
 
 try {
-  const api = makeTodoApi({ origin: process.env.SHIZUKI_TODO_ORIGIN, token: process.env.SHIZUKI_TODO_TOKEN });
+  const api = makeTodoApi({
+    origin: process.env.SHIZUKI_TODO_ORIGIN,
+    accountToken: process.env.SHIZUKI_MCP_TOKEN,
+    legacyToken: process.env.SHIZUKI_TODO_TOKEN,
+  });
   await createServer(api).connect(new StdioServerTransport());
 } catch (err) {
   // Stdout is reserved for JSON-RPC; never forward runtime errors with request metadata.

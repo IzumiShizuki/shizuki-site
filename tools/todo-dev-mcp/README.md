@@ -8,21 +8,18 @@ Codex 在本机启动此 stdio 适配器；适配器只访问 Shizuki Site 的
 
 1. 在此目录使用 Node.js 22+，运行 `npm ci --ignore-scripts`。
 2. 确认目标站已运行本功能，在网站给一个自有项目里的 Todo 开启「研发模式」并绑定 GitHub 仓库。
-3. 由站点维护者将单独生成的随机凭据绑定到这一个人项目。后端配置
-   `SHIZUKI_TODO_DEV_OWNER_ID`、`SHIZUKI_TODO_DEV_PROJECT_ID` 及
-   `SHIZUKI_TODO_DEV_TOKEN_SHA256`（64 位十六进制的 SHA-256 摘要），不需要明文；
-   客户端使用原始凭据（32–256 个字母、数字、`_`、`-`），而不是摘要。
-   不复用网站登录 Token。未配置时服务器拒绝 MCP 凭据。
-4. 在启动 Codex 的环境中，通过本机秘密管理器注入 `SHIZUKI_TODO_TOKEN`。
-   在自己的 Codex 配置（通常为 `~/.codex/config.toml`）加入下例。
-   替换 checkout 路径与站点 origin；必要时将 `node` 替换为其绝对路径。
-   不把明文填到 TOML、命令参数、日志或 Git。
+3. 登录网站，在账号设置的 MCP Token 面板绑定一个 Todo 项目，再生成账号 Token。
+   原文只在生成或重置时显示一次；请放入自己的密码管理器或可信密钥存储。
+   账号 Token 只对显式开启的 MCP 功能生效，不是网站登录凭证。
+4. 在启动 Codex 的环境中注入 `SHIZUKI_MCP_TOKEN`。在 Codex 配置
+   （通常为 `~/.codex/config.toml`）添加下例，替换 checkout 路径和站点
+   origin。不要把 Token 写进 TOML、日志或 Git。
 
 ```toml
 [mcp_servers.shizuki_todo]
 command = "node"
 args = ["/absolute/path/to/shizuki-site/tools/todo-dev-mcp/src/server.mjs"]
-env_vars = ["SHIZUKI_TODO_TOKEN"]
+env_vars = ["SHIZUKI_MCP_TOKEN"]
 
 [mcp_servers.shizuki_todo.env]
 SHIZUKI_TODO_ORIGIN = "https://your-site.example"
@@ -33,6 +30,11 @@ Windows 的 TOML 字符串可以使用单引号包裹带反斜线的绝对路径
 在其他开发仓库也要使用时，将此 Skill 复制到对应仓库的 `.agents/skills` 或自己的
 `$HOME/.agents/skills`，不要复制令牌。重启 Codex 后，在目标 checkout 试运行
 「用 `$todo-dev` 查找编号为 123 的任务，只读，不改代码」。
+
+仍使用旧 Todo 专用部署的客户端，可仅透传 `SHIZUKI_TODO_TOKEN`。
+若两个变量都设置，只会发送账号 Token，不会在失败时回退到旧凭据。
+重置或撤销后，新启动的客户端应使用新 Token；已启动的客户端需要重启。
+同一账号的 Token 不会自动取得 Notion、账单或任何其他未接入功能的权限。
 
 ## 工具
 

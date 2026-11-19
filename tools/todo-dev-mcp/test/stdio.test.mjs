@@ -24,7 +24,7 @@ async function connect(t, origin) {
   const transport = new StdioClientTransport({
     command: process.execPath,
     args: [script],
-    env: { SHIZUKI_TODO_ORIGIN: origin, SHIZUKI_TODO_TOKEN: token },
+    env: { SHIZUKI_TODO_ORIGIN: origin, SHIZUKI_MCP_TOKEN: token, SHIZUKI_TODO_TOKEN: 'legacy-must-not-be-sent-even-if-configured' },
   });
   t.after(() => client.close());
   await client.connect(transport);
@@ -56,7 +56,9 @@ async function mockApi(t) {
         method: req.method,
         url: req.url,
         body,
-        authorized: req.headers['x-todo-dev-token'] === token,
+        authorized: req.headers['x-mcp-token'] === token && req.headers['x-todo-dev-token'] === undefined,
+        legacyAuthorized: req.headers['x-todo-dev-token'] === token,
+        accountHeaderPresent: req.headers['x-mcp-token'] !== undefined,
         sentAuthorization: req.headers.authorization !== undefined,
       });
       const pathname = new URL(req.url, 'http://127.0.0.1').pathname;
@@ -129,11 +131,11 @@ test('requires HTTPS except for explicit loopback test origins', () => {
     'http://todo.example.com', 'https://user@todo.example.com', 'https://todo.example.com/path',
     'https://todo.example.com?q=x', 'https://todo.example.com/#a', 'file:///tmp/a',
   ]) {
-    assert.throws(() => makeTodoApi({ origin: invalid, token }), /HTTPS origin/);
+    assert.throws(() => makeTodoApi({ origin: invalid, accountToken: token }), /HTTPS origin/);
   }
-  assert.doesNotThrow(() => makeTodoApi({ origin: 'https://todo.example.com', token }));
-  assert.doesNotThrow(() => makeTodoApi({ origin: 'http://[::1]:18080', token }));
-  assert.throws(() => makeTodoApi({ origin: 'https://todo.example.com', token: 'invalid\r\nvalue' }), /SHIZUKI_TODO_TOKEN/);
+  assert.doesNotThrow(() => makeTodoApi({ origin: 'https://todo.example.com', accountToken: token }));
+  assert.doesNotThrow(() => makeTodoApi({ origin: 'http://[::1]:18080', accountToken: token }));
+  assert.throws(() => makeTodoApi({ origin: 'https://todo.example.com', accountToken: 'invalid\r\nvalue', legacyToken: token }), /SHIZUKI_MCP_TOKEN/);
 });
 
 test('stdio handshake, four scoped tools and a second client resumes from server state', async (t) => {
@@ -249,4 +251,14 @@ test('reports conflicts and rejected credentials without leaking secrets or foll
 
   api.setMode('echo');
   assert.deepEqual(JSON.parse(callText(await readContext())), { title: '[redacted]' });
+});
+
+
+test('uses the old feature credential only if no account token is configured', async (t) => {
+  const mock = await mockApi(t);
+  const api = makeTodoApi({ origin: mock.origin, legacyToken: token });
+  await api.search({});
+  assert.equal(mock.requests[0].legacyAuthorized, true);
+  assert.equal(mock.requests[0].accountHeaderPresent, false);
+  assert.throws(() => makeTodoApi({ origin: mock.origin, accountToken: '', legacyToken: token }), /SHIZUKI_MCP_TOKEN/);
 });

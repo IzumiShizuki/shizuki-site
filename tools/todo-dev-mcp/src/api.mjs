@@ -89,11 +89,15 @@ function boundHistory(data) {
   };
 }
 
-export function makeTodoApi({ origin, token }) {
+export function makeTodoApi({ origin, accountToken, legacyToken }) {
   const base = parseOrigin(origin);
+  const useAccount = accountToken !== undefined;
+  const token = useAccount ? accountToken : legacyToken;
+  const setting = useAccount || legacyToken === undefined ? 'SHIZUKI_MCP_TOKEN' : 'SHIZUKI_TODO_TOKEN';
   if (typeof token !== 'string' || !/^[A-Za-z0-9_-]{32,256}$/.test(token)) {
-    throw new TodoApiError('Set SHIZUKI_TODO_TOKEN to the scoped Todo credential.');
+    throw new TodoApiError('Set ' + setting + ' to a valid MCP credential.');
   }
+  const credentialHeader = useAccount ? 'X-MCP-Token' : 'X-Todo-Dev-Token';
 
   async function call(path, { query, body } = {}) {
     const url = new URL(API_PATH + path, base);
@@ -110,7 +114,7 @@ export function makeTodoApi({ origin, token }) {
         method: isWrite ? 'POST' : 'GET',
         headers: {
           accept: 'application/json',
-          'X-Todo-Dev-Token': token,
+          [credentialHeader]: token,
           ...(isWrite ? { 'content-type': 'application/json' } : {}),
         },
         body: isWrite ? JSON.stringify(body) : undefined,
