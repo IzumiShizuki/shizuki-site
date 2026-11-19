@@ -435,4 +435,12 @@ button:focus-visible { outline: 2px solid var(--theme-focus-ring, rgb(var(--acce
     font-size: 10px;
   }
 }
+.calendar-window { gap: 6px; }
+.calendar-week { --liquid-bg: var(--tp-quiet); padding: 4px; gap: 3px; border-radius: 8px; }
+.week-range-layer, .week-day-grid, .weekday-row { gap: 3px; }
+.day-cell { border-radius: 5px; }
+.day-cell.muted { opacity: 1; color: var(--tp-secondary); background: var(--tp-quiet); }
+.day-cell.today, .week-range-item { border-color: var(--tp-active); background: var(--tp-tint); box-shadow: none; }
+.today-badge { background: var(--tp-active); color: var(--tp-active-ink); }
 </style>
+<style scoped src="./timePrismWorkSurface.css"></style>

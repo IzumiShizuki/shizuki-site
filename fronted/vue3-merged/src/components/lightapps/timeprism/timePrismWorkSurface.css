@@ -1,0 +1,38 @@
+/* Local palette only. The surrounding light-app window retains its glass chrome. */
+.lightapp-window {
+  color-scheme: var(--theme-color-scheme, dark);
+  --tp-paper: light-dark(#f6f7fa, #24242b);
+  --tp-card: light-dark(#ffffff, #2d2e37);
+  --tp-quiet: light-dark(#eceef3, #34353f);
+  --tp-ink: light-dark(#252931, #f4f2f4);
+  --tp-secondary: light-dark(#515967, #bec1cc);
+  --tp-rule: light-dark(#cbd0da, #4d505e);
+  --tp-active: light-dark(#564361, #e6c8e9);
+  --tp-active-ink: light-dark(#ffffff, #36233d);
+  --tp-tint: light-dark(#eee7f2, #443b4a);
+  --tp-danger: light-dark(#96364b, #ffafbe);
+  --la-card-bg: var(--tp-card);
+  --la-input-bg: var(--tp-card);
+  --la-btn-bg: var(--tp-quiet);
+  --la-border: var(--tp-rule);
+  --la-text: var(--tp-ink);
+  --la-muted: var(--tp-secondary);
+  --la-danger: var(--tp-danger);
+  --theme-border: var(--tp-rule);
+  --theme-surface: var(--tp-card);
+  --theme-surface-soft: var(--tp-quiet);
+  --theme-text-secondary: var(--tp-secondary);
+  --theme-focus-ring: var(--tp-active);
+  --theme-danger: var(--tp-danger);
+  color: var(--tp-ink);
+  background: var(--tp-paper);
+  padding: clamp(8px, 1.2vw, 16px);
+  box-sizing: border-box;
+  border-radius: 10px;
+  text-shadow: none;
+}
+.lightapp-window :is(button, input, select, summary):focus-visible {
+  outline: 2px solid var(--tp-active);
+  outline-offset: 2px;
+}
+.lightapp-window input::placeholder { color: var(--tp-secondary); opacity: 1; }
