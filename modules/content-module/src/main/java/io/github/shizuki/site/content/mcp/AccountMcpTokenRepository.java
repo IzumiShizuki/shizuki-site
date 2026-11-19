@@ -66,7 +66,7 @@ class AccountMcpTokenRepository {
     void setProject(long userId, Long projectId) {
         int updated = jdbc.update("UPDATE USR_MCP_ACCOUNT_TOKEN SET todo_project_id = ? WHERE user_id = ?",
             projectId, userId);
-        if (updated == 0 && projectId != null) {
+        if (updated == 0 && projectId != null && find(userId).isEmpty()) {
             jdbc.update("INSERT INTO USR_MCP_ACCOUNT_TOKEN (user_id, todo_project_id) VALUES (?, ?)", userId, projectId);
         }
     }
