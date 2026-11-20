@@ -11,3 +11,7 @@ Loading a playlist must not start metadata requests for every playable URL befor
 ## Impact
 
 - Affects desktop/mobile player runtime and tests; no backend, schema, provider, voice catalogue, or deployment changes.
+
+## Follow-up: actual next-track startup
+
+Preload a single eligible next-track source once the current song is stable. The standard player and Folia use the same handoff. Measure actual new-track playback and transferred bytes, not just the old track fade or pending UI.

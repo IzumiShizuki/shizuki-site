@@ -90,6 +90,79 @@ describe('usePlayerEngine queue identity', () => {
     return { engine, pending };
   }
 
+  async function prepareGatewayBuffer(engineOptions = {}, ready = true) {
+    const instances = [];
+    globalThis.Audio = class extends FakeAudio {
+      constructor() {
+        super();
+        this.readyState = ready ? 3 : 1;
+        this.buffered = { length: 1, start: () => 0, end: () => 3 };
+        this.loads = 0;
+        instances.push(this);
+      }
+      load() {
+        this.loads++;
+        super.load();
+      }
+    };
+    const { engine, pending } = await createNextFixture(engineOptions);
+    pending.get('next').resolve({ audio: '/api/v1/music/tracks/stream/test' });
+    await vi.waitFor(() => expect(instances).toHaveLength(2));
+    return { engine, first: instances[0], prepared: instances[1] };
+  }
+
+  it('plays the already buffered native media on Next without another load', async () => {
+    const promote = vi.fn();
+    const { engine, first, prepared } = await prepareGatewayBuffer({ onPlaybackElementPromoted: promote });
+    expect(prepared.paused).toBe(true);
+    expect(engine.audioElement).toBe(first);
+    const loadCount = prepared.loads;
+    await expect(engine.playNext()).resolves.toBe(true);
+    expect(engine.audioElement).toBe(prepared);
+    expect(prepared.loads).toBe(loadCount);
+    expect(first.src).toBe('');
+    first._emit('ended');
+    first._emit('error');
+    expect(engine.isPlaying.value).toBe(true);
+    expect(engine.currentTrack.value.trackId).toBe('next');
+    expect(promote).toHaveBeenCalledWith(prepared);
+    expect(resolvePlaybackTrack.mock.calls.filter(([request]) => request.trackId === 'next')).toHaveLength(1);
+  });
+
+  it('falls back to native foreground loading when the preload has not buffered enough', async () => {
+    const { engine, first, prepared } = await prepareGatewayBuffer({}, false);
+    await expect(engine.playNext()).resolves.toBe(true);
+    expect(engine.audioElement).toBe(first);
+    expect(first.src).toContain('/tracks/stream/test');
+    expect(prepared.src).toBe('');
+  });
+
+  it('empties the standby immediately when playback authorization changes', async () => {
+    const account = ref('a');
+    const { engine, first, prepared } = await prepareGatewayBuffer({ getPlaybackAuthorizationKey: () => account.value });
+    account.value = 'b';
+    expect(prepared.src).toBe('');
+    expect(engine.audioElement).toBe(first);
+    expect(first.paused).toBe(false);
+  });
+
+  it('does not prepare audio when a browser asks to save data', async () => {
+    const descriptor = Object.getOwnPropertyDescriptor(navigator, 'connection');
+    Object.defineProperty(navigator, 'connection', { configurable: true, value: { saveData: true } });
+    try {
+      const { engine, pending } = await createNextFixture();
+      const first = engine.audioElement;
+      pending.get('next').resolve({ audio: '/api/v1/music/tracks/stream/test' });
+      await Promise.resolve();
+      await Promise.resolve();
+      await expect(engine.playNext()).resolves.toBe(true);
+      expect(engine.audioElement).toBe(first);
+    } finally {
+      if (descriptor) Object.defineProperty(navigator, 'connection', descriptor);
+      else delete navigator.connection;
+    }
+  });
+
   it('keeps the old audio and metadata until the manual Next URL is ready', async () => {
     const { engine, pending } = await createNextFixture();
     const handoff = engine.playNext();

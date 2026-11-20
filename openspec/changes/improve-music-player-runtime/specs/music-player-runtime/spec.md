@@ -25,7 +25,7 @@ The compact player SHALL expose separate native actions for expand, play/pause a
 - **THEN** its global lyrics do not cover the unrelated page
 
 ### Requirement: Keep the current track audible during a user-initiated next track lookup
-While an existing track is playing, a manual Next request SHALL keep its audio and current metadata until the latest eligible target returns a playable source. The player SHALL continue using one audio element and SHALL NOT fetch another audio stream while resolving this target. Metadata and playback SHALL hand over together when the new source starts loading; buffering after that handover remains possible.
+While an existing track is playing, a manual Next request SHALL keep its audio and current metadata until the latest eligible target returns a playable source. The player SHALL have at most one audible element and SHALL NOT start competing speculative requests during this foreground lookup. Metadata and playback SHALL hand over together when the new source starts loading; buffering after that handover remains possible.
 
 #### Scenario: Several requests arrive before a playable source is found
 - **WHEN** Next is pressed again before the previous target is ready
@@ -36,3 +36,16 @@ While an existing track is playing, a manual Next request SHALL keep its audio a
 - **WHEN** no authorized playable source is returned for the pending target
 - **THEN** its failure is exposed for retry or skip without interrupting the current audio
 - **AND** withdrawing the request or changing the active queue order or authorization prevents the superseded response from committing.
+
+
+### Requirement: Reuse playable next track data
+
+Ordinary and Folia playback SHALL use the same eligible next-track preparation. The player SHALL prepare no more than one standby source, skip speculative audio on known metered or slow connections, and reuse only the exact ready media with a current queue entry and authorization context.
+
+#### Scenario: Prepared media starts
+- **WHEN** Next selects a ready, still-authorized standby source
+- **THEN** the existing buffer starts playback without reloading or resolving that song again, and the previous song stops
+
+#### Scenario: Prepared media is unavailable
+- **WHEN** standby failed, expired, was not eligible or changed with playback context
+- **THEN** the existing foreground resolution and playback path handles the request without playing an outdated standby

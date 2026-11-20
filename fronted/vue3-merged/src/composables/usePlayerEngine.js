@@ -1,3 +1,4 @@
+import { canAttachMediaElementAudioGraph } from '../utils/mediaElementAudioGraph';
 import { computed, getCurrentInstance, onBeforeUnmount, ref, watch } from 'vue';
 import { absolutizeApiUrl } from '../services/apiBase';
 import { getPlaylistBundleByCode, resolvePlaybackTrack, fetchAmllLyric } from '../services/musicApi';
@@ -423,12 +424,27 @@ export function usePlayerEngine(options = {}) {
   const playbackResolveAttempted = ref(new Set());
   const preparedPlayback = new Map();
   const PREPARED_PLAYBACK_TTL_MS = 30_000;
+  // The gateway token has a minimum lifetime of 60 seconds from issuance.
+  const GATEWAY_PREPARATION_TTL_MS = 45_000;
+  const STANDBY_LOAD_LIMIT_MS = 2_000;
+  const musicGatewayPath = '/api/v1/music/tracks/stream/';
+
+  function isSameOriginGatewaySource(source) {
+    try {
+      const page = new URL(window.location.href);
+      const url = new URL(source, page);
+      return url.origin === page.origin && url.pathname.startsWith(musicGatewayPath);
+    } catch {
+      return false;
+    }
+  }
+
   let selectionGeneration = 0;
   let pendingAutoplaySelection = null;
   let failedNextAnchor = null;
   const pendingNextEntryId = ref(null);
   const nextTransitionError = ref(null);
-  const nextTransitionPhases = ['click', 'resolved', 'loadstart', 'playing', 'failed'];
+  const nextTransitionPhases = ['click', 'resolved', 'loadstart', 'buffer-hit', 'playing', 'failed'];
 
   // Bounded, local Performance Timeline diagnostic; no track IDs, URLs or user data.
   function markNextTransition(phase) {
@@ -443,20 +459,101 @@ export function usePlayerEngine(options = {}) {
   let preparationInFlight = null;
   let activePreparationKey = '';
   let activePreparationAttempts = 0;
+  let needsMidTrackRefresh = false;
   const authorizationFetchIds = new WeakMap();
   let authorizationFetchSequence = 0;
 
-  const audioElement = new Audio();
-  audioElement.preload = 'metadata';
-  audioElement.volume = volume.value;
+  const engineOptions = options;
+  let audioElement = new Audio();
+  configureAudioElement(audioElement);
+  let spareAudio = null;
+  let standby = null;
 
-  function clearAudioSource() {
-    if (typeof audioElement.removeAttribute === 'function') {
-      audioElement.removeAttribute('src');
-      audioElement.load();
+  function configureAudioElement(element) {
+    element.preload = 'metadata';
+    element.volume = volume.value;
+  }
+
+  function clearAudioSource(element = audioElement) {
+    if (typeof element.removeAttribute === 'function') {
+      element.removeAttribute('src');
+      element.load();
       return;
     }
-    audioElement.src = '';
+    element.src = '';
+  }
+
+  function discardStandby() {
+    if (!standby) return;
+    const { element, timer, abandon } = standby;
+    standby = null;
+    clearTimeout(timer);
+    element.removeEventListener('error', abandon);
+    clearAudioSource(element);
+  }
+
+  function allowStandbyNetwork() {
+    const net = globalThis.navigator?.connection;
+    return !net?.saveData && net?.type !== 'cellular'
+      && !['slow-2g', '2g', '3g'].includes(net?.effectiveType)
+      && globalThis.document?.visibilityState !== 'hidden';
+  }
+
+  function prepareStandby(key, payload) {
+    const source = String(payload?.audio || '').trim();
+    if (disposed || !isPlaying.value || pendingAutoplaySelection || !allowStandbyNetwork()
+      || !isSameOriginGatewaySource(source) || payload?.preview === true || payload?.isPreview === true
+      || payload?.is_preview === true || payload?.metadata?.isPreview === true
+      || payload?.metadata?.is_preview === true || payload?.metadata?.preview_only === true
+      || [payload?.playbackKind, payload?.playback_kind, payload?.metadata?.playbackKind, payload?.metadata?.playback_kind]
+        .some((kind) => String(kind || '').toLowerCase() === 'preview')) return;
+    discardStandby();
+    if (!spareAudio) {
+      spareAudio = new Audio();
+      configureAudioElement(spareAudio);
+      bindAudioEvents(spareAudio);
+    }
+    const element = spareAudio;
+    const abandon = () => {
+      if (standby?.element === element) discardStandby();
+    };
+    standby = { key, source, element, abandon, timer: setTimeout(() => {
+      if (element.readyState < 3 || element.networkState === 2) abandon();
+    }, STANDBY_LOAD_LIMIT_MS) };
+    element.addEventListener('error', abandon);
+    element.src = source;
+    // Retain this exact native media resource, not a separate Range request
+    // whose bytes the playback element might have to fetch a second time.
+    element.load();
+  }
+
+  function takeReadyStandby(key, track) {
+    const slot = standby;
+    if (!slot || slot.key !== key || slot.source !== track.audio
+      || slot.element.error || slot.element.readyState < 3) return null;
+    // A suspended metadata preload may report an empty TimeRanges in Chromium
+    // even though the decoder has startup data (HAVE_FUTURE_DATA or above).
+    clearTimeout(slot.timer);
+    slot.element.removeEventListener('error', slot.abandon);
+    standby = null;
+    return slot.element;
+  }
+
+  function setActiveAudioSource(source) {
+    // A Web Audio-routed element is silent for non-CORS remote media. Do not
+    // reuse it for such a URL; keep that route on native audio as before mixing.
+    if (engineOptions.isPlaybackElementRouted?.(audioElement)
+      && !canAttachMediaElementAudioGraph({ src: source })) {
+      const previous = audioElement;
+      audioElement = new Audio();
+      configureAudioElement(audioElement);
+      bindAudioEvents(audioElement);
+      previous.pause();
+      clearAudioSource(previous);
+      engineOptions.releasePlaybackElement?.(previous);
+    }
+    audioElement.src = source;
+    audioElement.load();
   }
 
   function hasActiveAudioSource() {
@@ -982,17 +1079,25 @@ export function usePlayerEngine(options = {}) {
     const key = context ? getPreparationKey(nextTrack, context) : '';
     if (key !== activePreparationKey) {
       preparedPlayback.clear();
+      discardStandby();
       activePreparationKey = key;
       activePreparationAttempts = 0;
+      needsMidTrackRefresh = false;
       preparationGeneration += 1;
     }
-    if (!isPlaying.value) return;
+    if (!isPlaying.value) {
+      if (!pendingAutoplaySelection) discardStandby();
+      return;
+    }
+    if (pendingAutoplaySelection) return;
+    if (standby && !findPreparedPlayback(nextTrack, context)) discardStandby();
     if (!key || findPreparedPlayback(nextTrack, context)) return;
     if (activePreparationAttempts >= 2) return;
-    if (activePreparationAttempts === 1 && !isNearTrackEnd()) return;
+    if (activePreparationAttempts === 1 && !isNearTrackEnd() && !needsMidTrackRefresh) return;
     if (preparationInFlight?.key === key) return;
     const generation = preparationGeneration;
     if (preparationInFlight) return;
+    const startedAt = Date.now();
 
     activePreparationAttempts += 1;
     const preparation = { key, generation, promise: null };
@@ -1017,7 +1122,15 @@ export function usePlayerEngine(options = {}) {
           && getAuthorizedFetch() === context.authorizedFetch
           && getPreparationContext(nextTrack).authorizationKey === context.authorizationKey;
         if (stillCurrent && payload && typeof payload === 'object' && String(payload.audio || '').trim()) {
-          preparedPlayback.set(key, { payload, expiresAt: Date.now() + PREPARED_PLAYBACK_TTL_MS });
+          const gateway = isSameOriginGatewaySource(payload.audio);
+          needsMidTrackRefresh = gateway;
+          const ttl = gateway ? GATEWAY_PREPARATION_TTL_MS : PREPARED_PLAYBACK_TTL_MS;
+          preparedPlayback.set(key, { payload, expiresAt: startedAt + ttl });
+          try {
+            if (findPreparedPlayback(nextTrack, context)) prepareStandby(key, payload);
+          } catch {
+            discardStandby();
+          }
         }
         return payload && typeof payload === 'object' && String(payload.audio || '').trim() ? payload : null;
       } catch {
@@ -1031,6 +1144,7 @@ export function usePlayerEngine(options = {}) {
   }
 
   function invalidatePlaybackPreparation() {
+    discardStandby();
     preparedPlayback.clear();
     activePreparationKey = '';
     scheduleNextTrackPreparation();
@@ -1124,8 +1238,7 @@ export function usePlayerEngine(options = {}) {
     if (!nextAudio || nextAudio === previousAudio) return false;
 
     try {
-      audioElement.src = nextAudio;
-      audioElement.load();
+      setActiveAudioSource(nextAudio);
       loadSelectedTrackLyrics(resolved, queueEntryId, isCurrent);
       if (!isCurrent()) return false;
       await audioElement.play();
@@ -1164,6 +1277,7 @@ export function usePlayerEngine(options = {}) {
       }
     };
     const initialTrack = tracks.value[index];
+    if (standby && (!autoPlay || standby.key !== getPreparationKey(initialTrack))) discardStandby();
     const authContext = getPreparationContext(initialTrack);
     const isCurrentSelection = () => generation === selectionGeneration
       && !disposed
@@ -1181,6 +1295,7 @@ export function usePlayerEngine(options = {}) {
     }
     const shouldResolve = options?.resolveIfMissing === true || (options?.resolveIfMissing !== false && autoPlay);
     let track = tracks.value[index];
+    let bufferedKey = '';
     function switchVisibleTrack(nextTrack, clearSource = true) {
       currentTrackId.value = nextTrack.id;
       currentQueueEntryId.value = queueEntryId;
@@ -1236,6 +1351,7 @@ export function usePlayerEngine(options = {}) {
         return false;
       }
       const preparedKey = preparedPayload ? candidateKey : '';
+      if (preparedKey && autoPlay && findPreparedPlayback(track, context)) bufferedKey = preparedKey;
       const latestIndex = tracks.value.findIndex((entry) => entry.queueEntryId === queueEntryId);
       track = await resolveTrackPlayback(latestIndex, {
         force: shouldRefreshPlayback || Boolean(preparedPayload),
@@ -1283,13 +1399,28 @@ export function usePlayerEngine(options = {}) {
       pendingAutoplaySelection.mediaCommitted = true;
       mediaCommitted = true;
     }
-    // Setting/loading the new source resets the old one. Avoid an extra empty load
-    // in this handoff; the existing single audio element remains the sole output.
+    const buffered = bufferedKey ? takeReadyStandby(bufferedKey, track) : null;
+    discardStandby();
+    if (buffered) {
+      const old = audioElement;
+      audioElement = buffered;
+      spareAudio = old;
+      // Change ownership before clearing the old source. Any queued old events are stale.
+      old.pause();
+      clearAudioSource(old);
+      configureAudioElement(buffered);
+      // Visualization is optional and must never prevent playback.
+      try { engineOptions.onPlaybackElementPromoted?.(buffered); } catch { /* native playback */ }
+      if (options.manualNext) markNextTransition('buffer-hit');
+    }
     if (preservePlayingMedia) switchVisibleTrack(track, false);
     currentTrackId.value = track.id;
     currentQueueEntryId.value = queueEntryId;
-    audioElement.src = track.audio;
-    audioElement.load();
+    if (buffered) {
+      syncDuration();
+    } else {
+      setActiveAudioSource(track.audio);
+    }
     loadSelectedTrackLyrics(track, queueEntryId, isCurrentSelection);
 
     if (autoPlay) {
@@ -1521,7 +1652,13 @@ export function usePlayerEngine(options = {}) {
   }
 
   watch([playMode, queueSourceContext, () => getAuthorizedFetch(), () => options?.getPlaybackAuthorizationKey?.()],
-    clearDeferredNext, { flush: 'sync' });
+    () => {
+      clearDeferredNext();
+      preparationGeneration += 1;
+      discardStandby();
+      preparedPlayback.clear();
+      activePreparationKey = '';
+    }, { flush: 'sync' });
 
   function cyclePlayMode() {
     const idx = MODE_ORDER.indexOf(playMode.value);
@@ -2050,58 +2187,65 @@ export function usePlayerEngine(options = {}) {
     return enqueueExternalTrack(rawTrack, true, options);
   }
 
-  audioElement.addEventListener('loadstart', () => {
-    if (pendingAutoplaySelection?.manualNext && pendingAutoplaySelection.mediaCommitted
-      && pendingAutoplaySelection.generation === selectionGeneration) markNextTransition('loadstart');
-  });
-  audioElement.addEventListener('loadedmetadata', syncDuration);
-  audioElement.addEventListener('durationchange', syncDuration);
-  audioElement.addEventListener('canplay', syncDuration);
+  function bindAudioEvents(element) {
+    const on = (event, handler) => element.addEventListener(event, () => {
+      if (!disposed && audioElement === element) return handler();
+    });
+    on('loadstart', () => {
+      if (pendingAutoplaySelection?.manualNext && pendingAutoplaySelection.mediaCommitted
+        && pendingAutoplaySelection.generation === selectionGeneration) markNextTransition('loadstart');
+    });
+    on('loadedmetadata', syncDuration);
+    on('durationchange', syncDuration);
+    on('canplay', syncDuration);
 
-  audioElement.addEventListener('timeupdate', syncPlaybackPosition);
-  audioElement.addEventListener('seeking', syncPlaybackPosition);
-  audioElement.addEventListener('seeked', syncPlaybackPosition);
+    on('timeupdate', syncPlaybackPosition);
+    on('seeking', syncPlaybackPosition);
+    on('seeked', syncPlaybackPosition);
 
-  audioElement.addEventListener('pause', () => {
-    isPlaying.value = false;
-  });
+    on('pause', () => {
+      if (element.paused) isPlaying.value = false;
+    });
 
-  audioElement.addEventListener('play', () => {
-    isPlaying.value = true;
-  });
+    on('play', () => {
+      if (!element.paused) isPlaying.value = true;
+    });
 
-  audioElement.addEventListener('error', async () => {
-    if (disposed || !hasActiveAudioSource()) return;
-    // The active Next play promise owns recovery until the handoff succeeds or fails.
-    if (pendingAutoplaySelection?.manualNext && pendingAutoplaySelection.mediaCommitted) return;
-    const idx = currentIndex.value;
-    if (idx < 0 || idx >= tracks.value.length) {
-      isPlaying.value = false;
-      return;
-    }
-    const failedTrack = tracks.value[idx];
-    const failedQueueEntryId = failedTrack?.queueEntryId;
-    const failedSelectionGeneration = selectionGeneration;
-    const stillFailedTrackIsCurrent = () => selectionGeneration === failedSelectionGeneration
-      && currentTrackId.value === failedTrack?.id
-      && tracks.value.some((item) => item.queueEntryId === failedQueueEntryId);
-    const recovered = await recoverPlaybackWithFreshSource(failedQueueEntryId, failedTrack?.audio, stillFailedTrackIsCurrent);
-    if (!recovered && stillFailedTrackIsCurrent()) {
-      isPlaying.value = false;
-    }
-  });
+    on('error', async () => {
+      if (disposed || !hasActiveAudioSource()) return;
+      // The active Next play promise owns recovery until the handoff succeeds or fails.
+      if (pendingAutoplaySelection?.manualNext && pendingAutoplaySelection.mediaCommitted) return;
+      const idx = currentIndex.value;
+      if (idx < 0 || idx >= tracks.value.length) {
+        isPlaying.value = false;
+        return;
+      }
+      const failedTrack = tracks.value[idx];
+      const failedQueueEntryId = failedTrack?.queueEntryId;
+      const failedSelectionGeneration = selectionGeneration;
+      const stillFailedTrackIsCurrent = () => selectionGeneration === failedSelectionGeneration
+        && currentTrackId.value === failedTrack?.id
+        && tracks.value.some((item) => item.queueEntryId === failedQueueEntryId);
+      const recovered = await recoverPlaybackWithFreshSource(failedQueueEntryId, failedTrack?.audio, stillFailedTrackIsCurrent);
+      if (!recovered && stillFailedTrackIsCurrent()) {
+        isPlaying.value = false;
+      }
+    });
 
-  audioElement.addEventListener('ended', async () => {
-    if (disposed || !hasActiveAudioSource()) return;
-    if (pendingAutoplaySelection?.manualNext && !pendingAutoplaySelection.mediaCommitted
-      && pendingAutoplaySelection.generation === selectionGeneration
-      && pendingAutoplaySelection.nextMode === playMode.value
-      && pendingAutoplaySelection.nextQueueGeneration === queueReplacementGeneration) {
-      isPlaying.value = false;
-      return;
-    }
-    await playNext(false, { stopAtTail: true });
-  });
+    on('ended', async () => {
+      if (disposed || !hasActiveAudioSource()) return;
+      if (pendingAutoplaySelection?.manualNext && !pendingAutoplaySelection.mediaCommitted
+        && pendingAutoplaySelection.generation === selectionGeneration
+        && pendingAutoplaySelection.nextMode === playMode.value
+        && pendingAutoplaySelection.nextQueueGeneration === queueReplacementGeneration) {
+        isPlaying.value = false;
+        return;
+      }
+      await playNext(false, { stopAtTail: true });
+    });
+  }
+
+  bindAudioEvents(audioElement);
 
   watch(
     [playMode, currentTrackId, volume, isPlayerExpanded, isPinned, listOpen, visualizerMode, visualizerStyle, preferredLyricRenderMode],
@@ -2149,8 +2293,11 @@ export function usePlayerEngine(options = {}) {
       preparationGeneration += 1;
       preparationInFlight = null;
       preparedPlayback.clear();
+      discardStandby();
       audioElement.pause();
       clearAudioSource();
+      engineOptions.releasePlaybackElement?.(audioElement);
+      if (spareAudio) engineOptions.releasePlaybackElement?.(spareAudio);
       isPlaying.value = false;
     });
   }
@@ -2158,7 +2305,7 @@ export function usePlayerEngine(options = {}) {
   return {
     tracks,
     loading,
-    audioElement,
+    get audioElement() { return audioElement; },
     currentTrack,
     queueDisplayTracks,
     currentTrackId,
