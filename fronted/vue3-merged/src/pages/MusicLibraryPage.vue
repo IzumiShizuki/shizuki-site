@@ -463,8 +463,7 @@ const foliaScriptLoads = new Map();
  */
 async function preloadFoliaScripts() {
   if (foliaPreloadPromise) return foliaPreloadPromise;
-  foliaPreloadPromise = (async () => {
-    await loadScript('/music/runtime-config.js');
+  const discover = async () => {
     // Folia has its own PWA service worker. Give each document session a fresh
     // index request so a previously precached HTML shell cannot point us at an
     // outdated hashed entry chunk after a Folia gateway deployment.
@@ -481,10 +480,15 @@ async function preloadFoliaScripts() {
       document.head.appendChild(link);
     }
     return mainSrc;
-  })().catch((error) => {
-    foliaPreloadPromise = null;
-    throw error;
-  });
+  };
+  // The shell is independent of config. Hint its module as soon as the hash is
+  // known, but loadFoliaEmbed may only execute it after config has succeeded.
+  foliaPreloadPromise = Promise.all([loadScript('/music/runtime-config.js'), discover()])
+    .then(([, mainSrc]) => mainSrc)
+    .catch((error) => {
+      foliaPreloadPromise = null;
+      throw error;
+    });
   return foliaPreloadPromise;
 }
 
@@ -510,7 +514,7 @@ async function loadFoliaEmbed() {
       if (isCancelled()) return false;
       await loadScript(mainSrc, { module: true });
       if (isCancelled()) return false;
-      const mounted = await waitForFoliaMount(40000, isCancelled);
+      const mounted = await waitForFoliaMount(embedRoot, 40000, isCancelled);
       if (!mounted && isCancelled()) return false;
     }
 
@@ -528,39 +532,25 @@ async function loadFoliaEmbed() {
   return foliaMountPromise;
 }
 
-/** 轮询等待 Folia React 树挂载进 #folia-embed-root。 */
-function waitForFoliaMount(timeoutMs = 20000, isCancelled = () => false) {
-  const started = Date.now();
+// Module evaluation may complete before React commits the first child.
+function waitForFoliaMount(root, timeoutMs, isCancelled) {
+  if (isCancelled()) return Promise.resolve(false);
+  if (root.childElementCount) return Promise.resolve(true);
   return new Promise((resolve) => {
-    let timer = 0;
-    let settled = false;
-    const finish = (mounted) => {
-      if (settled) return;
-      settled = true;
-      if (timer) window.clearTimeout(timer);
+    const finish = (ready) => {
+      observer.disconnect();
+      window.clearTimeout(timer);
       if (foliaMountWaitCancel === cancelWait) foliaMountWaitCancel = null;
-      resolve(mounted);
+      resolve(ready);
     };
     const cancelWait = () => finish(false);
+    const observer = new MutationObserver(() => {
+      if (isCancelled()) cancelWait();
+      else if (root.childElementCount) finish(true);
+    });
+    const timer = window.setTimeout(cancelWait, timeoutMs);
     foliaMountWaitCancel = cancelWait;
-    const poll = () => {
-      timer = 0;
-      if (isCancelled() || typeof document === 'undefined') {
-        finish(false);
-        return;
-      }
-      const root = document.getElementById('folia-embed-root');
-      if (root && root.children.length > 0) {
-        finish(true);
-        return;
-      }
-      if (Date.now() - started > timeoutMs) {
-        finish(false);
-        return;
-      }
-      timer = window.setTimeout(poll, 200);
-    };
-    poll();
+    observer.observe(root, { childList: true });
   });
 }
 
@@ -1398,6 +1388,7 @@ function normalizeFoliaSourceContext(context) {
 
 async function applyFoliaPlaybackCommand(data) {
   if (!foliaMode.value) return;
+  const commandModeGeneration = foliaModeGeneration;
   const action = String(data?.action || '').trim();
   if (action === 'next' || action === 'previous') beginMusicPlaybackRequest();
   const playing = Boolean(player.isPlaying?.value);
@@ -1416,6 +1407,7 @@ async function applyFoliaPlaybackCommand(data) {
     return;
   }
   await nextTick();
+  if (!foliaMode.value || commandModeGeneration !== foliaModeGeneration) return;
   await pushCurrentTrackToFolia();
 }
 
@@ -3458,8 +3450,18 @@ function ownsMusicPlaybackRequest(requestGeneration, expectedQueueEntryId = '') 
 }
 
 async function playFeaturedTrack(item, index) {
-  const trackId = String(item?.trackId || item?.track_id || item?.id || '').trim();
-  const sourceIndex = playerQueueTracks.value.findIndex((track) => track.id === trackId);
+  const normalizedTrack = normalizeApiTrack(item, Number(index) || 0);
+  const trackId = String(normalizedTrack.trackId || normalizedTrack.id || '').trim();
+  const provider = String(item?.provider || item?.providerCode || item?.provider_code || '').trim().toLowerCase();
+  const matchingSourceIndexes = [];
+  playerQueueTracks.value.forEach((track, trackIndex) => {
+    const rowId = String(track?.trackId || track?.track_id || track?.id || '').trim();
+    const rowProvider = String(track?.provider || track?.providerCode || track?.provider_code || 'local').trim().toLowerCase();
+    if (rowId === trackId && (!provider || rowProvider === provider)) matchingSourceIndexes.push(trackIndex);
+  });
+  const sourceIndex = provider
+    ? (matchingSourceIndexes[0] ?? -1)
+    : (matchingSourceIndexes.length === 1 ? matchingSourceIndexes[0] : -1);
   const requestGeneration = beginMusicPlaybackRequest();
   if (sourceIndex >= 0) {
     const expectedQueueEntryId = String(playerQueueTracks.value[sourceIndex]?.queueEntryId || '').trim();
@@ -3472,7 +3474,7 @@ async function playFeaturedTrack(item, index) {
   }
 
   const selection = player.playExternalTrack?.(
-    normalizeApiTrack(item, Number(index) || 0),
+    normalizedTrack,
     { replaceQueue: true }
   );
   const expectedQueueEntryId = currentMusicPlaybackQueueEntryId();
@@ -4775,4 +4777,20 @@ onBeforeUnmount(() => {
   color: rgba(255, 242, 247, 0.96);
 }
 
+</style>
+
+<style>
+/* Folia portals live under body, outside the hidden/inert embedded pane.
+   Keep first-run notes available until the user explicitly opens Folia. */
+body:has(#folia-embed-root):not(:has(.music-library-page.folia-mode-active))
+  [data-testid='release-notes-dialog'][data-folia-keyboard-window] {
+  display: none !important;
+}
+
+/* The narrow embedded player stacks the track toast above its scrubber. */
+@media (max-width: 700px) {
+  #folia-embed-root .fixed:has(> [data-toast-card]) {
+    margin-bottom: 48px;
+  }
+}
 </style>

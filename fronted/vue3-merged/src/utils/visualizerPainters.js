@@ -86,7 +86,7 @@ function computeBarsLayout(width, height, count, gapRatio = 0.36) {
   const sidePad = Math.min(width / 4, Math.max(10, width * 0.015));
   const usable = width - sidePad * 2;
   const slot = usable / count;
-  const barWidth = Math.max(2, slot * (1 - gapRatio));
+  const barWidth = Math.min(slot, Math.max(2, slot * (1 - gapRatio)));
   return {
     slot,
     barWidth,

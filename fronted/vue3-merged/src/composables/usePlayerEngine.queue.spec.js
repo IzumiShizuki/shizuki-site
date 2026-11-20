@@ -1323,12 +1323,43 @@ describe('usePlayerEngine queue identity', () => {
   it('keeps enqueueNextTrack dedup behavior and identity presence', async () => {
     const engine = usePlayerEngine();
     await engine.enqueueNextTrack({ provider: 'local', trackId: 'x', title: 'X', artist: 'S', audio: 'https://audio.example.com/x.mp3' });
+    const queueEntryId = engine.tracks.value[0].queueEntryId;
     await engine.enqueueNextTrack({ provider: 'local', trackId: 'x', title: 'X updated', artist: 'S', audio: 'https://audio.example.com/x2.mp3' });
 
     expect(engine.tracks.value).toHaveLength(1);
     expect(engine.tracks.value[0].title).toBe('X updated');
+    expect(engine.tracks.value[0].queueEntryId).toBe(queueEntryId);
     expect(typeof engine.tracks.value[0].queueEntryId).toBe('string');
     expect(engine.tracks.value[0].queueEntryId.trim().length).toBeGreaterThan(0);
+  });
+
+  it('keeps same-ID queue entries from different providers distinct', async () => {
+    const engine = usePlayerEngine();
+    await engine.enqueueNextTrack({ provider: 'netease', trackId: 'shared', title: 'Netease', audio: 'https://audio.example.com/netease.mp3' });
+    await engine.enqueueNextTrack({ provider: 'qq', trackId: 'shared', title: 'QQ', audio: 'https://audio.example.com/qq.mp3' });
+
+    expect(engine.tracks.value.map((track) => [track.provider, track.trackId])).toEqual([
+      ['netease', 'shared'], ['qq', 'shared']
+    ]);
+    expect(new Set(engine.tracks.value.map((track) => track.queueEntryId)).size).toBe(2);
+  });
+
+  it('advances and returns by queue entry identity for same-ID cross-provider tracks in random mode', async () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0);
+    vi.mocked(resolvePlaybackTrack).mockImplementation(async ({ provider }) => ({
+      audio: `https://audio.example.com/${provider}.mp3`
+    }));
+    const engine = usePlayerEngine();
+    await engine.replaceQueueWithTracks([
+      { provider: 'netease', trackId: 'shared', title: 'Netease', audio: 'https://audio.example.com/netease.mp3' },
+      { provider: 'qq', trackId: 'shared', title: 'QQ', audio: 'https://audio.example.com/qq.mp3' }
+    ], 0, false);
+    engine.playMode.value = 'random';
+
+    await engine.playNext();
+    expect(engine.currentTrack.value?.provider).toBe('qq');
+    await engine.playPrev();
+    expect(engine.currentTrack.value?.provider).toBe('netease');
   });
 
   it('removeQueueItem removes by queueEntryId among duplicate entries', () => {

@@ -102,7 +102,7 @@
     <section v-if="queueOpen" class="dock-queue liquid-material" @click.stop>
       <header class="queue-head">
         <p>播放列表<span v-if="displayQueueTracks.length" class="twl-queue-count">{{ displayQueueTracks.length }} 首</span></p>
-        <button class="queue-close ripple-trigger" type="button" @click="queueOpen = false">
+        <button class="queue-close ripple-trigger" type="button" aria-label="关闭播放列表" @click="queueOpen = false">
           <i class="fas fa-xmark"></i>
         </button>
       </header>

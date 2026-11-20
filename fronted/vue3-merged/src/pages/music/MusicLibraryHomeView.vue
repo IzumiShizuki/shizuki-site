@@ -103,7 +103,7 @@
           </div>
           <article
             v-for="(item, index) in visibleSearchTracks"
-            :key="`search-track-${item.trackId || item.id || index}`"
+            :key="`search-track-${String(item.provider || item.providerCode || item.provider_code || 'local').trim().toLowerCase()}:${item.trackId || item.track_id || item.id || index}`"
             class="search-track-row te-track-row ripple-trigger"
             @click="music.playSearchTrack(item, index)"
           >
@@ -411,7 +411,7 @@
 
         <article
           v-for="(item, index) in filteredTracks"
-          :key="`home-track-${item.trackId || item.id || index}`"
+          :key="`home-track-${String(item.provider || item.providerCode || item.provider_code || 'local').trim().toLowerCase()}:${item.trackId || item.track_id || item.id || index}`"
           class="recommend-track-row te-track-row ripple-trigger"
           @click="music.playFeaturedTrack(item, index)"
         >

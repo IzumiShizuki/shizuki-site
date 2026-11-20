@@ -3,7 +3,9 @@
     <transition name="m-player">
       <section
         v-if="visible"
+        ref="dialogRef"
         class="m-player"
+        tabindex="-1"
         :style="dragStyle"
         role="dialog"
         aria-modal="true"
@@ -20,14 +22,14 @@
           @touchmove.passive="onDragMove"
           @touchend="onDragEnd"
         >
-          <button type="button" class="head-btn" aria-label="收起播放器" @click="$emit('close')">
+          <button type="button" ref="closeRef" class="head-btn" aria-label="收起播放器" @click="$emit('close')">
             <i class="fa-solid fa-chevron-down" aria-hidden="true"></i>
           </button>
           <div class="head-source">
             <span class="head-caption">正在播放</span>
             <span class="head-name">{{ sourceName || '播放队列' }}</span>
           </div>
-          <button type="button" class="head-btn" aria-label="播放队列" @click="queueOpen = true">
+          <button type="button" ref="queueTrigger" class="head-btn" aria-label="播放队列" @click="queueOpen = true">
             <i class="fa-solid fa-list-ul" aria-hidden="true"></i>
           </button>
         </header>
@@ -130,6 +132,8 @@
         </footer>
 
         <MobileSheet :visible="queueOpen" title="播放队列" @close="queueOpen = false">
+          <div ref="queueRef" tabindex="-1">
+          <button type="button" class="head-btn" aria-label="关闭播放队列" @click="queueOpen = false"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
           <div v-if="!tracks.length" class="m-empty">
             <i class="fa-solid fa-music" aria-hidden="true"></i>
             <span>队列是空的</span>
@@ -144,6 +148,7 @@
             :show-menu="false"
             @play="onQueueSelect(idx)"
           />
+          </div>
         </MobileSheet>
       </section>
     </transition>
@@ -151,7 +156,7 @@
 </template>
 
 <script setup>
-import { computed, nextTick, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import { formatMediaTime } from '../../utils/mediaTime';
 import MobileSheet from './MobileSheet.vue';
 import MusicNextStatus from '../../components/music/MusicNextStatus.vue';
@@ -292,6 +297,50 @@ function scrollActiveLyricIntoView() {
   const targetTop = active.offsetTop - host.clientHeight * 0.38;
   host.scrollTo({ top: Math.max(0, targetTop), behavior: 'smooth' });
 }
+
+const dialogRef = ref(null), closeRef = ref(null), queueRef = ref(null), queueTrigger = ref(null);
+let opener = null;
+function playerKeys(event) {
+  if (!props.visible || event.defaultPrevented || event.isComposing) return;
+  if (event.key === 'Escape') {
+    event.preventDefault();
+    event.stopPropagation();
+    if (queueOpen.value) queueOpen.value = false;
+    else emit('close');
+    return;
+  }
+  if (event.key !== 'Tab') return;
+  const layer = queueOpen.value ? queueRef.value : dialogRef.value;
+  if (!layer) return;
+  const items = Array.from(layer.querySelectorAll('button, a[href], input, select, textarea, [tabindex]'))
+    .filter(el => el.tabIndex >= 0 && !el.disabled && el.getClientRects().length);
+  const active = document.activeElement;
+  if (!items.length || !items.includes(active) || active === items[event.shiftKey ? 0 : items.length - 1]) {
+    event.preventDefault();
+    (items[event.shiftKey ? items.length - 1 : 0] || layer).focus({ preventScroll: true });
+  }
+}
+watch(() => props.visible, async visible => {
+  if (visible) {
+    opener = document.activeElement;
+    document.addEventListener('keydown', playerKeys, true);
+    await nextTick();
+    if (props.visible) (closeRef.value || dialogRef.value)?.focus({ preventScroll: true });
+  } else {
+    document.removeEventListener('keydown', playerKeys, true);
+    queueOpen.value = false;
+    const target = opener;
+    opener = null;
+    await nextTick();
+    if (!props.visible && target?.isConnected) target.focus({ preventScroll: true });
+  }
+}, { immediate: true });
+watch(queueOpen, async open => {
+  await nextTick();
+  if (!props.visible || queueOpen.value !== open) return;
+  (open ? queueRef.value?.querySelector('button') : queueTrigger.value)?.focus({ preventScroll: true });
+});
+onBeforeUnmount(() => document.removeEventListener('keydown', playerKeys, true));
 
 watch(
   () => props.currentLyricEntryIndex,
@@ -495,9 +544,11 @@ function onDragEnd() {
   font-size: clamp(18px, 5.4vw, 23px);
   font-weight: 800;
   letter-spacing: 0.01em;
-  white-space: nowrap;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow-wrap: anywhere;
   overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .meta-artist {

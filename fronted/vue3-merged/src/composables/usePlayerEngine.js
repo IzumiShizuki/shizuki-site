@@ -584,25 +584,14 @@ export function usePlayerEngine(options = {}) {
 
   const queueDisplayTracks = computed(() => {
     if (playMode.value !== 'random' || !randomQueue.value.length) return tracks.value;
-    const trackList = tracks.value;
-    const buckets = new Map();
-    for (let index = 0; index < trackList.length; index += 1) {
-      const id = trackList[index].id;
-      if (!buckets.has(id)) buckets.set(id, { indices: [], cursor: 0 });
-      buckets.get(id).indices.push(index);
-    }
-    const picked = new Uint8Array(trackList.length);
+    const remaining = new Map(tracks.value.map(track => [track.queueEntryId, track]));
     const ordered = [];
-    for (const id of randomQueue.value) {
-      const bucket = buckets.get(id);
-      if (!bucket || bucket.cursor >= bucket.indices.length) continue;
-      const index = bucket.indices[bucket.cursor++];
-      picked[index] = 1;
-      ordered.push(trackList[index]);
+    for (const entryId of randomQueue.value) {
+      if (!remaining.has(entryId)) continue;
+      ordered.push(remaining.get(entryId));
+      remaining.delete(entryId);
     }
-    for (let index = 0; index < trackList.length; index += 1) {
-      if (!picked[index]) ordered.push(trackList[index]);
-    }
+    for (const track of remaining.values()) ordered.push(track);
     return ordered;
   });
 
@@ -629,24 +618,26 @@ export function usePlayerEngine(options = {}) {
       );
   });
 
-  function resetRandomQueue(anchorId = currentTrackId.value) {
-    const ids = tracks.value.map((t) => t.id);
-    if (!ids.length) {
-      randomQueue.value = [];
-      return;
-    }
-
-    for (let i = ids.length - 1; i > 0; i -= 1) {
+  function resetRandomQueue(anchorQueueEntryId = currentQueueEntryId.value) {
+    const shuffled = [...tracks.value];
+    for (let i = shuffled.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
-      [ids[i], ids[j]] = [ids[j], ids[i]];
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
     }
+    const anchorIndex = shuffled.findIndex(track => track.queueEntryId === anchorQueueEntryId);
+    if (anchorIndex > 0) [shuffled[0], shuffled[anchorIndex]] = [shuffled[anchorIndex], shuffled[0]];
 
-    if (anchorId && ids.includes(anchorId) && ids[0] !== anchorId) {
-      const idx = ids.indexOf(anchorId);
-      [ids[0], ids[idx]] = [ids[idx], ids[0]];
+    // Keep occurrences of a song in queue order, excluding the pinned occurrence.
+    const occurrences = new Map();
+    for (let index = tracks.value.length - 1; index >= 0; index--) {
+      const track = tracks.value[index];
+      if (track.queueEntryId === anchorQueueEntryId) continue;
+      const key = buildResolveKey(track);
+      if (!occurrences.has(key)) occurrences.set(key, []);
+      occurrences.get(key).push(track.queueEntryId);
     }
-
-    randomQueue.value = ids;
+    randomQueue.value = shuffled.map(track => track.queueEntryId === anchorQueueEntryId
+      ? anchorQueueEntryId : occurrences.get(buildResolveKey(track)).pop());
   }
 
   function updateLyricState(timeSec) {
@@ -1009,10 +1000,10 @@ export function usePlayerEngine(options = {}) {
     if (!currentTrack.value || tracks.value.length < 2 || playMode.value === 'single') return null;
     if (playMode.value === 'random') {
       if (randomQueue.value.length !== tracks.value.length) return null;
-      const currentOrderIndex = randomQueue.value.indexOf(currentTrackId.value);
+      const currentOrderIndex = randomQueue.value.indexOf(currentQueueEntryId.value);
       if (currentOrderIndex < 0) return null;
-      const nextId = randomQueue.value[(currentOrderIndex + 1) % randomQueue.value.length];
-      return tracks.value.find((track) => track.id === nextId) || null;
+      const nextQueueEntryId = randomQueue.value[(currentOrderIndex + 1) % randomQueue.value.length];
+      return tracks.value.find((track) => track.queueEntryId === nextQueueEntryId) || null;
     }
     const current = currentIndex.value;
     if (current < 0) return null;
@@ -1561,13 +1552,13 @@ export function usePlayerEngine(options = {}) {
   async function playPrev() {
     if (!tracks.value.length) return;
     if (playMode.value === 'random') {
-      if (randomQueue.value.length !== tracks.value.length || !randomQueue.value.includes(currentTrackId.value)) {
-        resetRandomQueue(currentTrackId.value);
+      if (randomQueue.value.length !== tracks.value.length || !randomQueue.value.includes(currentQueueEntryId.value)) {
+        resetRandomQueue(currentQueueEntryId.value);
       }
       const q = randomQueue.value;
-      const qi = q.indexOf(currentTrackId.value);
-      const prevId = q[(qi - 1 + q.length) % q.length];
-      const prevIndex = tracks.value.findIndex((t) => t.id === prevId);
+      const qi = q.indexOf(currentQueueEntryId.value);
+      const previousQueueEntryId = q[(qi - 1 + q.length) % q.length];
+      const prevIndex = tracks.value.findIndex((track) => track.queueEntryId === previousQueueEntryId);
       await selectTrackByIndex(prevIndex >= 0 ? prevIndex : 0, true);
       return;
     }
@@ -1730,7 +1721,7 @@ export function usePlayerEngine(options = {}) {
     queueReplacementGeneration += 1;
     clearDeferredNext();
     tracks.value = next;
-    if (playMode.value === 'random') resetRandomQueue(currentTrackId.value);
+    if (playMode.value === 'random') resetRandomQueue(currentQueueEntryId.value);
   }
 
   function normalizeRemoteTracks(remoteTracks) {
@@ -1840,7 +1831,7 @@ export function usePlayerEngine(options = {}) {
     const selectedEntryId = tracks.value[initialIndex]?.queueEntryId;
     await selectTrackByIndex(initialIndex, false, { deferMedia: true });
     if (!isCurrentLoadWithoutSelection() || currentQueueEntryId.value !== selectedEntryId) return false;
-    resetRandomQueue(tracks.value[initialIndex]?.id || '');
+    resetRandomQueue(tracks.value[initialIndex]?.queueEntryId || '');
   }
 
   async function replaceQueueWithTracks(rawTracks, startIndex = 0, autoPlay = true, source = {}) {
@@ -1900,7 +1891,7 @@ export function usePlayerEngine(options = {}) {
     const selectionAtStart = selectionGeneration;
     const selected = await selectionPromise;
     if (replacementGeneration !== queueReplacementGeneration || selectionAtStart !== selectionGeneration) return false;
-    resetRandomQueue(tracks.value[safeIndex]?.id || '');
+    resetRandomQueue(tracks.value[safeIndex]?.queueEntryId || '');
     if (!autoPlay) return true;
     return selected === true;
   }
@@ -1987,7 +1978,7 @@ export function usePlayerEngine(options = {}) {
       }
     }
 
-    if (playMode.value === 'random') resetRandomQueue(normalized.id);
+    if (playMode.value === 'random') resetRandomQueue(currentQueueEntryId.value);
     return true;
   }
 
@@ -2026,12 +2017,18 @@ export function usePlayerEngine(options = {}) {
     if (!normalized.audio && !canLazyResolve) return false;
 
     const targetBase = currentIndex.value >= 0 ? currentIndex.value + 1 : tracks.value.length;
-    const existingIndex = tracks.value.findIndex((item) => item.id === normalized.id);
+    const incomingProvider = String(normalized.provider || 'local').trim().toLowerCase();
+    const incomingTrackId = String(normalized.trackId || normalized.id || '').trim();
+    const existingIndex = tracks.value.findIndex((item) => {
+      const provider = String(item?.provider || item?.providerCode || item?.provider_code || 'local').trim().toLowerCase();
+      const trackId = String(item?.trackId || item?.track_id || item?.id || '').trim();
+      return provider === incomingProvider && trackId === incomingTrackId;
+    });
     const next = tracks.value.slice();
 
     if (existingIndex >= 0) {
       const [existing] = next.splice(existingIndex, 1);
-      const merged = { ...existing, ...normalized };
+      const merged = { ...existing, ...normalized, queueEntryId: existing.queueEntryId || normalized.queueEntryId };
       const targetIndex = Math.max(0, Math.min(next.length, existingIndex < targetBase ? targetBase - 1 : targetBase));
       next.splice(targetIndex, 0, merged);
     } else {
@@ -2046,7 +2043,7 @@ export function usePlayerEngine(options = {}) {
     queueReplacementGeneration += 1;
     clearDeferredNext();
 
-    if (playMode.value === 'random') resetRandomQueue(currentTrackId.value || normalized.id);
+    if (playMode.value === 'random') resetRandomQueue(currentQueueEntryId.value);
     return true;
   }
 
@@ -2108,7 +2105,7 @@ export function usePlayerEngine(options = {}) {
     queueReplacementGeneration += 1;
     clearDeferredNext();
 
-    if (playMode.value === 'random') resetRandomQueue(currentTrackId.value);
+    if (playMode.value === 'random') resetRandomQueue(currentQueueEntryId.value);
     return true;
   }
 
@@ -2158,7 +2155,7 @@ export function usePlayerEngine(options = {}) {
       currentLyricEntryIndex.value = -1;
       currentLyricLine.value = '';
     }
-    if (playMode.value === 'random') resetRandomQueue(currentTrackId.value);
+    if (playMode.value === 'random') resetRandomQueue(currentQueueEntryId.value);
     return true;
   }
 
