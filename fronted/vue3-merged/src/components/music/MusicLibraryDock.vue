@@ -8,7 +8,12 @@
       <div class="cover" :style="coverStyle"></div>
       <div class="meta">
         <p class="title">{{ track?.title || '暂无音乐' }}</p>
-        <p class="artist">{{ track?.artist || '未知歌手' }}</p>
+        <MusicNextStatus v-if="nextTarget || nextError"
+          :target="nextTarget"
+          :failed-track="nextError"
+          @retry="$emit('retry-next')"
+        />
+        <p v-else class="artist">{{ track?.artist || '未知歌手' }}</p>
       </div>
     </div>
 
@@ -17,8 +22,8 @@
       <button class="ctrl-btn ripple-trigger" type="button" title="上一首" @click="emit('prev')">
         <i class="fas fa-backward-step"></i>
       </button>
-      <button class="ctrl-btn primary ripple-trigger" type="button" :title="isPlaying ? '暂停' : '播放'" @click="emit('toggle-play')">
-        <i class="fas" :class="isPlaying ? 'fa-pause' : 'fa-play'"></i>
+      <button class="ctrl-btn primary ripple-trigger" type="button" :title="isPlaying ? '暂停' : nextTarget ? '取消切歌' : '播放'" @click="emit('toggle-play')">
+        <i class="fas" :class="isPlaying || nextTarget ? 'fa-pause' : 'fa-play'"></i>
       </button>
       <button class="ctrl-btn ripple-trigger" type="button" title="下一首" @click="emit('next')">
         <i class="fas fa-forward-step"></i>
@@ -97,7 +102,7 @@
     <section v-if="queueOpen" class="dock-queue liquid-material" @click.stop>
       <header class="queue-head">
         <p>播放列表<span v-if="displayQueueTracks.length" class="twl-queue-count">{{ displayQueueTracks.length }} 首</span></p>
-        <button class="queue-close ripple-trigger" type="button" @click="queueOpen = false">
+        <button class="queue-close ripple-trigger" type="button" aria-label="关闭播放列表" @click="queueOpen = false">
           <i class="fas fa-xmark"></i>
         </button>
       </header>
@@ -135,11 +140,14 @@
 <script setup>
 import { computed, nextTick, ref, shallowRef, watch } from 'vue';
 import MusicVisualizerLayer from '../MusicVisualizerLayer.vue';
+import MusicNextStatus from './MusicNextStatus.vue';
 import { formatMediaTime } from '../../utils/mediaTime';
 import { safeCssUrl } from '../../utils/url';
 import { useDismissiblePopover } from '../../composables/useDismissiblePopover';
 
 const props = defineProps({
+  nextTarget: { type: Object, default: null },
+  nextError: { type: Object, default: null },
   track: { type: Object, default: null },
   trackLiked: { type: Boolean, default: false },
   trackLikePending: { type: Boolean, default: false },
@@ -162,6 +170,7 @@ const emit = defineEmits([
   'toggle-play',
   'prev',
   'next',
+  'retry-next',
   'seek',
   'cycle-mode',
   'set-volume',

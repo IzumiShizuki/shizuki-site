@@ -21,6 +21,7 @@ describe('shouldShowGlobalLyricBar', () => {
   const activeTrack = {
     subtitleVisible: true,
     hasCurrentTrack: true,
+    isPlaying: true,
     routePath: '/',
     isMusicLibraryRoute: false,
     isFocusActive: false,
@@ -55,6 +56,7 @@ describe('shouldShowGlobalLyricBar', () => {
   it.each([
     ['subtitles disabled', { subtitleVisible: false }],
     ['no active track', { hasCurrentTrack: false }],
+    ['paused', { isPlaying: false }],
     ['desktop home surface', { isDesktopHomeSurface: true }]
   ])('keeps the bar hidden when %s', (_label, overrides) => {
     expect(shouldShowGlobalLyricBar({ ...activeTrack, ...overrides })).toBe(false);

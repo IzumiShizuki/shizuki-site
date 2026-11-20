@@ -65,12 +65,13 @@ export function resampleLevels(levels, outCount, mirror = false, target = null) 
 
 function traceBarsPath(path, levelsArr, layout, heightScale, minHeight) {
   const { slot, barWidth, baseline, left, radius } = layout;
+  if (!(barWidth > 0) || !Number.isFinite(barWidth)) return;
   for (let index = 0; index < levelsArr.length; index += 1) {
     const level = levelsArr[index];
     const barHeight = Math.max(minHeight, level * heightScale);
     const x = left + index * slot;
     const y = baseline - barHeight;
-    const r = Math.min(radius, barWidth / 2, barHeight / 2);
+    const r = Math.max(0, Math.min(radius, barWidth / 2, barHeight / 2));
     path.moveTo(x, baseline);
     path.lineTo(x, y + r);
     path.arcTo(x, y, x + r, y, r);
@@ -82,10 +83,10 @@ function traceBarsPath(path, levelsArr, layout, heightScale, minHeight) {
 }
 
 function computeBarsLayout(width, height, count, gapRatio = 0.36) {
-  const sidePad = Math.max(10, width * 0.015);
+  const sidePad = Math.min(width / 4, Math.max(10, width * 0.015));
   const usable = width - sidePad * 2;
   const slot = usable / count;
-  const barWidth = Math.max(2, slot * (1 - gapRatio));
+  const barWidth = Math.min(slot, Math.max(2, slot * (1 - gapRatio)));
   return {
     slot,
     barWidth,

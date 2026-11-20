@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { createVisualizerPainter, resampleLevels, VISUALIZER_PAINTER_KEYS } from './visualizerPainters';
 
 describe('resampleLevels', () => {
@@ -32,6 +32,31 @@ describe('resampleLevels', () => {
 });
 
 describe('createVisualizerPainter', () => {
+  it('keeps spectrum arc radii valid while a mobile route is collapsing', () => {
+    const arc = vi.fn((_x, _y, _endX, _endY, radius) => {
+      if (!Number.isFinite(radius) || radius < 0) throw new Error('invalid canvas radius');
+    });
+    class TestPath {
+      moveTo() {}
+      lineTo() {}
+      closePath() {}
+      arcTo(...args) { arc(...args); }
+    }
+    vi.stubGlobal('Path2D', TestPath);
+    try {
+      const ctx = new Proxy({}, {
+        get: (_target, name) => String(name).includes('Gradient') ? () => ({ addColorStop() {} }) : () => {}
+      });
+      const levels = new Float32Array([0.2, 0.6]);
+      createVisualizerPainter('bars-crystal').paint(ctx, {
+        levels, peaks: levels, energy: { bass: 0 }
+      }, { width: 1, height: 1, colors: { accent: [80, 120, 180], accentSoft: [90, 150, 200] } });
+      expect(arc).toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it('已注册的每种风格都能创建画笔', () => {
     expect(VISUALIZER_PAINTER_KEYS).toEqual(
       expect.arrayContaining(['bars-neon', 'bars-crystal', 'bars-firefly', 'ring-halo', 'ring-orbit', 'ring-pulse', 'vinyl'])

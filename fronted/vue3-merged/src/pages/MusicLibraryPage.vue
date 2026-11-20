@@ -183,7 +183,9 @@
             :keyword="ui.globalSearchKeyword.value"
             :type="ui.globalSearchType.value"
             :loading="searchLoading"
-            :error-text="searchError"
+            :error-text="''"
+            :show-actions="hasActiveSearch"
+            :draft-changed="searchDraftChanged"
             :show-filters="showSearchToolbarFilters"
             :search-history="musicSearchHistory"
             :type-options="SEARCH_TYPE_OPTIONS"
@@ -196,6 +198,7 @@
             @toggle-provider="ui.toggleGlobalSearchProvider($event)"
             @search="triggerMusicSearch"
             @refresh="refreshMusicSearch"
+            @clear="clearMusicSearchFromToolbar"
           />
 
           <header v-if="isMobileViewport" class="mobile-switch-bar">
@@ -283,8 +286,11 @@
         :track-liked="isTrackLiked(player.currentTrack.value)"
         :track-like-pending="platformLikes.isPending(player.currentTrack.value)"
         @toggle-play="player.togglePlay"
+        :next-target="player.pendingNextTrack?.value"
+        :next-error="player.nextTransitionError?.value"
         @prev="player.playPrev"
         @next="player.playNext"
+        @retry-next="player.retryNext"
         @seek="player.seekToPercent"
         @cycle-mode="player.cyclePlayMode"
         @set-volume="player.setVolume"
@@ -457,8 +463,7 @@ const foliaScriptLoads = new Map();
  */
 async function preloadFoliaScripts() {
   if (foliaPreloadPromise) return foliaPreloadPromise;
-  foliaPreloadPromise = (async () => {
-    await loadScript('/music/runtime-config.js');
+  const discover = async () => {
     // Folia has its own PWA service worker. Give each document session a fresh
     // index request so a previously precached HTML shell cannot point us at an
     // outdated hashed entry chunk after a Folia gateway deployment.
@@ -475,10 +480,15 @@ async function preloadFoliaScripts() {
       document.head.appendChild(link);
     }
     return mainSrc;
-  })().catch((error) => {
-    foliaPreloadPromise = null;
-    throw error;
-  });
+  };
+  // The shell is independent of config. Hint its module as soon as the hash is
+  // known, but loadFoliaEmbed may only execute it after config has succeeded.
+  foliaPreloadPromise = Promise.all([loadScript('/music/runtime-config.js'), discover()])
+    .then(([, mainSrc]) => mainSrc)
+    .catch((error) => {
+      foliaPreloadPromise = null;
+      throw error;
+    });
   return foliaPreloadPromise;
 }
 
@@ -504,7 +514,7 @@ async function loadFoliaEmbed() {
       if (isCancelled()) return false;
       await loadScript(mainSrc, { module: true });
       if (isCancelled()) return false;
-      const mounted = await waitForFoliaMount(40000, isCancelled);
+      const mounted = await waitForFoliaMount(embedRoot, 40000, isCancelled);
       if (!mounted && isCancelled()) return false;
     }
 
@@ -522,39 +532,25 @@ async function loadFoliaEmbed() {
   return foliaMountPromise;
 }
 
-/** 轮询等待 Folia React 树挂载进 #folia-embed-root。 */
-function waitForFoliaMount(timeoutMs = 20000, isCancelled = () => false) {
-  const started = Date.now();
+// Module evaluation may complete before React commits the first child.
+function waitForFoliaMount(root, timeoutMs, isCancelled) {
+  if (isCancelled()) return Promise.resolve(false);
+  if (root.childElementCount) return Promise.resolve(true);
   return new Promise((resolve) => {
-    let timer = 0;
-    let settled = false;
-    const finish = (mounted) => {
-      if (settled) return;
-      settled = true;
-      if (timer) window.clearTimeout(timer);
+    const finish = (ready) => {
+      observer.disconnect();
+      window.clearTimeout(timer);
       if (foliaMountWaitCancel === cancelWait) foliaMountWaitCancel = null;
-      resolve(mounted);
+      resolve(ready);
     };
     const cancelWait = () => finish(false);
+    const observer = new MutationObserver(() => {
+      if (isCancelled()) cancelWait();
+      else if (root.childElementCount) finish(true);
+    });
+    const timer = window.setTimeout(cancelWait, timeoutMs);
     foliaMountWaitCancel = cancelWait;
-    const poll = () => {
-      timer = 0;
-      if (isCancelled() || typeof document === 'undefined') {
-        finish(false);
-        return;
-      }
-      const root = document.getElementById('folia-embed-root');
-      if (root && root.children.length > 0) {
-        finish(true);
-        return;
-      }
-      if (Date.now() - started > timeoutMs) {
-        finish(false);
-        return;
-      }
-      timer = window.setTimeout(poll, 200);
-    };
-    poll();
+    observer.observe(root, { childList: true });
   });
 }
 
@@ -764,12 +760,20 @@ const foliaPlaylistOptions = computed(() => {
   return options.filter((item) => (seen.has(item.playlistCode) ? false : (seen.add(item.playlistCode), true)));
 });
 
+function isKnownFoliaSitePlaylist(code) {
+  if (!code) return false;
+  const active = player.queueSourceContext?.value;
+  return code === currentPlaylistCodeFromRoute.value
+    || foliaPlaylistOptions.value.some((item) => item.playlistCode === code)
+    || (active?.kind === 'queue' && active.sitePlaylistCode === code
+      && player.playlistProfile?.value?.playlistCode === code);
+}
+
 function createFoliaSourceContext(profile = player.playlistProfile?.value || currentPlaylistProfile.value) {
   if (player.queueSourceContext?.value) return normalizeFoliaSourceContext(player.queueSourceContext.value);
   if (foliaSourceContext.value) return normalizeFoliaSourceContext(foliaSourceContext.value);
   const code = String(profile?.playlistCode || profile?.playlist_code || currentPlaylistCodeFromRoute.value || '').trim();
-  const isKnownSitePlaylist = foliaPlaylistOptions.value.some((item) => item.playlistCode === code);
-  if (code && isKnownSitePlaylist) return { kind: 'queue', sitePlaylistCode: code };
+  if (isKnownFoliaSitePlaylist(code)) return { kind: 'queue', sitePlaylistCode: code };
   return { kind: Array.isArray(player.tracks?.value) && player.tracks.value.length ? 'queue' : 'single' };
 }
 
@@ -1373,8 +1377,7 @@ async function mirrorFoliaPlaybackIntent(data) {
 function normalizeFoliaSourceContext(context) {
   if (!context || typeof context !== 'object') return createFoliaSourceContext();
   const sitePlaylistCode = String(context.sitePlaylistCode || '').trim();
-  const knownSitePlaylist = sitePlaylistCode === currentPlaylistCodeFromRoute.value
-    || foliaPlaylistOptions.value.some((item) => item.playlistCode === sitePlaylistCode);
+  const knownSitePlaylist = isKnownFoliaSitePlaylist(sitePlaylistCode);
   return {
     kind: ['collection', 'queue', 'single'].includes(context.kind) ? context.kind : 'queue',
     ...(context.collection && typeof context.collection === 'object' ? {
@@ -1392,6 +1395,7 @@ function normalizeFoliaSourceContext(context) {
 
 async function applyFoliaPlaybackCommand(data) {
   if (!foliaMode.value) return;
+  const commandModeGeneration = foliaModeGeneration;
   const action = String(data?.action || '').trim();
   if (action === 'next' || action === 'previous') beginMusicPlaybackRequest();
   const playing = Boolean(player.isPlaying?.value);
@@ -1410,6 +1414,7 @@ async function applyFoliaPlaybackCommand(data) {
     return;
   }
   await nextTick();
+  if (!foliaMode.value || commandModeGeneration !== foliaModeGeneration) return;
   await pushCurrentTrackToFolia();
 }
 
@@ -1605,6 +1610,7 @@ const platformLikes = usePlatformMusicLikes({
 });
 let sidebarRequestVersion = 0;
 const searchLoading = ref(false);
+let searchController = new AbortController();
 const searchLoadingMore = ref(false);
 const searchLoadingMoreError = ref('');
 const searchError = ref('');
@@ -2104,6 +2110,8 @@ function growSearchAllVisibleCount(section) {
 }
 
 function clearSearchState(options = {}) {
+  searchController.abort();
+  searchController = new AbortController();
   const resetDraft = options?.resetDraft !== false;
   if (resetDraft) {
     ui.resetGlobalSearch();
@@ -2337,6 +2345,11 @@ async function runMusicSearch(criteria = committedSearch.value, options = {}) {
   if (append && isAllType) {
     return;
   }
+  if (!append) {
+    searchController.abort();
+    searchController = new AbortController();
+  }
+  const { signal } = searchController;
 
   if (append) {
     searchLoadingMore.value = true;
@@ -2360,22 +2373,29 @@ async function runMusicSearch(criteria = committedSearch.value, options = {}) {
           type: 'playlist',
           providers,
           page: 1,
+          signal,
           limit: allPlaylistLimit
         }, searchAuthorizedFetch),
         musicApi.searchMusic(keyword, {
           type: 'track',
           providers,
           page: 1,
+          signal,
           limit: allTrackLimit
         }, searchAuthorizedFetch),
         musicApi.searchMusic(keyword, {
           type: 'artist',
           providers,
           page: 1,
+          signal,
           limit: allArtistLimit
         }, searchAuthorizedFetch)
       ]);
 
+      if (signal.aborted) return;
+      if ([playlistsResponse, tracksResponse, artistsResponse].every((response) => response.status === 'rejected')) {
+        throw tracksResponse.reason;
+      }
       const playlistsPayload = playlistsResponse.status === 'fulfilled' ? playlistsResponse.value : null;
       const tracksPayload = tracksResponse.status === 'fulfilled' ? tracksResponse.value : null;
       const artistsPayload = artistsResponse.status === 'fulfilled' ? artistsResponse.value : null;
@@ -2455,8 +2475,10 @@ async function runMusicSearch(criteria = committedSearch.value, options = {}) {
       type,
       providers,
       page: targetPage,
+      signal,
       limit: SEARCH_PAGE_SIZE
     }, searchAuthorizedFetch);
+    if (signal.aborted) return;
     const normalizedTracks = Array.isArray(payload?.tracks)
       ? payload.tracks.map((item, index) => normalizeSearchTrack(item, index))
       : [];
@@ -2520,6 +2542,7 @@ async function runMusicSearch(criteria = committedSearch.value, options = {}) {
       artists: parsedHasMore.artists || fallbackHasMore.artists
     };
   } catch (error) {
+    if (signal.aborted) return;
     const message = parseErrorMessage(error, append ? '加载更多失败，请继续滑动或点击重试' : '搜索失败，请稍后重试');
     if (append) {
       searchLoadingMoreError.value = message;
@@ -2530,12 +2553,22 @@ async function runMusicSearch(criteria = committedSearch.value, options = {}) {
       searchPage.value = 1;
     }
   } finally {
-    if (append) {
-      searchLoadingMore.value = false;
-    } else {
-      searchLoading.value = false;
+    if (!signal.aborted) {
+      if (append) searchLoadingMore.value = false;
+      else searchLoading.value = false;
     }
   }
+}
+
+const searchDraftChanged = computed(() => hasActiveSearch.value && (
+  normalizedGlobalSearchKeyword.value !== committedSearch.value.keyword
+  || ui.globalSearchType.value !== committedSearch.value.type
+  || [...normalizeSearchProviderList(ui.globalSearchProviders.value)].sort().join(',')
+    !== [...committedSearch.value.providers].sort().join(',')
+));
+
+function clearMusicSearchFromToolbar() {
+  clearSearchState();
 }
 
 function triggerMusicSearch() {
@@ -2558,6 +2591,7 @@ function applyMusicSearchHistory(keyword) {
   const normalized = String(keyword || '').trim();
   if (!normalized) return;
   ui.setGlobalSearchKeyword(normalized);
+  triggerMusicSearch();
 }
 
 function clearMusicSearchHistoryRecords() {
@@ -2594,6 +2628,7 @@ async function loadMoreMusicSearchSection(sectionType, options = {}) {
     providers: committedSearch.value.providers
   };
 
+  const { signal } = searchController;
   searchSectionLoading.value = { ...searchSectionLoading.value, [section]: true };
   searchSectionError.value = { ...searchSectionError.value, [section]: '' };
   try {
@@ -2602,8 +2637,10 @@ async function loadMoreMusicSearchSection(sectionType, options = {}) {
       type: criteria.type,
       providers: criteria.providers,
       page: nextPage,
+      signal,
       limit: sectionLimit
     }, searchAuthorizedFetch);
+    if (signal.aborted) return;
     const parsedHasMore = parseSearchHasMore(payload);
     const playlists = Array.isArray(payload?.playlists) ? payload.playlists.map((item) => normalizeSearchPlaylist(item)) : [];
     const tracks = Array.isArray(payload?.tracks) ? payload.tracks.map((item, index) => normalizeSearchTrack(item, index)) : [];
@@ -2664,12 +2701,13 @@ async function loadMoreMusicSearchSection(sectionType, options = {}) {
       growSearchAllVisibleCount(section);
     }
   } catch (error) {
+    if (signal.aborted) return;
     searchSectionError.value = {
       ...searchSectionError.value,
       [section]: parseErrorMessage(error, '加载失败，继续滑动或点击重试')
     };
   } finally {
-    searchSectionLoading.value = { ...searchSectionLoading.value, [section]: false };
+    if (!signal.aborted) searchSectionLoading.value = { ...searchSectionLoading.value, [section]: false };
   }
 }
 
@@ -3419,8 +3457,18 @@ function ownsMusicPlaybackRequest(requestGeneration, expectedQueueEntryId = '') 
 }
 
 async function playFeaturedTrack(item, index) {
-  const trackId = String(item?.trackId || item?.track_id || item?.id || '').trim();
-  const sourceIndex = playerQueueTracks.value.findIndex((track) => track.id === trackId);
+  const normalizedTrack = normalizeApiTrack(item, Number(index) || 0);
+  const trackId = String(normalizedTrack.trackId || normalizedTrack.id || '').trim();
+  const provider = String(item?.provider || item?.providerCode || item?.provider_code || '').trim().toLowerCase();
+  const matchingSourceIndexes = [];
+  playerQueueTracks.value.forEach((track, trackIndex) => {
+    const rowId = String(track?.trackId || track?.track_id || track?.id || '').trim();
+    const rowProvider = String(track?.provider || track?.providerCode || track?.provider_code || 'local').trim().toLowerCase();
+    if (rowId === trackId && (!provider || rowProvider === provider)) matchingSourceIndexes.push(trackIndex);
+  });
+  const sourceIndex = provider
+    ? (matchingSourceIndexes[0] ?? -1)
+    : (matchingSourceIndexes.length === 1 ? matchingSourceIndexes[0] : -1);
   const requestGeneration = beginMusicPlaybackRequest();
   if (sourceIndex >= 0) {
     const expectedQueueEntryId = String(playerQueueTracks.value[sourceIndex]?.queueEntryId || '').trim();
@@ -3433,7 +3481,7 @@ async function playFeaturedTrack(item, index) {
   }
 
   const selection = player.playExternalTrack?.(
-    normalizeApiTrack(item, Number(index) || 0),
+    normalizedTrack,
     { replaceQueue: true }
   );
   const expectedQueueEntryId = currentMusicPlaybackQueueEntryId();
@@ -3791,6 +3839,8 @@ const musicContext = Object.freeze({
   searchSectionError,
   searchError,
   searchResult,
+  committedSearch,
+  refreshMusicSearch,
   searchHasMore,
   searchAllVisibleCount,
   searchPlaylistRowCapacity,
@@ -4117,7 +4167,7 @@ async function returnToMusicLibrary() {
   }
 
   const code = source.sitePlaylistCode;
-  if (code && (code === currentPlaylistCodeFromRoute.value || foliaPlaylistOptions.value.some((item) => item.playlistCode === code))) {
+  if (isKnownFoliaSitePlaylist(code)) {
     router.push({ name: 'music-library-playlist', params: { playlistCode: code } });
   } else {
     router.push({ name: 'music-library-queue' });
@@ -4734,4 +4784,20 @@ onBeforeUnmount(() => {
   color: rgba(255, 242, 247, 0.96);
 }
 
+</style>
+
+<style>
+/* Folia portals live under body, outside the hidden/inert embedded pane.
+   Keep first-run notes available until the user explicitly opens Folia. */
+body:has(#folia-embed-root):not(:has(.music-library-page.folia-mode-active))
+  [data-testid='release-notes-dialog'][data-folia-keyboard-window] {
+  display: none !important;
+}
+
+/* The narrow embedded player stacks the track toast above its scrubber. */
+@media (max-width: 700px) {
+  #folia-embed-root .fixed:has(> [data-toast-card]) {
+    margin-bottom: 48px;
+  }
+}
 </style>

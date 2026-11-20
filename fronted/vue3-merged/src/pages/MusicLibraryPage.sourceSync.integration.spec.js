@@ -266,13 +266,16 @@ describe('MusicLibraryPage stored Folia account entry integration', () => {
 
   it('shows a loader error and retries against the current Folia entry', async () => {
     const originalFetch = globalThis.fetch;
-    globalThis.fetch = vi.fn().mockRejectedValue(new Error('temporary network failure'));
+    globalThis.fetch = vi.fn().mockResolvedValueOnce({ ok: true, text: async () => '<script type="module" src="/music/assets/unused-entry.js"></script>' }).mockRejectedValue(new Error('temporary network failure'));
     const wrapper = await mountPage({ teleport: true });
     try {
       window.dispatchEvent(new CustomEvent('shizuki:open-folia-mode'));
       for (let turn = 0; turn < 5; turn += 1) await flushPromises();
       let runtimeScript = document.querySelector('script[src="/music/runtime-config.js"]');
       expect(runtimeScript).toBeTruthy();
+      expect(globalThis.fetch).toHaveBeenCalledWith(expect.stringMatching(/^\/music\/\?__shizuki_embed=/), { cache: 'no-store' });
+      expect(document.querySelector('link[rel="modulepreload"][href="/music/assets/unused-entry.js"]')).toBeTruthy();
+      expect(document.querySelector('script[src="/music/assets/unused-entry.js"]')).toBeNull();
       runtimeScript.dispatchEvent(new Event('error'));
       for (let turn = 0; turn < 5; turn += 1) await flushPromises();
 
@@ -307,8 +310,10 @@ describe('MusicLibraryPage stored Folia account entry integration', () => {
       for (let turn = 0; turn < 4; turn += 1) await flushPromises();
       const mainScript = document.querySelector('script[src="/music/assets/Lattice-cold-entry.js"]');
       expect(mainScript).toBeTruthy();
-      document.getElementById('folia-embed-root').appendChild(document.createElement('div'));
       mainScript.dispatchEvent(new Event('load'));
+      await flushPromises();
+      expect(postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'shizuki:activate-playback-bridge' }), window.location.origin);
+      document.getElementById('folia-embed-root').appendChild(document.createElement('div'));
       for (let turn = 0; turn < 8; turn += 1) await flushPromises();
 
       expect(postMessage).toHaveBeenCalledWith(expect.objectContaining({ type: 'shizuki:activate-playback-bridge' }), window.location.origin);
@@ -415,6 +420,12 @@ describe('MusicLibraryPage stored Folia account entry integration', () => {
       mocked.player.currentTrack.value = current;
       await flushPromises();
 
+      const slowNext = deferred();
+      mocked.player.playNext.mockReturnValueOnce(slowNext.promise);
+      window.dispatchEvent(new MessageEvent('message', {
+        data: { type: 'shizuki:playback-command', action: 'next' }
+      }));
+      expect(mocked.player.playNext).toHaveBeenCalled();
       await wrapper.get('.folia-library-btn').trigger('click');
       await flushPromises();
       expect(mocked.router.push).toHaveBeenCalledWith({ name: 'music-library-queue' });
@@ -431,8 +442,42 @@ describe('MusicLibraryPage stored Folia account entry integration', () => {
         queue: [{ queueEntryId: 'queue-entry-first' }, { queueEntryId: 'queue-entry-current' }, { queueEntryId: 'queue-entry-last' }],
         playing: false
       });
+      const deliveredSessions = () => postMessage.mock.calls.filter(([message]) => message?.type === 'shizuki:follow-playback').length;
+      const afterReentry = deliveredSessions();
+      slowNext.resolve();
+      await flushPromises();
+      expect(deliveredSessions()).toBe(afterReentry);
     } finally {
       postMessage.mockRestore();
+      wrapper.unmount();
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it.each(['featured-trio', 'different-list'])('uses the host playlist on the player page only if its profile matches the queue (%s)', async (profileCode) => {
+    resetMocks({ authenticated: false });
+    mocked.player.playlistProfile.value = { playlistCode: profileCode, name: 'Featured trio' };
+    mocked.player.queueSourceContext.value = { kind: 'queue', sitePlaylistCode: 'featured-trio' };
+    const track = { id: 'one', trackId: 'one', title: 'One', provider: 'local', queueEntryId: 'one:1' };
+    mocked.player.tracks.value = [track];
+    mocked.player.currentTrack.value = track;
+    const entry = '/music/assets/featured-profile-' + profileCode + '.js';
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = vi.fn().mockResolvedValue({ ok: true, text: async () => `<script type="module" src="${entry}"></script>` });
+    const wrapper = await mountPage({ teleport: true });
+    const post = vi.spyOn(window, 'postMessage');
+    try {
+      await completeColdFoliaMount(entry);
+      const { session } = post.mock.calls.map(([message]) => message).find(message => message?.type === 'shizuki:follow-playback');
+      if (profileCode === 'featured-trio') {
+        expect(session.playlist).toMatchObject({ code: profileCode, name: 'Featured trio' });
+        expect(session.sourceContext.sitePlaylistCode).toBe(profileCode);
+      } else {
+        expect(session.playlist).toBeNull();
+        expect(session.sourceContext.sitePlaylistCode).toBeUndefined();
+      }
+    } finally {
+      post.mockRestore();
       wrapper.unmount();
       globalThis.fetch = originalFetch;
     }
@@ -466,7 +511,7 @@ describe('MusicLibraryPage stored Folia account entry integration', () => {
     }
   });
 
-  it('keeps the current queue when entry is cancelled during bootstrap', async () => {
+  it.each([false, true])('keeps the queue when cancelling bootstrap (module loaded: %s)', async (moduleLoaded) => {
     const originalFetch = globalThis.fetch;
     globalThis.fetch = vi.fn().mockResolvedValue({
       ok: true,
@@ -493,9 +538,14 @@ describe('MusicLibraryPage stored Folia account entry integration', () => {
       const mainScript = document.querySelector('script[src="/music/assets/Lattice-cancelled-entry.js"]');
       expect(mainScript).toBeTruthy();
 
+      if (moduleLoaded) {
+        mainScript.dispatchEvent(new Event('load'));
+        await flushPromises();
+      }
       await wrapper.get('.folia-library-btn').trigger('click');
       await flushPromises();
-      mainScript.dispatchEvent(new Event('load'));
+      if (!moduleLoaded) mainScript.dispatchEvent(new Event('load'));
+      document.getElementById('folia-embed-root').appendChild(document.createElement('div'));
       for (let turn = 0; turn < 8; turn += 1) await flushPromises();
 
       expect(mocked.player.tracks.value).toEqual(queue);
@@ -1259,6 +1309,35 @@ describe('MusicLibraryPage stored Folia account entry integration', () => {
     expect(mocked.player.replaceQueueWithTracks).not.toHaveBeenCalled();
     expect(mocked.player.playExternalTrack).not.toHaveBeenCalled();
     wrapper.unmount();
+  });
+
+  it('selects a featured queue row by provider and track ID when providers share an ID', async () => {
+    const queue = [
+      { id: 'shared', trackId: 'shared', provider: 'netease', queueEntryId: 'netease-shared', title: 'Netease copy' },
+      { id: 'shared', trackId: 'shared', provider: 'qq', queueEntryId: 'qq-shared', title: 'QQ copy' }
+    ];
+    mocked.player.tracks.value = queue;
+    mocked.player.currentTrack.value = queue[0];
+    mocked.player.selectTrackByIndex.mockImplementation(async (index) => {
+      mocked.player.currentTrack.value = queue[index];
+      return true;
+    });
+    const wrapper = await mountPage();
+
+    try {
+      const context = wrapper.vm.$.provides[MUSIC_LIBRARY_CONTEXT_KEY];
+      await context.playFeaturedTrack({ id: 'shared', trackId: 'shared', provider: 'qq' }, 1);
+
+      expect(mocked.player.selectTrackByIndex).toHaveBeenCalledWith(1, true);
+      expect(mocked.player.currentTrack.value.provider).toBe('qq');
+      await context.playSearchTrack({ id: 'shared', provider: 'netease' }, 0);
+      expect(mocked.player.selectTrackByIndex).toHaveBeenLastCalledWith(0, true);
+      await context.playSearchTrack({ id: 'shared', provider: 'qq' }, 1);
+      expect(mocked.player.selectTrackByIndex).toHaveBeenLastCalledWith(1, true);
+      expect(mocked.player.playExternalTrack).not.toHaveBeenCalled();
+    } finally {
+      wrapper.unmount();
+    }
   });
 
   it('persists Folia authorization, imports playlists, and refreshes the sidebar on normal entry', async () => {

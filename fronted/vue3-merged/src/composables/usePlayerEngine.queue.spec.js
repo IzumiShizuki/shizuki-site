@@ -75,6 +75,191 @@ describe('usePlayerEngine queue identity', () => {
     globalThis.fetch = originalFetch;
   });
 
+  async function createNextFixture(engineOptions) {
+    const pending = new Map();
+    vi.mocked(resolvePlaybackTrack).mockImplementation(({ trackId }) => new Promise((resolve, reject) => {
+      pending.set(trackId, { resolve, reject });
+    }));
+    const engine = usePlayerEngine(engineOptions);
+    await engine.replaceQueueWithTracks([
+      { provider: 'local', trackId: 'old', title: 'Playing', audio: 'https://audio.example.com/old.mp3' },
+      { provider: 'netease', trackId: 'next', title: 'Next pending', lyricText: '[00:00.00]next' },
+      { provider: 'netease', trackId: 'last', title: 'Latest pending', lyricText: '[00:00.00]last' }
+    ], 0, true);
+    await vi.waitFor(() => expect(pending.has('next')).toBe(true));
+    return { engine, pending };
+  }
+
+  async function prepareGatewayBuffer(engineOptions = {}, ready = true) {
+    const instances = [];
+    globalThis.Audio = class extends FakeAudio {
+      constructor() {
+        super();
+        this.readyState = ready ? 3 : 1;
+        this.buffered = { length: 1, start: () => 0, end: () => 3 };
+        this.loads = 0;
+        instances.push(this);
+      }
+      load() {
+        this.loads++;
+        super.load();
+      }
+    };
+    const { engine, pending } = await createNextFixture(engineOptions);
+    pending.get('next').resolve({ audio: '/api/v1/music/tracks/stream/test' });
+    await vi.waitFor(() => expect(instances).toHaveLength(2));
+    return { engine, first: instances[0], prepared: instances[1] };
+  }
+
+  it('plays the already buffered native media on Next without another load', async () => {
+    const promote = vi.fn();
+    const { engine, first, prepared } = await prepareGatewayBuffer({ onPlaybackElementPromoted: promote });
+    expect(prepared.paused).toBe(true);
+    expect(engine.audioElement).toBe(first);
+    const loadCount = prepared.loads;
+    await expect(engine.playNext()).resolves.toBe(true);
+    expect(engine.audioElement).toBe(prepared);
+    expect(prepared.loads).toBe(loadCount);
+    expect(first.src).toBe('');
+    first._emit('ended');
+    first._emit('error');
+    expect(engine.isPlaying.value).toBe(true);
+    expect(engine.currentTrack.value.trackId).toBe('next');
+    expect(promote).toHaveBeenCalledWith(prepared);
+    expect(resolvePlaybackTrack.mock.calls.filter(([request]) => request.trackId === 'next')).toHaveLength(1);
+  });
+
+  it('falls back to native foreground loading when the preload has not buffered enough', async () => {
+    const { engine, first, prepared } = await prepareGatewayBuffer({}, false);
+    await expect(engine.playNext()).resolves.toBe(true);
+    expect(engine.audioElement).toBe(first);
+    expect(first.src).toContain('/tracks/stream/test');
+    expect(prepared.src).toBe('');
+  });
+
+  it('empties the standby immediately when playback authorization changes', async () => {
+    const account = ref('a');
+    const { engine, first, prepared } = await prepareGatewayBuffer({ getPlaybackAuthorizationKey: () => account.value });
+    account.value = 'b';
+    expect(prepared.src).toBe('');
+    expect(engine.audioElement).toBe(first);
+    expect(first.paused).toBe(false);
+  });
+
+  it('does not prepare audio when a browser asks to save data', async () => {
+    const descriptor = Object.getOwnPropertyDescriptor(navigator, 'connection');
+    Object.defineProperty(navigator, 'connection', { configurable: true, value: { saveData: true } });
+    try {
+      const { engine, pending } = await createNextFixture();
+      const first = engine.audioElement;
+      pending.get('next').resolve({ audio: '/api/v1/music/tracks/stream/test' });
+      await Promise.resolve();
+      await Promise.resolve();
+      await expect(engine.playNext()).resolves.toBe(true);
+      expect(engine.audioElement).toBe(first);
+    } finally {
+      if (descriptor) Object.defineProperty(navigator, 'connection', descriptor);
+      else delete navigator.connection;
+    }
+  });
+
+  it('keeps the old audio and metadata until the manual Next URL is ready', async () => {
+    const { engine, pending } = await createNextFixture();
+    const handoff = engine.playNext();
+    expect(engine.currentTrack.value.trackId).toBe('old');
+    expect(engine.pendingNextTrack.value.trackId).toBe('next');
+    expect(engine.audioElement.paused).toBe(false);
+    expect(engine.audioElement.src).toContain('old.mp3');
+    pending.get('next').resolve({ audio: 'https://audio.example.com/next.mp3' });
+    await expect(handoff).resolves.toBe(true);
+    expect(engine.currentTrack.value.trackId).toBe('next');
+    expect(engine.audioElement.src).toContain('next.mp3');
+    expect(engine.pendingNextTrack.value).toBeNull();
+  });
+
+  it('rapid Next advances from the pending target and an old natural end does not skip it', async () => {
+    const { engine, pending } = await createNextFixture();
+    const first = engine.playNext();
+    const second = engine.playNext();
+    expect(engine.pendingNextTrack.value.trackId).toBe('last');
+    expect(engine.currentTrack.value.trackId).toBe('old');
+    engine.audioElement.ended = true;
+    engine.audioElement._emit('ended');
+    expect(engine.pendingNextTrack.value.trackId).toBe('last');
+    pending.get('last').resolve({ audio: 'https://audio.example.com/last.mp3' });
+    await expect(second).resolves.toBe(true);
+    pending.get('next').resolve({ audio: 'https://audio.example.com/late.mp3' });
+    await expect(first).resolves.toBe(false);
+    expect(engine.currentTrack.value.trackId).toBe('last');
+    expect(engine.audioElement.src).toContain('last.mp3');
+  });
+
+  it('pausing during resolution cancels Next and preserves the paused source for resume', async () => {
+    const { engine, pending } = await createNextFixture();
+    const handoff = engine.playNext();
+    engine.audioElement.currentTime = 12;
+    await engine.togglePlay();
+    expect(engine.pendingNextTrack.value).toBeNull();
+    expect(engine.audioElement.src).toContain('old.mp3');
+    expect(engine.audioElement.currentTime).toBe(12);
+    expect(engine.audioElement.paused).toBe(true);
+    pending.get('next').resolve({ audio: 'https://audio.example.com/late.mp3' });
+    await expect(handoff).resolves.toBe(false);
+    await engine.togglePlay();
+    expect(engine.currentTrack.value.trackId).toBe('old');
+    expect(engine.audioElement.paused).toBe(false);
+  });
+
+  it('keeps old audio on resolution failure and allows retry of the exact entry', async () => {
+    const { engine, pending } = await createNextFixture();
+    const handoff = engine.playNext();
+    const preparing = pending.get('next');
+    preparing.reject(new Error('offline'));
+    await vi.waitFor(() => expect(pending.get('next')).not.toBe(preparing));
+    const resolving = pending.get('next');
+    resolving.resolve({});
+    await expect(handoff).resolves.toBe(false);
+    expect(engine.nextTransitionError.value.trackId).toBe('next');
+    expect(engine.currentTrack.value.trackId).toBe('old');
+    expect(engine.audioElement.paused).toBe(false);
+    const retry = engine.retryNext();
+    await vi.waitFor(() => expect(pending.get('next')).not.toBe(resolving));
+    pending.get('next').resolve({ audio: 'https://audio.example.com/retry.mp3' });
+    await expect(retry).resolves.toBe(true);
+    expect(engine.nextTransitionError.value).toBeNull();
+    expect(engine.audioElement.src).toContain('retry.mp3');
+  });
+
+  it('starts after a failed target when the user chooses Next again instead of retry', async () => {
+    const { engine, pending } = await createNextFixture();
+    const handoff = engine.playNext();
+    const preparing = pending.get('next');
+    preparing.resolve({});
+    await vi.waitFor(() => expect(pending.get('next')).not.toBe(preparing));
+    pending.get('next').reject(new Error('unavailable'));
+    await expect(handoff).resolves.toBe(false);
+    const skip = engine.playNext();
+    expect(engine.pendingNextTrack.value.trackId).toBe('last');
+    pending.get('last').resolve({ audio: 'https://audio.example.com/last.mp3' });
+    await expect(skip).resolves.toBe(true);
+    expect(engine.currentTrack.value.trackId).toBe('last');
+  });
+
+  it.each(['queue reorder', 'playback mode', 'authorization'])('invalidates a deferred Next on %s', async (change) => {
+    const identity = ref('account-1');
+    const { engine, pending } = await createNextFixture({ getPlaybackAuthorizationKey: () => identity.value });
+    const handoff = engine.playNext();
+    const originalRequest = pending.get('next');
+    if (change === 'queue reorder') engine.reorderTracks(1, 2);
+    if (change === 'playback mode') engine.playMode.value = 'single';
+    if (change === 'authorization') identity.value = 'account-2';
+    expect(engine.pendingNextTrack.value).toBeNull();
+    originalRequest.resolve({ audio: 'https://audio.example.com/stale.mp3' });
+    await expect(handoff).resolves.toBe(false);
+    expect(engine.audioElement.src).toContain('old.mp3');
+    expect(engine.audioElement.paused).toBe(false);
+  });
+
   it('publishes selected track metadata while its cold audio URL is resolving', async () => {
     let finishResolve;
     vi.mocked(resolvePlaybackTrack).mockImplementation(() => new Promise((resolve) => { finishResolve = resolve; }));
@@ -305,6 +490,45 @@ describe('usePlayerEngine queue identity', () => {
     await loading;
 
     expect(engine.tracks.value.map((track) => track.trackId)).toEqual(['explicit']);
+  });
+
+  it('loads a large playlist without creating stream probes and starts selected media only on Play', async () => {
+    const createAudio = vi.fn(function () { return new FakeAudio(); });
+    globalThis.Audio = createAudio;
+    globalThis.fetch = vi.fn();
+    vi.mocked(getPlaylistBundleByCode).mockResolvedValue({
+      tracks: Array.from({ length: 1000 }, (_, i) => ({
+        provider: 'local', trackId: String(i), title: `Track ${i}`, audio: `/tracks/${i}.mp3`,
+        ...(i === 0 ? { lyricText: '[00:00.00]inline', lyric: '/tracks/0.lrc' } : {}),
+        ...(i === 1 ? { duration_sec: 127 } : {})
+      }))
+    });
+    const engine = usePlayerEngine();
+    await engine.loadPlaylistByCode('catalogue');
+    expect(createAudio).toHaveBeenCalledTimes(1);
+    expect(engine.audioElement.src).toBe('');
+    expect(engine.currentTrack.value?.title).toBe('Track 0');
+    expect(engine.lyricContext.value.current).toBe('inline');
+    expect(engine.tracks.value[1]).toMatchObject({ durationSec: 127, durationLabel: '02:07' });
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+    await expect(engine.togglePlay()).resolves.toBe(true);
+    expect(engine.audioElement.src).toBe('/tracks/0.mp3');
+    expect(engine.audioElement.paused).toBe(false);
+    await engine.togglePlay();
+    expect(engine.audioElement.paused).toBe(true);
+    await engine.togglePlay();
+    expect(engine.audioElement.paused).toBe(false);
+    await engine.playNext(true);
+    expect(engine.audioElement.src).toBe('/tracks/1.mp3');
+  });
+
+  it('does not replace the queue for repeated readiness events with the same duration', async () => {
+    const engine = usePlayerEngine();
+    await engine.replaceQueueWithTracks([{ provider: 'local', trackId: 'stable', audio: '/stable.mp3' }], 0, false);
+    const queueAfterDuration = engine.tracks.value;
+    engine.audioElement._emit('durationchange');
+    engine.audioElement._emit('canplay');
+    expect(engine.tracks.value).toBe(queueAfterDuration);
   });
 
   it('preserves API playlist track counts from either naming convention', async () => {
@@ -1030,6 +1254,29 @@ describe('usePlayerEngine queue identity', () => {
     expect([...displayedEntryIds].sort()).toEqual(engine.tracks.value.map((track) => track.queueEntryId).sort());
   });
 
+  it('keeps every repeated track entry in large randomized queues', async () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0.25);
+    const engine = usePlayerEngine();
+    await engine.replaceQueueWithTracks(
+      Array.from({ length: 1500 }, (_, i) => ({
+        provider: 'local', trackId: `song-${i % 233}`, title: `Occurrence ${i}`,
+        audio: `https://audio.example.com/${i}.mp3`
+      })),
+      0,
+      false
+    );
+
+    engine.playMode.value = 'random';
+
+    const original = engine.tracks.value;
+    const ordered = engine.queueDisplayTracks.value;
+    const entries = ordered.map((track) => track.queueEntryId);
+    expect(new Set(entries).size).toBe(1500);
+    expect([...entries].sort()).toEqual(original.map((track) => track.queueEntryId).sort());
+    const duplicateEntries = (tracks) => tracks.filter((track) => track.id === 'song-0').map((track) => track.queueEntryId);
+    expect(duplicateEntries(ordered)).toEqual(duplicateEntries(original));
+  });
+
   it('keeps the queueEntryId stable when a track is lazily resolved for playback', async () => {
     vi.mocked(resolvePlaybackTrack).mockResolvedValue({
       audio: 'https://audio.example.com/resolved.mp3',
@@ -1076,12 +1323,43 @@ describe('usePlayerEngine queue identity', () => {
   it('keeps enqueueNextTrack dedup behavior and identity presence', async () => {
     const engine = usePlayerEngine();
     await engine.enqueueNextTrack({ provider: 'local', trackId: 'x', title: 'X', artist: 'S', audio: 'https://audio.example.com/x.mp3' });
+    const queueEntryId = engine.tracks.value[0].queueEntryId;
     await engine.enqueueNextTrack({ provider: 'local', trackId: 'x', title: 'X updated', artist: 'S', audio: 'https://audio.example.com/x2.mp3' });
 
     expect(engine.tracks.value).toHaveLength(1);
     expect(engine.tracks.value[0].title).toBe('X updated');
+    expect(engine.tracks.value[0].queueEntryId).toBe(queueEntryId);
     expect(typeof engine.tracks.value[0].queueEntryId).toBe('string');
     expect(engine.tracks.value[0].queueEntryId.trim().length).toBeGreaterThan(0);
+  });
+
+  it('keeps same-ID queue entries from different providers distinct', async () => {
+    const engine = usePlayerEngine();
+    await engine.enqueueNextTrack({ provider: 'netease', trackId: 'shared', title: 'Netease', audio: 'https://audio.example.com/netease.mp3' });
+    await engine.enqueueNextTrack({ provider: 'qq', trackId: 'shared', title: 'QQ', audio: 'https://audio.example.com/qq.mp3' });
+
+    expect(engine.tracks.value.map((track) => [track.provider, track.trackId])).toEqual([
+      ['netease', 'shared'], ['qq', 'shared']
+    ]);
+    expect(new Set(engine.tracks.value.map((track) => track.queueEntryId)).size).toBe(2);
+  });
+
+  it('advances and returns by queue entry identity for same-ID cross-provider tracks in random mode', async () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0);
+    vi.mocked(resolvePlaybackTrack).mockImplementation(async ({ provider }) => ({
+      audio: `https://audio.example.com/${provider}.mp3`
+    }));
+    const engine = usePlayerEngine();
+    await engine.replaceQueueWithTracks([
+      { provider: 'netease', trackId: 'shared', title: 'Netease', audio: 'https://audio.example.com/netease.mp3' },
+      { provider: 'qq', trackId: 'shared', title: 'QQ', audio: 'https://audio.example.com/qq.mp3' }
+    ], 0, false);
+    engine.playMode.value = 'random';
+
+    await engine.playNext();
+    expect(engine.currentTrack.value?.provider).toBe('qq');
+    await engine.playPrev();
+    expect(engine.currentTrack.value?.provider).toBe('netease');
   });
 
   it('removeQueueItem removes by queueEntryId among duplicate entries', () => {

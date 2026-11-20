@@ -1,3 +1,4 @@
+import { canAttachMediaElementAudioGraph } from '../utils/mediaElementAudioGraph';
 import { computed, getCurrentInstance, onBeforeUnmount, ref, watch } from 'vue';
 import { absolutizeApiUrl } from '../services/apiBase';
 import { getPlaylistBundleByCode, resolvePlaybackTrack, fetchAmllLyric } from '../services/musicApi';
@@ -423,27 +424,136 @@ export function usePlayerEngine(options = {}) {
   const playbackResolveAttempted = ref(new Set());
   const preparedPlayback = new Map();
   const PREPARED_PLAYBACK_TTL_MS = 30_000;
+  // The gateway token has a minimum lifetime of 60 seconds from issuance.
+  const GATEWAY_PREPARATION_TTL_MS = 45_000;
+  const STANDBY_LOAD_LIMIT_MS = 2_000;
+  const musicGatewayPath = '/api/v1/music/tracks/stream/';
+
+  function isSameOriginGatewaySource(source) {
+    try {
+      const page = new URL(window.location.href);
+      const url = new URL(source, page);
+      return url.origin === page.origin && url.pathname.startsWith(musicGatewayPath);
+    } catch {
+      return false;
+    }
+  }
+
   let selectionGeneration = 0;
   let pendingAutoplaySelection = null;
+  let failedNextAnchor = null;
+  const pendingNextEntryId = ref(null);
+  const nextTransitionError = ref(null);
+  const nextTransitionPhases = ['click', 'resolved', 'loadstart', 'buffer-hit', 'playing', 'failed'];
+
+  // Bounded, local Performance Timeline diagnostic; no track IDs, URLs or user data.
+  function markNextTransition(phase) {
+    if (typeof globalThis.performance?.mark !== 'function') return;
+    if (phase === 'click') {
+      for (const item of nextTransitionPhases) globalThis.performance.clearMarks(`music-next:${item}`);
+    }
+    globalThis.performance.mark(`music-next:${phase}`);
+  }
   let disposed = false;
   let preparationGeneration = 0;
   let preparationInFlight = null;
   let activePreparationKey = '';
   let activePreparationAttempts = 0;
+  let needsMidTrackRefresh = false;
   const authorizationFetchIds = new WeakMap();
   let authorizationFetchSequence = 0;
 
-  const audioElement = new Audio();
-  audioElement.preload = 'metadata';
-  audioElement.volume = volume.value;
+  const engineOptions = options;
+  let audioElement = new Audio();
+  configureAudioElement(audioElement);
+  let spareAudio = null;
+  let standby = null;
 
-  function clearAudioSource() {
-    if (typeof audioElement.removeAttribute === 'function') {
-      audioElement.removeAttribute('src');
-      audioElement.load();
+  function configureAudioElement(element) {
+    element.preload = 'metadata';
+    element.volume = volume.value;
+  }
+
+  function clearAudioSource(element = audioElement) {
+    if (typeof element.removeAttribute === 'function') {
+      element.removeAttribute('src');
+      element.load();
       return;
     }
-    audioElement.src = '';
+    element.src = '';
+  }
+
+  function discardStandby() {
+    if (!standby) return;
+    const { element, timer, abandon } = standby;
+    standby = null;
+    clearTimeout(timer);
+    element.removeEventListener('error', abandon);
+    clearAudioSource(element);
+  }
+
+  function allowStandbyNetwork() {
+    const net = globalThis.navigator?.connection;
+    return !net?.saveData && net?.type !== 'cellular'
+      && !['slow-2g', '2g', '3g'].includes(net?.effectiveType)
+      && globalThis.document?.visibilityState !== 'hidden';
+  }
+
+  function prepareStandby(key, payload) {
+    const source = String(payload?.audio || '').trim();
+    if (disposed || !isPlaying.value || pendingAutoplaySelection || !allowStandbyNetwork()
+      || !isSameOriginGatewaySource(source) || payload?.preview === true || payload?.isPreview === true
+      || payload?.is_preview === true || payload?.metadata?.isPreview === true
+      || payload?.metadata?.is_preview === true || payload?.metadata?.preview_only === true
+      || [payload?.playbackKind, payload?.playback_kind, payload?.metadata?.playbackKind, payload?.metadata?.playback_kind]
+        .some((kind) => String(kind || '').toLowerCase() === 'preview')) return;
+    discardStandby();
+    if (!spareAudio) {
+      spareAudio = new Audio();
+      configureAudioElement(spareAudio);
+      bindAudioEvents(spareAudio);
+    }
+    const element = spareAudio;
+    const abandon = () => {
+      if (standby?.element === element) discardStandby();
+    };
+    standby = { key, source, element, abandon, timer: setTimeout(() => {
+      if (element.readyState < 3 || element.networkState === 2) abandon();
+    }, STANDBY_LOAD_LIMIT_MS) };
+    element.addEventListener('error', abandon);
+    element.src = source;
+    // Retain this exact native media resource, not a separate Range request
+    // whose bytes the playback element might have to fetch a second time.
+    element.load();
+  }
+
+  function takeReadyStandby(key, track) {
+    const slot = standby;
+    if (!slot || slot.key !== key || slot.source !== track.audio
+      || slot.element.error || slot.element.readyState < 3) return null;
+    // A suspended metadata preload may report an empty TimeRanges in Chromium
+    // even though the decoder has startup data (HAVE_FUTURE_DATA or above).
+    clearTimeout(slot.timer);
+    slot.element.removeEventListener('error', slot.abandon);
+    standby = null;
+    return slot.element;
+  }
+
+  function setActiveAudioSource(source) {
+    // A Web Audio-routed element is silent for non-CORS remote media. Do not
+    // reuse it for such a URL; keep that route on native audio as before mixing.
+    if (engineOptions.isPlaybackElementRouted?.(audioElement)
+      && !canAttachMediaElementAudioGraph({ src: source })) {
+      const previous = audioElement;
+      audioElement = new Audio();
+      configureAudioElement(audioElement);
+      bindAudioEvents(audioElement);
+      previous.pause();
+      clearAudioSource(previous);
+      engineOptions.releasePlaybackElement?.(previous);
+    }
+    audioElement.src = source;
+    audioElement.load();
   }
 
   function hasActiveAudioSource() {
@@ -469,15 +579,20 @@ export function usePlayerEngine(options = {}) {
     return tracks.value[currentIndex.value] || null;
   });
 
+  const pendingNextTrack = computed(() => pendingNextEntryId.value
+    ? tracks.value.find((track) => track.queueEntryId === pendingNextEntryId.value) || null : null);
+
   const queueDisplayTracks = computed(() => {
     if (playMode.value !== 'random' || !randomQueue.value.length) return tracks.value;
-    const remaining = tracks.value.slice();
+    const remaining = new Map(tracks.value.map(track => [track.queueEntryId, track]));
     const ordered = [];
-    randomQueue.value.forEach((id) => {
-      const index = remaining.findIndex((track) => track.id === id);
-      if (index >= 0) ordered.push(remaining.splice(index, 1)[0]);
-    });
-    return [...ordered, ...remaining];
+    for (const entryId of randomQueue.value) {
+      if (!remaining.has(entryId)) continue;
+      ordered.push(remaining.get(entryId));
+      remaining.delete(entryId);
+    }
+    for (const track of remaining.values()) ordered.push(track);
+    return ordered;
   });
 
   const expectedDuration = computed(() => {
@@ -503,24 +618,26 @@ export function usePlayerEngine(options = {}) {
       );
   });
 
-  function resetRandomQueue(anchorId = currentTrackId.value) {
-    const ids = tracks.value.map((t) => t.id);
-    if (!ids.length) {
-      randomQueue.value = [];
-      return;
-    }
-
-    for (let i = ids.length - 1; i > 0; i -= 1) {
+  function resetRandomQueue(anchorQueueEntryId = currentQueueEntryId.value) {
+    const shuffled = [...tracks.value];
+    for (let i = shuffled.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
-      [ids[i], ids[j]] = [ids[j], ids[i]];
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
     }
+    const anchorIndex = shuffled.findIndex(track => track.queueEntryId === anchorQueueEntryId);
+    if (anchorIndex > 0) [shuffled[0], shuffled[anchorIndex]] = [shuffled[anchorIndex], shuffled[0]];
 
-    if (anchorId && ids.includes(anchorId) && ids[0] !== anchorId) {
-      const idx = ids.indexOf(anchorId);
-      [ids[0], ids[idx]] = [ids[idx], ids[0]];
+    // Keep occurrences of a song in queue order, excluding the pinned occurrence.
+    const occurrences = new Map();
+    for (let index = tracks.value.length - 1; index >= 0; index--) {
+      const track = tracks.value[index];
+      if (track.queueEntryId === anchorQueueEntryId) continue;
+      const key = buildResolveKey(track);
+      if (!occurrences.has(key)) occurrences.set(key, []);
+      occurrences.get(key).push(track.queueEntryId);
     }
-
-    randomQueue.value = ids;
+    randomQueue.value = shuffled.map(track => track.queueEntryId === anchorQueueEntryId
+      ? anchorQueueEntryId : occurrences.get(buildResolveKey(track)).pop());
   }
 
   function updateLyricState(timeSec) {
@@ -882,14 +999,13 @@ export function usePlayerEngine(options = {}) {
   function getNextPreparationTrack() {
     if (!currentTrack.value || tracks.value.length < 2 || playMode.value === 'single') return null;
     if (playMode.value === 'random') {
-      if (randomQueue.value.length !== tracks.value.length || !randomQueue.value.includes(currentTrackId.value)) {
-        resetRandomQueue(currentTrackId.value);
-      }
-      const currentOrderIndex = randomQueue.value.indexOf(currentTrackId.value);
-      const nextId = randomQueue.value[(currentOrderIndex + 1) % randomQueue.value.length];
-      return tracks.value.find((track) => track.id === nextId) || null;
+      if (randomQueue.value.length !== tracks.value.length) return null;
+      const currentOrderIndex = randomQueue.value.indexOf(currentQueueEntryId.value);
+      if (currentOrderIndex < 0) return null;
+      const nextQueueEntryId = randomQueue.value[(currentOrderIndex + 1) % randomQueue.value.length];
+      return tracks.value.find((track) => track.queueEntryId === nextQueueEntryId) || null;
     }
-    const current = tracks.value.findIndex((track) => track.queueEntryId === currentTrack.value?.queueEntryId);
+    const current = currentIndex.value;
     if (current < 0) return null;
     return tracks.value[(current + 1) % tracks.value.length] || null;
   }
@@ -945,24 +1061,34 @@ export function usePlayerEngine(options = {}) {
     return prepared.payload;
   }
 
+  const nextPreparationTrack = computed(getNextPreparationTrack);
+
   function scheduleNextTrackPreparation() {
-    const nextTrack = getNextPreparationTrack();
+    const nextTrack = nextPreparationTrack.value;
     const canPrepare = nextTrack && supportsPlaybackResolve(nextTrack.provider);
     const context = canPrepare ? getPreparationContext(nextTrack) : null;
     const key = context ? getPreparationKey(nextTrack, context) : '';
     if (key !== activePreparationKey) {
       preparedPlayback.clear();
+      discardStandby();
       activePreparationKey = key;
       activePreparationAttempts = 0;
+      needsMidTrackRefresh = false;
       preparationGeneration += 1;
     }
-    if (!isPlaying.value) return;
+    if (!isPlaying.value) {
+      if (!pendingAutoplaySelection) discardStandby();
+      return;
+    }
+    if (pendingAutoplaySelection) return;
+    if (standby && !findPreparedPlayback(nextTrack, context)) discardStandby();
     if (!key || findPreparedPlayback(nextTrack, context)) return;
     if (activePreparationAttempts >= 2) return;
-    if (activePreparationAttempts === 1 && !isNearTrackEnd()) return;
+    if (activePreparationAttempts === 1 && !isNearTrackEnd() && !needsMidTrackRefresh) return;
     if (preparationInFlight?.key === key) return;
     const generation = preparationGeneration;
     if (preparationInFlight) return;
+    const startedAt = Date.now();
 
     activePreparationAttempts += 1;
     const preparation = { key, generation, promise: null };
@@ -983,11 +1109,19 @@ export function usePlayerEngine(options = {}) {
           forceRefresh: Boolean(nextTrack.audio)
         }, context.authorizedFetch);
         const stillCurrent = generation === preparationGeneration
-          && getPreparationKey(getNextPreparationTrack()) === key
+          && getPreparationKey(nextPreparationTrack.value) === key
           && getAuthorizedFetch() === context.authorizedFetch
           && getPreparationContext(nextTrack).authorizationKey === context.authorizationKey;
         if (stillCurrent && payload && typeof payload === 'object' && String(payload.audio || '').trim()) {
-          preparedPlayback.set(key, { payload, expiresAt: Date.now() + PREPARED_PLAYBACK_TTL_MS });
+          const gateway = isSameOriginGatewaySource(payload.audio);
+          needsMidTrackRefresh = gateway;
+          const ttl = gateway ? GATEWAY_PREPARATION_TTL_MS : PREPARED_PLAYBACK_TTL_MS;
+          preparedPlayback.set(key, { payload, expiresAt: startedAt + ttl });
+          try {
+            if (findPreparedPlayback(nextTrack, context)) prepareStandby(key, payload);
+          } catch {
+            discardStandby();
+          }
         }
         return payload && typeof payload === 'object' && String(payload.audio || '').trim() ? payload : null;
       } catch {
@@ -1001,13 +1135,14 @@ export function usePlayerEngine(options = {}) {
   }
 
   function invalidatePlaybackPreparation() {
+    discardStandby();
     preparedPlayback.clear();
     activePreparationKey = '';
     scheduleNextTrackPreparation();
   }
 
   watch(
-    [tracks, currentTrackId, playMode, randomQueue, isPlaying, currentTime, duration, expectedDuration, () => playlistProfile.value?.playlistCode, () => getAuthorizedFetch(), () => options?.getPlaybackAuthorizationKey?.()],
+    [nextPreparationTrack, isPlaying, currentTime, duration, expectedDuration, () => playlistProfile.value?.playlistCode, () => getAuthorizedFetch(), () => options?.getPlaybackAuthorizationKey?.()],
     scheduleNextTrackPreparation,
     { flush: 'post' }
   );
@@ -1039,6 +1174,7 @@ export function usePlayerEngine(options = {}) {
         },
         getAuthorizedFetch()
       );
+      if (options?.requireFreshAudio && !String(payload?.audio || '').trim()) return null;
       const resolved = normalizeTrack(
         {
           ...mergeResolvedPlaybackTrack(track, payload),
@@ -1062,7 +1198,7 @@ export function usePlayerEngine(options = {}) {
       });
       return resolved;
     } catch {
-      return track;
+      return options?.requireFreshAudio ? null : track;
     }
   }
 
@@ -1093,8 +1229,7 @@ export function usePlayerEngine(options = {}) {
     if (!nextAudio || nextAudio === previousAudio) return false;
 
     try {
-      audioElement.src = nextAudio;
-      audioElement.load();
+      setActiveAudioSource(nextAudio);
       loadSelectedTrackLyrics(resolved, queueEntryId, isCurrent);
       if (!isCurrent()) return false;
       await audioElement.play();
@@ -1112,32 +1247,72 @@ export function usePlayerEngine(options = {}) {
     if (index < 0 || index >= tracks.value.length) return false;
     const generation = ++selectionGeneration;
     const queueEntryId = tracks.value[index]?.queueEntryId;
-    pendingAutoplaySelection = autoPlay ? { generation, queueEntryId } : null;
+    const preservePlayingMedia = options.manualNext === true
+      && isPlaying.value && hasActiveAudioSource() && !audioElement.paused && !audioElement.ended;
+    const nextMode = playMode.value;
+    const nextQueueGeneration = queueReplacementGeneration;
+    // A second manual Next may use the failed/pending anchor to skip ahead, but ordinary
+    // selections reset it. Do not expose an unplayable target as the current track.
+    failedNextAnchor = null;
+    nextTransitionError.value = null;
+    pendingNextEntryId.value = options.manualNext ? queueEntryId : null;
+    let mediaCommitted = false;
+    pendingAutoplaySelection = autoPlay ? {
+      generation, queueEntryId, manualNext: options.manualNext === true,
+      preservePlayingMedia, nextMode, nextQueueGeneration, mediaCommitted: false
+    } : null;
     const clearPendingAutoplay = () => {
-      if (pendingAutoplaySelection?.generation === generation) pendingAutoplaySelection = null;
+      if (pendingAutoplaySelection?.generation === generation) {
+        pendingAutoplaySelection = null;
+        pendingNextEntryId.value = null;
+      }
     };
     const initialTrack = tracks.value[index];
+    if (standby && (!autoPlay || standby.key !== getPreparationKey(initialTrack))) discardStandby();
     const authContext = getPreparationContext(initialTrack);
     const isCurrentSelection = () => generation === selectionGeneration
       && !disposed
       && tracks.value.some((item) => item.queueEntryId === queueEntryId)
       && getAuthorizedFetch() === authContext.authorizedFetch
-      && getPreparationContext(initialTrack).authorizationKey === authContext.authorizationKey;
+      && getPreparationContext(initialTrack).authorizationKey === authContext.authorizationKey
+      && (!options.manualNext || mediaCommitted
+        || (nextMode === playMode.value && nextQueueGeneration === queueReplacementGeneration
+          && authContext.playlistCode === getPreparationContext(initialTrack).playlistCode));
+    function reportNextFailure() {
+      if (!options.manualNext || generation !== selectionGeneration) return;
+      failedNextAnchor = { queueEntryId, nextMode, nextQueueGeneration };
+      nextTransitionError.value = initialTrack;
+      markNextTransition('failed');
+    }
     const shouldResolve = options?.resolveIfMissing === true || (options?.resolveIfMissing !== false && autoPlay);
     let track = tracks.value[index];
-    currentTrackId.value = track.id;
-    currentQueueEntryId.value = queueEntryId;
-    currentTime.value = 0;
-    duration.value = 0;
-    lyricLoadGeneration += 1;
-    lyricEntries.value = [];
-    lyricTimeline.value = [];
-    currentLyricIndex.value = -1;
-    currentLyricEntryIndex.value = -1;
-    currentLyricLine.value = '';
-    audioElement.pause();
-    clearAudioSource();
-    isPlaying.value = false;
+    let bufferedKey = '';
+    function switchVisibleTrack(nextTrack, clearSource = true) {
+      currentTrackId.value = nextTrack.id;
+      currentQueueEntryId.value = queueEntryId;
+      currentTime.value = 0;
+      duration.value = 0;
+      lyricLoadGeneration += 1;
+      lyricEntries.value = [];
+      lyricTimeline.value = [];
+      currentLyricIndex.value = -1;
+      currentLyricEntryIndex.value = -1;
+      currentLyricLine.value = '';
+      audioElement.pause();
+      if (clearSource) clearAudioSource();
+      isPlaying.value = false;
+    }
+    if (!preservePlayingMedia) switchVisibleTrack(track);
+    if (!autoPlay && options.deferMedia === true) {
+      const inline = readLyricTrackTexts(track);
+      applyLyricTimeline(buildSiteLyricTimeline({
+        lyricText: inline.original,
+        tlyricText: inline.translation,
+        romalrcText: inline.furigana
+      }));
+      clearPendingAutoplay();
+      return true;
+    }
     const shouldRefreshPlayback = Boolean(
       autoPlay
       && track?.audio
@@ -1162,11 +1337,18 @@ export function usePlayerEngine(options = {}) {
           return false;
         }
       }
+      if (!isCurrentSelection()) {
+        clearPendingAutoplay();
+        return false;
+      }
       const preparedKey = preparedPayload ? candidateKey : '';
-      track = await resolveTrackPlayback(index, {
+      if (preparedKey && autoPlay && findPreparedPlayback(track, context)) bufferedKey = preparedKey;
+      const latestIndex = tracks.value.findIndex((entry) => entry.queueEntryId === queueEntryId);
+      track = await resolveTrackPlayback(latestIndex, {
         force: shouldRefreshPlayback || Boolean(preparedPayload),
         bypassCache: shouldRefreshPlayback && !preparedPayload,
         preparedPayload,
+        requireFreshAudio: preservePlayingMedia,
         isCurrent: isCurrentSelection
       });
       if (!isCurrentSelection()) {
@@ -1179,7 +1361,13 @@ export function usePlayerEngine(options = {}) {
       clearPendingAutoplay();
       return false;
     }
+    if (preservePlayingMedia && !track?.audio) {
+      reportNextFailure();
+      clearPendingAutoplay();
+      return false;
+    }
     if (!track) {
+      reportNextFailure();
       clearPendingAutoplay();
       return false;
     }
@@ -1192,14 +1380,38 @@ export function usePlayerEngine(options = {}) {
       duration.value = 0;
       isPlaying.value = false;
       loadSelectedTrackLyrics(track, queueEntryId, isCurrentSelection);
+      reportNextFailure();
       clearPendingAutoplay();
       return false;
     }
 
+    if (options.manualNext) {
+      markNextTransition('resolved');
+      pendingAutoplaySelection.mediaCommitted = true;
+      mediaCommitted = true;
+    }
+    const buffered = bufferedKey ? takeReadyStandby(bufferedKey, track) : null;
+    discardStandby();
+    if (buffered) {
+      const old = audioElement;
+      audioElement = buffered;
+      spareAudio = old;
+      // Change ownership before clearing the old source. Any queued old events are stale.
+      old.pause();
+      clearAudioSource(old);
+      configureAudioElement(buffered);
+      // Visualization is optional and must never prevent playback.
+      try { engineOptions.onPlaybackElementPromoted?.(buffered); } catch { /* native playback */ }
+      if (options.manualNext) markNextTransition('buffer-hit');
+    }
+    if (preservePlayingMedia) switchVisibleTrack(track, false);
     currentTrackId.value = track.id;
     currentQueueEntryId.value = queueEntryId;
-    audioElement.src = track.audio;
-    audioElement.load();
+    if (buffered) {
+      syncDuration();
+    } else {
+      setActiveAudioSource(track.audio);
+    }
     loadSelectedTrackLyrics(track, queueEntryId, isCurrentSelection);
 
     if (autoPlay) {
@@ -1210,16 +1422,29 @@ export function usePlayerEngine(options = {}) {
           return false;
         }
         isPlaying.value = true;
+        if (options.manualNext) markNextTransition('playing');
         clearPendingAutoplay();
         scheduleNextTrackPreparation();
         return true;
-      } catch {
+      } catch (error) {
         if (!isCurrentSelection()) {
           clearPendingAutoplay();
           return false;
         }
+        if (options.manualNext && error?.name === 'NotAllowedError') {
+          // The browser blocked playback, not this URL. A fresh media link cannot fix that.
+          reportNextFailure();
+          clearPendingAutoplay();
+          return false;
+        }
+        if (!options.manualNext) clearPendingAutoplay();
+        const recovered = await recoverPlaybackWithFreshSource(queueEntryId, track.audio, isCurrentSelection);
+        if (options.manualNext && isCurrentSelection()) {
+          if (recovered) markNextTransition('playing');
+          else reportNextFailure();
+        }
         clearPendingAutoplay();
-        return recoverPlaybackWithFreshSource(queueEntryId, track.audio, isCurrentSelection);
+        return recovered;
       }
     }
     clearPendingAutoplay();
@@ -1233,18 +1458,23 @@ export function usePlayerEngine(options = {}) {
       return;
     }
     if (!currentTrack.value) return;
-    if (pendingAutoplaySelection?.queueEntryId === currentTrack.value.queueEntryId) {
+    if (pendingAutoplaySelection?.generation === selectionGeneration
+      && (pendingAutoplaySelection.preservePlayingMedia
+        || pendingAutoplaySelection.queueEntryId === currentTrack.value.queueEntryId)) {
+      const keepSource = pendingAutoplaySelection.preservePlayingMedia && !pendingAutoplaySelection.mediaCommitted;
       selectionGeneration += 1;
       pendingAutoplaySelection = null;
+      pendingNextEntryId.value = null;
+      failedNextAnchor = null;
+      nextTransitionError.value = null;
       audioElement.pause();
-      clearAudioSource();
+      if (!keepSource) clearAudioSource();
       isPlaying.value = false;
       return false;
     }
-    if (!currentTrack.value.audio) {
+    if (!currentTrack.value.audio || !hasActiveAudioSource()) {
       const idx = currentIndex.value >= 0 ? currentIndex.value : 0;
-      await selectTrackByIndex(idx, true);
-      return;
+      return selectTrackByIndex(idx, true);
     }
 
     const queueEntryId = currentTrack.value.queueEntryId;
@@ -1279,39 +1509,56 @@ export function usePlayerEngine(options = {}) {
   }
 
   async function playNext(forceSequential = false, options = {}) {
-    if (!tracks.value.length) return;
-    const idx = currentIndex.value < 0 ? 0 : currentIndex.value;
+    if (!tracks.value.length) return false;
+    const manualNext = options?.stopAtTail !== true;
     const mode = forceSequential ? 'sequential' : playMode.value;
-    if (mode === 'sequential' && options?.stopAtTail === true && idx >= tracks.value.length - 1) {
+    const anchor = manualNext && [pendingAutoplaySelection?.manualNext ? pendingAutoplaySelection : null, failedNextAnchor]
+      .find((candidate) => candidate?.nextMode === playMode.value
+        && candidate.nextQueueGeneration === queueReplacementGeneration);
+    const pendingIndex = anchor
+      ? tracks.value.findIndex((entry) => entry.queueEntryId === anchor.queueEntryId) : -1;
+    const idx = pendingIndex >= 0 ? pendingIndex : Math.max(0, currentIndex.value);
+    if (mode === 'sequential' && !manualNext && idx >= tracks.value.length - 1) {
       audioElement.pause();
       isPlaying.value = false;
-      return;
+      return false;
     }
+    if (manualNext) markNextTransition('click');
+    const selectionOptions = { manualNext };
     if (mode === 'random') {
-      if (randomQueue.value.length !== tracks.value.length || !randomQueue.value.includes(currentTrackId.value)) {
-        resetRandomQueue(currentTrackId.value);
-      }
-      const q = randomQueue.value;
-      const qi = q.indexOf(currentTrackId.value);
-      const nextId = q[(qi + 1 + q.length) % q.length];
-      const nextIndex = tracks.value.findIndex((t) => t.id === nextId);
-      await selectTrackByIndex(nextIndex >= 0 ? nextIndex : 0, true);
-      return;
+      // The rendered order keeps duplicate entries distinct, so rapid Next advances
+      // from the latest pending occurrence rather than from its shared track ID.
+      const anchorEntryId = tracks.value[idx]?.queueEntryId;
+      const ordered = queueDisplayTracks.value;
+      const position = ordered.findIndex((entry) => entry.queueEntryId === anchorEntryId);
+      const nextEntryId = ordered[(position + 1) % ordered.length]?.queueEntryId;
+      const nextIndex = tracks.value.findIndex((entry) => entry.queueEntryId === nextEntryId);
+      return selectTrackByIndex(nextIndex >= 0 ? nextIndex : 0, true, selectionOptions);
     }
     const nextIndex = pickNextIndex({ mode, currentIndex: idx, tracksLen: tracks.value.length });
-    await selectTrackByIndex(nextIndex, true);
+    return selectTrackByIndex(nextIndex, true, selectionOptions);
+  }
+
+  async function retryNext() {
+    const anchor = failedNextAnchor;
+    if (!anchor || anchor.nextMode !== playMode.value
+      || anchor.nextQueueGeneration !== queueReplacementGeneration) return false;
+    const index = tracks.value.findIndex((entry) => entry.queueEntryId === anchor.queueEntryId);
+    if (index < 0) return false;
+    markNextTransition('click');
+    return selectTrackByIndex(index, true, { manualNext: true });
   }
 
   async function playPrev() {
     if (!tracks.value.length) return;
     if (playMode.value === 'random') {
-      if (randomQueue.value.length !== tracks.value.length || !randomQueue.value.includes(currentTrackId.value)) {
-        resetRandomQueue(currentTrackId.value);
+      if (randomQueue.value.length !== tracks.value.length || !randomQueue.value.includes(currentQueueEntryId.value)) {
+        resetRandomQueue(currentQueueEntryId.value);
       }
       const q = randomQueue.value;
-      const qi = q.indexOf(currentTrackId.value);
-      const prevId = q[(qi - 1 + q.length) % q.length];
-      const prevIndex = tracks.value.findIndex((t) => t.id === prevId);
+      const qi = q.indexOf(currentQueueEntryId.value);
+      const previousQueueEntryId = q[(qi - 1 + q.length) % q.length];
+      const prevIndex = tracks.value.findIndex((track) => track.queueEntryId === previousQueueEntryId);
       await selectTrackByIndex(prevIndex >= 0 ? prevIndex : 0, true);
       return;
     }
@@ -1326,6 +1573,7 @@ export function usePlayerEngine(options = {}) {
     const idx = currentIndex.value;
     if (idx >= 0 && duration.value > 0) {
       const track = tracks.value[idx];
+      if (track?.playableDurationSec === duration.value && Number(track?.durationSec) > 0) return duration.value;
       const next = {
         ...track,
         playableDurationSec: duration.value
@@ -1384,6 +1632,25 @@ export function usePlayerEngine(options = {}) {
     lyricRenderMode.value = mode;
   }
 
+  function clearDeferredNext() {
+    if (pendingAutoplaySelection?.manualNext && !pendingAutoplaySelection.mediaCommitted) {
+      selectionGeneration += 1;
+      pendingAutoplaySelection = null;
+      pendingNextEntryId.value = null;
+    }
+    failedNextAnchor = null;
+    nextTransitionError.value = null;
+  }
+
+  watch([playMode, queueSourceContext, () => getAuthorizedFetch(), () => options?.getPlaybackAuthorizationKey?.()],
+    () => {
+      clearDeferredNext();
+      preparationGeneration += 1;
+      discardStandby();
+      preparedPlayback.clear();
+      activePreparationKey = '';
+    }, { flush: 'sync' });
+
   function cyclePlayMode() {
     const idx = MODE_ORDER.indexOf(playMode.value);
     playMode.value = MODE_ORDER[(idx + 1) % MODE_ORDER.length];
@@ -1428,33 +1695,6 @@ export function usePlayerEngine(options = {}) {
     return formatMediaTime(sec, { fallback: '--:--' });
   }
 
-  function hydrateTrackDurations() {
-    tracks.value.forEach((track, idx) => {
-      if (!track?.audio || (track.durationLabel && track.durationLabel !== '--:--')) return;
-      const probe = new Audio();
-      probe.preload = 'metadata';
-      probe.src = track.audio;
-
-      const cleanup = () => {
-        probe.removeEventListener('loadedmetadata', onLoaded);
-        probe.removeEventListener('error', onError);
-      };
-
-      const onLoaded = () => {
-        const label = formatDuration(probe.duration);
-        if (tracks.value[idx] && tracks.value[idx].id === track.id) {
-          tracks.value[idx].durationLabel = label;
-        }
-        cleanup();
-      };
-
-      const onError = () => cleanup();
-
-      probe.addEventListener('loadedmetadata', onLoaded);
-      probe.addEventListener('error', onError);
-    });
-  }
-
   function adjustVolume(delta) {
     setVolume(volume.value + Number(delta || 0));
   }
@@ -1479,8 +1719,9 @@ export function usePlayerEngine(options = {}) {
       item.sort = i + 1;
     });
     queueReplacementGeneration += 1;
+    clearDeferredNext();
     tracks.value = next;
-    if (playMode.value === 'random') resetRandomQueue(currentTrackId.value);
+    if (playMode.value === 'random') resetRandomQueue(currentQueueEntryId.value);
   }
 
   function normalizeRemoteTracks(remoteTracks) {
@@ -1504,6 +1745,8 @@ export function usePlayerEngine(options = {}) {
           tlyric: item?.tlyric,
           romalrc: item?.romalrc,
           metadata: item?.metadata,
+          durationSec: readPositiveTrackDurationSec(item),
+          durationLabel: item?.durationLabel ?? item?.duration_label,
           sort: item?.sort
         },
         idx
@@ -1514,6 +1757,7 @@ export function usePlayerEngine(options = {}) {
   }
 
   async function loadPlaylistByCode(playlistCode = DEFAULT_PLAYLIST_CODE, loadOptions = {}) {
+    clearDeferredNext();
     const loadGeneration = ++playlistLoadGeneration;
     const replacementAtStart = queueReplacementGeneration;
     const selectionAtStart = selectionGeneration;
@@ -1546,7 +1790,6 @@ export function usePlayerEngine(options = {}) {
       tracks.value = normalizedTracks;
       lyricResolveAttempted.value = new Set();
       playbackResolveAttempted.value = new Set();
-      hydrateTrackDurations();
     } catch (error) {
       if (!isCurrentLoad()) return false;
       tracks.value = [];
@@ -1586,13 +1829,14 @@ export function usePlayerEngine(options = {}) {
     const persistedIndex = canReuseCurrentTrack ? tracks.value.findIndex((item) => item.id === currentTrackId.value) : -1;
     const initialIndex = persistedIndex >= 0 ? persistedIndex : 0;
     const selectedEntryId = tracks.value[initialIndex]?.queueEntryId;
-    await selectTrackByIndex(initialIndex, false);
+    await selectTrackByIndex(initialIndex, false, { deferMedia: true });
     if (!isCurrentLoadWithoutSelection() || currentQueueEntryId.value !== selectedEntryId) return false;
-    resetRandomQueue(tracks.value[initialIndex]?.id || '');
+    resetRandomQueue(tracks.value[initialIndex]?.queueEntryId || '');
   }
 
   async function replaceQueueWithTracks(rawTracks, startIndex = 0, autoPlay = true, source = {}) {
     const replacementGeneration = ++queueReplacementGeneration;
+    clearDeferredNext();
     const input = Array.isArray(rawTracks) ? rawTracks : [];
     if (!input.length) return false;
     const normalized = input.map((item, idx) => normalizeTrack(item, idx));
@@ -1647,7 +1891,7 @@ export function usePlayerEngine(options = {}) {
     const selectionAtStart = selectionGeneration;
     const selected = await selectionPromise;
     if (replacementGeneration !== queueReplacementGeneration || selectionAtStart !== selectionGeneration) return false;
-    resetRandomQueue(tracks.value[safeIndex]?.id || '');
+    resetRandomQueue(tracks.value[safeIndex]?.queueEntryId || '');
     if (!autoPlay) return true;
     return selected === true;
   }
@@ -1689,6 +1933,7 @@ export function usePlayerEngine(options = {}) {
 
     if (replaceQueue) {
       queueReplacementGeneration += 1;
+      clearDeferredNext();
       tracks.value = [{ ...normalized, sort: 1 }];
       queueSourceContext.value = { kind: 'single' };
       lyricResolveAttempted.value = new Set();
@@ -1714,6 +1959,7 @@ export function usePlayerEngine(options = {}) {
         queueEntryId: next[existingIndex].queueEntryId
       };
       queueReplacementGeneration += 1;
+      clearDeferredNext();
       tracks.value = next;
       if (autoPlay) {
         const selected = await selectTrackByIndex(existingIndex, true);
@@ -1725,13 +1971,14 @@ export function usePlayerEngine(options = {}) {
         sort: idx + 1
       }));
       queueReplacementGeneration += 1;
+      clearDeferredNext();
       if (autoPlay) {
         const selected = await selectTrackByIndex(tracks.value.length - 1, true);
         return selected === true;
       }
     }
 
-    if (playMode.value === 'random') resetRandomQueue(normalized.id);
+    if (playMode.value === 'random') resetRandomQueue(currentQueueEntryId.value);
     return true;
   }
 
@@ -1770,12 +2017,18 @@ export function usePlayerEngine(options = {}) {
     if (!normalized.audio && !canLazyResolve) return false;
 
     const targetBase = currentIndex.value >= 0 ? currentIndex.value + 1 : tracks.value.length;
-    const existingIndex = tracks.value.findIndex((item) => item.id === normalized.id);
+    const incomingProvider = String(normalized.provider || 'local').trim().toLowerCase();
+    const incomingTrackId = String(normalized.trackId || normalized.id || '').trim();
+    const existingIndex = tracks.value.findIndex((item) => {
+      const provider = String(item?.provider || item?.providerCode || item?.provider_code || 'local').trim().toLowerCase();
+      const trackId = String(item?.trackId || item?.track_id || item?.id || '').trim();
+      return provider === incomingProvider && trackId === incomingTrackId;
+    });
     const next = tracks.value.slice();
 
     if (existingIndex >= 0) {
       const [existing] = next.splice(existingIndex, 1);
-      const merged = { ...existing, ...normalized };
+      const merged = { ...existing, ...normalized, queueEntryId: existing.queueEntryId || normalized.queueEntryId };
       const targetIndex = Math.max(0, Math.min(next.length, existingIndex < targetBase ? targetBase - 1 : targetBase));
       next.splice(targetIndex, 0, merged);
     } else {
@@ -1788,8 +2041,9 @@ export function usePlayerEngine(options = {}) {
       sort: idx + 1
     }));
     queueReplacementGeneration += 1;
+    clearDeferredNext();
 
-    if (playMode.value === 'random') resetRandomQueue(currentTrackId.value || normalized.id);
+    if (playMode.value === 'random') resetRandomQueue(currentQueueEntryId.value);
     return true;
   }
 
@@ -1849,8 +2103,9 @@ export function usePlayerEngine(options = {}) {
       sort: idx + 1
     }));
     queueReplacementGeneration += 1;
+    clearDeferredNext();
 
-    if (playMode.value === 'random') resetRandomQueue(currentTrackId.value);
+    if (playMode.value === 'random') resetRandomQueue(currentQueueEntryId.value);
     return true;
   }
 
@@ -1883,6 +2138,7 @@ export function usePlayerEngine(options = {}) {
     });
     tracks.value = next;
     queueReplacementGeneration += 1;
+    clearDeferredNext();
 
     if (removed && (removed.queueEntryId === currentQueueEntryId.value
       || (!currentQueueEntryId.value && removed.id === currentTrackId.value))) {
@@ -1899,12 +2155,13 @@ export function usePlayerEngine(options = {}) {
       currentLyricEntryIndex.value = -1;
       currentLyricLine.value = '';
     }
-    if (playMode.value === 'random') resetRandomQueue(currentTrackId.value);
+    if (playMode.value === 'random') resetRandomQueue(currentQueueEntryId.value);
     return true;
   }
 
   function clearQueue() {
     queueReplacementGeneration += 1;
+    clearDeferredNext();
     tracks.value = [];
     randomQueue.value = [];
     lyricResolveAttempted.value = new Set();
@@ -1927,45 +2184,65 @@ export function usePlayerEngine(options = {}) {
     return enqueueExternalTrack(rawTrack, true, options);
   }
 
-  audioElement.addEventListener('loadedmetadata', syncDuration);
-  audioElement.addEventListener('durationchange', syncDuration);
-  audioElement.addEventListener('canplay', syncDuration);
+  function bindAudioEvents(element) {
+    const on = (event, handler) => element.addEventListener(event, () => {
+      if (!disposed && audioElement === element) return handler();
+    });
+    on('loadstart', () => {
+      if (pendingAutoplaySelection?.manualNext && pendingAutoplaySelection.mediaCommitted
+        && pendingAutoplaySelection.generation === selectionGeneration) markNextTransition('loadstart');
+    });
+    on('loadedmetadata', syncDuration);
+    on('durationchange', syncDuration);
+    on('canplay', syncDuration);
 
-  audioElement.addEventListener('timeupdate', syncPlaybackPosition);
-  audioElement.addEventListener('seeking', syncPlaybackPosition);
-  audioElement.addEventListener('seeked', syncPlaybackPosition);
+    on('timeupdate', syncPlaybackPosition);
+    on('seeking', syncPlaybackPosition);
+    on('seeked', syncPlaybackPosition);
 
-  audioElement.addEventListener('pause', () => {
-    isPlaying.value = false;
-  });
+    on('pause', () => {
+      if (element.paused) isPlaying.value = false;
+    });
 
-  audioElement.addEventListener('play', () => {
-    isPlaying.value = true;
-  });
+    on('play', () => {
+      if (!element.paused) isPlaying.value = true;
+    });
 
-  audioElement.addEventListener('error', async () => {
-    if (disposed || !hasActiveAudioSource()) return;
-    const idx = currentIndex.value;
-    if (idx < 0 || idx >= tracks.value.length) {
-      isPlaying.value = false;
-      return;
-    }
-    const failedTrack = tracks.value[idx];
-    const failedQueueEntryId = failedTrack?.queueEntryId;
-    const failedSelectionGeneration = selectionGeneration;
-    const stillFailedTrackIsCurrent = () => selectionGeneration === failedSelectionGeneration
-      && currentTrackId.value === failedTrack?.id
-      && tracks.value.some((item) => item.queueEntryId === failedQueueEntryId);
-    const recovered = await recoverPlaybackWithFreshSource(failedQueueEntryId, failedTrack?.audio, stillFailedTrackIsCurrent);
-    if (!recovered && stillFailedTrackIsCurrent()) {
-      isPlaying.value = false;
-    }
-  });
+    on('error', async () => {
+      if (disposed || !hasActiveAudioSource()) return;
+      // The active Next play promise owns recovery until the handoff succeeds or fails.
+      if (pendingAutoplaySelection?.manualNext && pendingAutoplaySelection.mediaCommitted) return;
+      const idx = currentIndex.value;
+      if (idx < 0 || idx >= tracks.value.length) {
+        isPlaying.value = false;
+        return;
+      }
+      const failedTrack = tracks.value[idx];
+      const failedQueueEntryId = failedTrack?.queueEntryId;
+      const failedSelectionGeneration = selectionGeneration;
+      const stillFailedTrackIsCurrent = () => selectionGeneration === failedSelectionGeneration
+        && currentTrackId.value === failedTrack?.id
+        && tracks.value.some((item) => item.queueEntryId === failedQueueEntryId);
+      const recovered = await recoverPlaybackWithFreshSource(failedQueueEntryId, failedTrack?.audio, stillFailedTrackIsCurrent);
+      if (!recovered && stillFailedTrackIsCurrent()) {
+        isPlaying.value = false;
+      }
+    });
 
-  audioElement.addEventListener('ended', async () => {
-    if (disposed || !hasActiveAudioSource()) return;
-    await playNext(false, { stopAtTail: true });
-  });
+    on('ended', async () => {
+      if (disposed || !hasActiveAudioSource()) return;
+      if (pendingAutoplaySelection?.manualNext && !pendingAutoplaySelection.mediaCommitted
+        && pendingAutoplaySelection.generation === selectionGeneration
+        && pendingAutoplaySelection.nextMode === playMode.value
+        && pendingAutoplaySelection.nextQueueGeneration === queueReplacementGeneration) {
+        isPlaying.value = false;
+        return;
+      }
+      await playNext(false, { stopAtTail: true });
+    });
+  }
+
+  bindAudioEvents(audioElement);
 
   watch(
     [playMode, currentTrackId, volume, isPlayerExpanded, isPinned, listOpen, visualizerMode, visualizerStyle, preferredLyricRenderMode],
@@ -2007,13 +2284,17 @@ export function usePlayerEngine(options = {}) {
       disposed = true;
       selectionGeneration += 1;
       pendingAutoplaySelection = null;
+      pendingNextEntryId.value = null;
       playlistLoadGeneration += 1;
       lyricLoadGeneration += 1;
       preparationGeneration += 1;
       preparationInFlight = null;
       preparedPlayback.clear();
+      discardStandby();
       audioElement.pause();
       clearAudioSource();
+      engineOptions.releasePlaybackElement?.(audioElement);
+      if (spareAudio) engineOptions.releasePlaybackElement?.(spareAudio);
       isPlaying.value = false;
     });
   }
@@ -2021,7 +2302,7 @@ export function usePlayerEngine(options = {}) {
   return {
     tracks,
     loading,
-    audioElement,
+    get audioElement() { return audioElement; },
     currentTrack,
     queueDisplayTracks,
     currentTrackId,
@@ -2047,6 +2328,9 @@ export function usePlayerEngine(options = {}) {
     selectTrackByIndex,
     togglePlay,
     playNext,
+    pendingNextTrack,
+    nextTransitionError,
+    retryNext,
     playPrev,
     seekToPercent,
     seekToTime,

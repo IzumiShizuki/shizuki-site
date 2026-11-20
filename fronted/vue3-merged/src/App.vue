@@ -547,7 +547,8 @@ const dragState = {
 
 let rippleSeq = 0;
 let audioCtx = null;
-let sourceNode = null;
+let playbackGraphInput = null;
+const playbackGraphSources = new WeakMap();
 let eqChain = null;
 let analyser = null;
 let sidebarAiCloseTimer = 0;
@@ -590,6 +591,12 @@ function getPlayerAuthorizedFetch() {
 }
 const player = usePlayerEngine({
   getAuthorizedFetch: getPlayerAuthorizedFetch,
+  onPlaybackElementPromoted: () => { if (analyser) ensureAudioAnalyser(); },
+  isPlaybackElementRouted: (element) => playbackGraphSources.has(element),
+  releasePlaybackElement: (element) => {
+    playbackGraphSources.get(element)?.disconnect();
+    playbackGraphSources.delete(element);
+  },
   getPlaybackAuthorizationKey: () => auth.isAuthenticated.value
     ? `user:${String(auth.user.value?.userId || '')}`
     : 'anonymous'
@@ -666,6 +673,7 @@ const isMobileShellRoute = computed(() => route.path === '/m' || route.path.star
 const isGlobalLyricBarVisible = computed(() => shouldShowGlobalLyricBar({
   subtitleVisible: subtitleVisible.value,
   hasCurrentTrack: Boolean(player.currentTrack.value),
+  isPlaying: player.isPlaying.value,
   routePath: route.path,
   isMusicLibraryRoute: isMusicLibraryRoute.value,
   isFocusActive: isFocusActive.value,
@@ -1010,6 +1018,9 @@ const playerBridge = Object.freeze({
   togglePlay: player.togglePlay,
   playPrev: player.playPrev,
   playNext: player.playNext,
+  pendingNextTrack: player.pendingNextTrack,
+  nextTransitionError: player.nextTransitionError,
+  retryNext: player.retryNext,
   selectTrackByIndex: player.selectTrackByIndex,
   enqueueExternalTrack: player.enqueueExternalTrack,
   enqueueNextTrack: player.enqueueNextTrack,
@@ -2658,35 +2669,37 @@ function applyEqLevels(levels) {
 }
 
 function ensureAudioAnalyser() {
-  if (analyser) {
-    if (audioCtx?.state === 'suspended') {
-      audioCtx.resume().catch(() => {});
-    }
-    return true;
-  }
+  const element = player.audioElement;
   if (
-    !player.audioElement ||
+    !element ||
     typeof window === 'undefined' ||
     !window.AudioContext ||
-    !canAttachMediaElementAudioGraph(player.audioElement, window.location.href)
+    !canAttachMediaElementAudioGraph(element, window.location.href)
   ) {
     return false;
   }
-  audioCtx = new window.AudioContext();
-  sourceNode = audioCtx.createMediaElementSource(player.audioElement);
-  analyser = audioCtx.createAnalyser();
-  analyser.fftSize = 512;
-  analyser.smoothingTimeConstant = 0.88;
-  // 接入点：sourceNode → 10 段图形 EQ 链（preamp + 10×BiquadFilter + 旁路交叉淡化）
-  eqChain = createEqualizerChain(
-    audioCtx,
-    sourceNode,
-    eqChainStateFromBands10(musicUi.eqBands10.value)
-  );
-  eqChain.output.connect(analyser);
-  analyser.connect(audioCtx.destination);
-  applyEqLevels(musicUi.eqLevels.value);
-  if (audioCtx?.state === 'suspended') {
+
+  if (!analyser) {
+    audioCtx = new window.AudioContext();
+    playbackGraphInput = audioCtx.createGain();
+    analyser = audioCtx.createAnalyser();
+    analyser.fftSize = 512;
+    analyser.smoothingTimeConstant = 0.88;
+    eqChain = createEqualizerChain(
+      audioCtx,
+      playbackGraphInput,
+      eqChainStateFromBands10(musicUi.eqBands10.value)
+    );
+    eqChain.output.connect(analyser);
+    analyser.connect(audioCtx.destination);
+    applyEqLevels(musicUi.eqLevels.value);
+  }
+  if (!playbackGraphSources.has(element)) {
+    const input = audioCtx.createMediaElementSource(element);
+    input.connect(playbackGraphInput);
+    playbackGraphSources.set(element, input);
+  }
+  if (audioCtx.state === 'suspended') {
     audioCtx.resume().catch(() => {});
   }
   return true;
@@ -3382,7 +3395,7 @@ onBeforeUnmount(() => {
     }
     audioCtx.close().catch(() => {});
     audioCtx = null;
-    sourceNode = null;
+    playbackGraphInput = null;
     analyser = null;
   }
   ambientMixer.destroy().catch(() => {});

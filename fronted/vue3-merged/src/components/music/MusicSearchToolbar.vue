@@ -1,6 +1,6 @@
 <template>
   <section ref="toolbarRoot" class="music-search-toolbar liquid-material te-search-toolbar">
-    <div class="search-row">
+    <form class="search-row" role="search" @submit.prevent="handleSearch">
       <label class="search-input-wrap">
         <i class="fas fa-search"></i>
         <input
@@ -10,18 +10,23 @@
           placeholder="搜索歌单 / 歌曲 / 歌手"
           @focus="openHistoryPanel"
           @input="handleKeywordInput"
-          @keydown.enter.prevent="handleSearch()"
+          aria-label="搜索歌单、歌曲或歌手"
+          enterkeyhint="search"
+          @keydown.enter="guardComposition"
         />
       </label>
-      <button class="search-btn ripple-trigger" type="button" :disabled="loading" @click="handleSearch()">
+      <button class="search-btn ripple-trigger" type="submit" :disabled="!canSearch">
         <i class="fas fa-magnifying-glass"></i>
-        {{ loading ? '搜索中...' : '搜索' }}
+        搜索
       </button>
-      <button class="refresh-btn ripple-trigger" type="button" :disabled="loading" @click="emit('refresh')">
+      <button v-if="canClear" class="refresh-btn ripple-trigger" type="button" @click="clearSearch">
+        <i class="fas fa-xmark" aria-hidden="true"></i> 清空
+      </button>
+      <button v-if="showActions" class="refresh-btn ripple-trigger" type="button" :disabled="loading" @click="emit('refresh')">
         <i class="fas fa-rotate-right"></i>
         {{ loading ? '刷新中...' : '刷新' }}
       </button>
-    </div>
+    </form>
 
     <div v-if="showHistoryPanel" class="history-panel liquid-material">
       <div class="history-panel-head">
@@ -42,24 +47,26 @@
     </div>
 
     <div v-if="showFilters" class="filters-row">
-      <div class="filter-group">
+      <div class="filter-group" role="group" aria-label="结果类型">
         <button
           v-for="item in typeOptions"
           :key="item.value"
           class="chip-btn ripple-trigger"
           :class="{ active: type === item.value }"
+          :aria-pressed="type === item.value"
           type="button"
           @click="emit('set-type', item.value)"
         >
           {{ item.label }}
         </button>
       </div>
-      <div class="provider-group">
+      <div class="provider-group" role="group" aria-label="音乐来源">
         <button
           v-for="item in providerOptions"
           :key="item.value"
           class="chip-btn provider ripple-trigger"
           :class="{ active: selectedProviderSet.has(item.value) }"
+          :aria-pressed="selectedProviderSet.has(item.value)"
           type="button"
           @click="emit('toggle-provider', item.value)"
         >
@@ -68,7 +75,8 @@
       </div>
     </div>
 
-    <p v-if="errorText" class="toolbar-error">{{ errorText }}</p>
+    <p v-if="errorText" class="toolbar-error" role="alert">{{ errorText }}</p>
+    <p v-else-if="showFilters && draftChanged" class="toolbar-hint">筛选尚未应用。点击搜索更新结果。</p>
   </section>
 </template>
 
@@ -81,6 +89,8 @@ const props = defineProps({
   type: { type: String, default: 'all' },
   loading: { type: Boolean, default: false },
   errorText: { type: String, default: '' },
+  showActions: { type: Boolean, default: false },
+  draftChanged: { type: Boolean, default: false },
   showFilters: { type: Boolean, default: true },
   searchHistory: { type: Array, default: () => [] },
   typeOptions: { type: Array, default: () => [] },
@@ -95,11 +105,15 @@ const emit = defineEmits([
   'search',
   'refresh',
   'apply-history',
-  'clear-history'
+  'clear-history',
+  'clear'
 ]);
 const toolbarRoot = ref(null);
 const keywordInputRef = ref(null);
 const historyPanelVisible = ref(false);
+
+const canSearch = computed(() => String(props.keyword ?? '').trim().length >= 2);
+const canClear = computed(() => props.showActions || Boolean(props.keyword));
 
 const selectedProviderSet = computed(() => {
   const list = Array.isArray(props.selectedProviders) ? props.selectedProviders : [];
@@ -118,7 +132,18 @@ function openHistoryPanel() {
   historyPanelVisible.value = true;
 }
 
+function guardComposition(event) {
+  if (event.isComposing || event.keyCode === 229) event.preventDefault();
+}
+
+function clearSearch() {
+  emit('clear');
+  keywordInputRef.value?.focus();
+  historyPanelVisible.value = false;
+}
+
 function handleSearch() {
+  if (!canSearch.value) return;
   historyPanelVisible.value = false;
   emit('search');
 }
@@ -128,8 +153,8 @@ function applyHistory(keyword) {
   if (!normalized) return;
   emit('update:keyword', normalized);
   emit('apply-history', normalized);
-  historyPanelVisible.value = false;
   keywordInputRef.value?.focus?.();
+  historyPanelVisible.value = false;
 }
 
 function clearHistory() {
@@ -162,8 +187,22 @@ useDismissiblePopover({
 .search-row {
   position: relative;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: minmax(0, 1fr);
+  grid-auto-flow: column;
+  grid-auto-columns: auto;
   gap: 8px;
+}
+
+.search-input-wrap:focus-within {
+  outline: 2px solid currentColor;
+  outline-offset: -2px;
+  border-radius: 8px;
+}
+
+.toolbar-hint {
+  margin: 0;
+  color: var(--music-soft-text-muted, inherit);
+  font-size: 12px;
 }
 
 .history-panel {
