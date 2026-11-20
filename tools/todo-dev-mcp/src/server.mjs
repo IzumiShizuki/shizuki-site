@@ -66,7 +66,7 @@ function createServer(api) {
     description: 'Append a progress or blocker update to the current stage; does not advance it.',
     inputSchema: z.object({
       ...update,
-      status: z.enum(['IN_PROGRESS', 'BLOCKED']).optional(),
+      status: z.enum(['IN_PROGRESS', 'BLOCKED', 'FAILED']).optional(),
     }).strict(),
     annotations: writeAnnotations,
   }, ({ todo_id, ...body }) => run(api, () => api.progress(todo_id, body)));

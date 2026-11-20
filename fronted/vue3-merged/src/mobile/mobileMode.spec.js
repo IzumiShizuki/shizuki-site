@@ -26,6 +26,11 @@ afterEach(() => {
 });
 
 describe('mobileMode path mapping', () => {
+  it('round-trips a protected Todo return link with a large task ID', () => {
+    const path = '/todo/run/9007199254740993';
+    expect(mapDesktopPathToMobile(path)).toBe('/m' + path);
+    expect(mapMobilePathToDesktop('/m' + path)).toBe(path);
+  });
   it('detects mobile shell paths', () => {
     expect(isMobileShellPath('/m')).toBe(true);
     expect(isMobileShellPath('/m/music')).toBe(true);

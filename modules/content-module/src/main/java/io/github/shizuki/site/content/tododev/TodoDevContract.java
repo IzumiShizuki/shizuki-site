@@ -39,7 +39,7 @@ public final class TodoDevContract {
     }
 
     public enum Status {
-        READY, IN_PROGRESS, BLOCKED, AWAITING_APPROVAL, COMPLETE
+        READY, IN_PROGRESS, BLOCKED, FAILED, AWAITING_APPROVAL, COMPLETE
     }
 
     public enum EventType {
@@ -76,7 +76,10 @@ public final class TodoDevContract {
 
     public record Context(String todoId, String projectId, String title, String repository,
                           Stage stage, Status status, int version, String nextStep,
-                          List<String> skillIds, String requiredArtifact, List<Event> events) { }
+                          List<String> skillIds, String requiredArtifact, List<Event> events,
+                          List<StageClock> stageClocks) { }
+
+    public record StageClock(String stage, LocalDateTime startedAt, LocalDateTime lastEventAt) { }
 
     public record Event(EventType eventType, Stage stage, Status status, String source,
                         String summary, List<Artifact> artifacts, LocalDateTime createdAt) { }

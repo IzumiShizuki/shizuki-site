@@ -37,7 +37,7 @@ class TodoDevControllerTest {
         var body = new Write(0, "request-123", "Plan update", "Write tests", Status.IN_PROGRESS, null);
         when(service.progress(actor, id, body)).thenReturn(new Context(String.valueOf(id), "10", "Example",
             "owner/repo", Stage.DESIGN, Status.IN_PROGRESS, 1, "Write tests",
-            List.of("todo-dev-design"), "design", List.of()));
+            List.of("todo-dev-design"), "design", List.of(), List.of()));
         mvc.perform(post(BASE + "/" + id + "/progress")
             .header(AccountMcpTokenService.HEADER, TOKEN)
             .contentType(MediaType.APPLICATION_JSON)

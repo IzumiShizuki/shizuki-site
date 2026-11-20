@@ -98,6 +98,32 @@ describe('TimePrism Todo development integration', () => {
     expect(wrapper.find('.error-text').exists()).toBe(false);
   });
 
+  it('keeps offline lists scoped across two accounts and reloads on reconnect', async () => {
+    let offline = false;
+    localStorage.setItem('shizuki.lightApps.remoteCache.v1', JSON.stringify({ todos: [{todoId:99,title:'旧共享缓存'}] }));
+    mocked.auth.authorizedFetch.mockImplementation(async (path, options, identity) => {
+      if (offline) throw new Error('offline');
+      if (path === OVERVIEW) return { data: [] };
+      if (path === BASE + '/todos') return { data: [{ todo_id: 31, title: '账号' + identity.expectedUserId + '的任务' }] };
+      return fetchTodos(path, options);
+    });
+    await open();
+    expect(wrapper.text()).toContain('账号7的任务');
+    offline = true;
+    mocked.auth.user.value = {userId:8};
+    await flushPromises();
+    expect(wrapper.text()).not.toMatch(/账号7的任务|旧共享缓存/);
+    offline = false;
+    window.dispatchEvent(new Event('online'));
+    await flushPromises();
+    expect(wrapper.text()).toContain('账号8的任务');
+    offline = true;
+    mocked.auth.user.value = {userId:7};
+    await flushPromises();
+    expect(wrapper.text()).toContain('账号7的任务');
+    expect(wrapper.text()).not.toContain('账号8的任务');
+  });
+
   it('does not restore the previous account’s summary after a late response', async () => {
     let release;
     const pending = new Promise(resolve => { release = resolve; });

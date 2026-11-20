@@ -69,7 +69,9 @@ describe('Todo development detail', () => {
     expect(wrapper.text()).toContain('待确认');
     expect(wrapper.text()).toContain('提交成果');
     expect(wrapper.text()).toContain('已整理回滚步骤');
-    expect(wrapper.findAll('a').map(link => link.attributes('href'))).toEqual(['https://github.com/example/repo/pull/1']);
+    for (const area of ['.run-board', '.todo-dev-history']) {
+      expect(wrapper.get(area).findAll('a').map(link => link.attributes('href'))).toEqual(['https://github.com/example/repo/pull/1']);
+    }
     await wrapper.get('.todo-dev-review button').trigger('click');
     await flushPromises();
     expect(fetch).toHaveBeenCalledWith(root + '/approve', {

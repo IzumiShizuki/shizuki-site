@@ -149,8 +149,8 @@ public class TodoDevService {
         String nextStep = body.nextStep() == null ? workflow.getNextStep() : cleanStep(body.nextStep());
         if (type == EventType.PROGRESS) {
             Status status = body.status() == null ? Status.IN_PROGRESS : body.status();
-            if (status != Status.IN_PROGRESS && status != Status.BLOCKED) {
-                throw bad("Progress status must be IN_PROGRESS or BLOCKED");
+            if (status != Status.IN_PROGRESS && status != Status.BLOCKED && status != Status.FAILED) {
+                throw bad("Invalid progress status");
             }
             return apply(todo, workflow, body.requestId(), hash, type, actor, stage, stage, status,
                 nextStep, body.summary(), artifacts);
@@ -264,7 +264,7 @@ public class TodoDevService {
                 row.getCreatedAt())).toList();
         return new Context(summary.todoId(), summary.projectId(), summary.title(), summary.repository(),
             summary.stage(), summary.status(), summary.version(), summary.nextStep(),
-            summary.stage().skillIds(), summary.stage().artifact, history);
+            summary.stage().skillIds(), summary.stage().artifact, history, events.stageClocks(todo.getId()));
     }
 
     private static String cleanStep(String value) {

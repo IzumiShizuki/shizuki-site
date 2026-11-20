@@ -84,6 +84,41 @@ class TodoDevServiceTest {
     }
 
     @Test
+    void fourStagesRecoverFromFailureAndKeepHumanGates() {
+        workflow.setStageCode("RESEARCH");
+        for (var stage : Stage.values()) {
+            var current = service.context(agent, 42L);
+            assertThat(current.stage()).isEqualTo(stage);
+            var running = service.progress(agent, 42L, new Write(current.version(), "start-" + stage,
+                "Started", null, Status.IN_PROGRESS, null));
+            if (stage == Stage.IMPLEMENTATION) {
+                var failed = service.progress(agent, 42L, new Write(running.version(), "failure-dev",
+                    "Local worker failed", null, Status.FAILED, null));
+                assertThat(service.context(agent, 42L).status()).isEqualTo(Status.FAILED);
+                running = service.progress(agent, 42L, new Write(failed.version(), "retry-dev",
+                    "Restarted", null, Status.IN_PROGRESS, null));
+            }
+            var submitted = service.submit(agent, 42L, new Write(running.version(), "submit-" + stage,
+                "Checked evidence", null, null, List.of(new Artifact(stage.artifact, "https://example.org/report"))));
+            if (stage.humanApproval) {
+                assertThat(submitted.status()).isEqualTo(Status.AWAITING_APPROVAL);
+                expect(ErrorCode.FORBIDDEN, () -> service.approve(agent, 42L, new Approve(submitted.version(), "no-approve")));
+                service.approve(human, 42L, new Approve(submitted.version(), "approve-" + stage));
+            }
+        }
+        assertThat(service.context(human, 42L).status()).isEqualTo(Status.COMPLETE);
+    }
+
+    @Test
+    void secondOwnerCannotReadOrUpdateFirstOwnersWorkflow() {
+        var foreign = new Actor(2, 10L, "MCP");
+        expect(ErrorCode.NOT_FOUND, () -> service.context(foreign, 42L));
+        expect(ErrorCode.NOT_FOUND, () -> service.progress(foreign, 42L,
+            new Write(0, "foreign-write", "Started", null, Status.IN_PROGRESS, null)));
+        verifyNoInteractions(events);
+    }
+
+    @Test
     void replayDoesNotAppendAndChangedPayloadConflicts() {
         var request = new Write(0, "progress1", "Updated", null, null, List.of());
         var written = org.mockito.ArgumentCaptor.forClass(LightAppTodoDevEventEntity.class);

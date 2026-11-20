@@ -4,7 +4,7 @@ export const LIGHT_APP_DATA_CHANGED_EVENT = 'shizuki:light-app-data-changed';
 const CALENDAR_CACHE_PREFIX = 'shizuki.lightApps.calendarCache.v1.';
 
 export function isLightAppDataStorageKey(key) {
-  return key === null || key === GUEST_DATA_KEY || key === REMOTE_CACHE_KEY;
+  return key === null || key === GUEST_DATA_KEY || key === REMOTE_CACHE_KEY || key?.startsWith(REMOTE_CACHE_KEY + '.');
 }
 
 function notifyDataChanged(key) {
@@ -561,19 +561,24 @@ export function updateGuestLightAppData(mutator) {
   return writeGuestLightAppData(next);
 }
 
-export function readRemoteLightAppCache() {
-  return readStorageJson(REMOTE_CACHE_KEY);
+function remoteCacheKey(owner) {
+  return owner === undefined ? REMOTE_CACHE_KEY : REMOTE_CACHE_KEY + '.' + encodeURIComponent(owner);
 }
 
-export function writeRemoteLightAppCache(partial) {
-  const current = readRemoteLightAppCache();
+export function readRemoteLightAppCache(owner) {
+  return readStorageJson(remoteCacheKey(owner));
+}
+
+export function writeRemoteLightAppCache(partial, owner) {
+  const key = remoteCacheKey(owner);
+  const current = readRemoteLightAppCache(owner);
   const source = toObject(partial);
   const merged = {
     ...current,
     ...source
   };
-  const result = writeStorageJson(REMOTE_CACHE_KEY, merged);
-  notifyDataChanged(REMOTE_CACHE_KEY);
+  const result = writeStorageJson(key, merged);
+  notifyDataChanged(key);
   return result;
 }
 

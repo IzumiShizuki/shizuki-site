@@ -241,6 +241,8 @@
         <TodoDevelopmentPanel
           v-if="devOverviewReady && selectedDevTodoId === String(item.todoId)"
           class="todo-dev-detail"
+          :key="devOwner + ':' + selectedDevTodoId"
+          :account-id="devOwner"
           :todo-id="selectedDevTodoId"
           :project-id="item.projectId"
           :authorized-fetch="devAuthorizedFetch"
@@ -434,13 +436,19 @@ async function refreshDevOverview(showError = false) {
 
 watch(
   devOwner,
-  (owner) => {
+  (owner, previous) => {
     ++devOverviewGeneration;
     devOverview.value = new Map();
     devOverviewReady.value = false;
     devOverviewLoading.value = false;
     devOverviewError.value = '';
     selectedDevTodoId.value = '';
+    if (previous !== undefined) {
+      todos.value = []; projects.value = []; todoRecurringRules.value = [];
+      cancelTodoEdit(); cancelRecurringEdit();
+      showCreateForm.value = false; showRecurringPanel.value = false;
+      hydrate();
+    }
     if (owner) refreshDevOverview();
   },
   { immediate: true, flush: 'sync' }
@@ -811,18 +819,12 @@ async function hydrate() {
     return;
   }
 
+  const owner = devOwner.value;
   try {
-    const [projectList, todoList, recurringList] = await Promise.all([
-      listLightAppProjects(auth.authorizedFetch),
-      listLightAppTodos(auth.authorizedFetch),
-      listLightAppTodoRecurringRules(auth.authorizedFetch)
-    ]);
-    projects.value = Array.isArray(projectList) ? projectList : [];
-    todos.value = sortTodos(Array.isArray(todoList) ? todoList : []);
-    todoRecurringRules.value = normalizeRecurringRules(recurringList);
-    writeRemoteLightAppCache({ projects: projects.value, todos: todos.value, todoRecurringRules: todoRecurringRules.value });
+    await refreshRemoteTodos();
   } catch (error) {
-    const cache = readRemoteLightAppCache();
+    if (!owner || owner !== devOwner.value) return;
+    const cache = [401, 403].includes(error?.status) ? {} : readRemoteLightAppCache(owner);
     projects.value = cache.projects || [];
     todos.value = sortTodos(cache.todos || []);
     todoRecurringRules.value = normalizeRecurringRules(cache.todoRecurringRules || []);
@@ -831,15 +833,19 @@ async function hydrate() {
 }
 
 async function refreshRemoteTodos() {
+  const owner = devOwner.value;
+  if (!owner) return;
+  const fetch = devAuthorizedFetch.value;
   const [projectList, todoList, recurringList] = await Promise.all([
-    listLightAppProjects(auth.authorizedFetch),
-    listLightAppTodos(auth.authorizedFetch),
-    listLightAppTodoRecurringRules(auth.authorizedFetch)
+    listLightAppProjects(fetch),
+    listLightAppTodos(fetch),
+    listLightAppTodoRecurringRules(fetch)
   ]);
+  if (owner !== devOwner.value) return;
   projects.value = Array.isArray(projectList) ? projectList : [];
   todos.value = sortTodos(Array.isArray(todoList) ? todoList : []);
   todoRecurringRules.value = normalizeRecurringRules(recurringList);
-  writeRemoteLightAppCache({ projects: projects.value, todos: todos.value, todoRecurringRules: todoRecurringRules.value });
+  writeRemoteLightAppCache({ projects: projects.value, todos: todos.value, todoRecurringRules: todoRecurringRules.value }, owner);
 }
 
 async function refreshProjectOptionsOnly() {
@@ -850,9 +856,11 @@ async function refreshProjectOptionsOnly() {
     return;
   }
 
-  const projectList = await listLightAppProjects(auth.authorizedFetch);
+  const owner = devOwner.value;
+  const projectList = await listLightAppProjects(devAuthorizedFetch.value);
+  if (!owner || owner !== devOwner.value) return;
   projects.value = Array.isArray(projectList) ? projectList : [];
-  writeRemoteLightAppCache({ projects: projects.value, todos: todos.value, todoRecurringRules: todoRecurringRules.value });
+  writeRemoteLightAppCache({ projects: projects.value, todos: todos.value, todoRecurringRules: todoRecurringRules.value }, owner);
 }
 
 async function createTodoItem() {
@@ -1008,9 +1016,11 @@ async function moveTodo(todoId, direction) {
     await auth.ensureReady();
     if (auth.isAuthenticated.value) {
       const payload = buildReorderPayloadByList(current);
-      const reordered = await reorderLightAppTodos(payload, auth.authorizedFetch);
+      const owner = devOwner.value;
+      const reordered = await reorderLightAppTodos(payload, devAuthorizedFetch.value);
+      if (!owner || owner !== devOwner.value) return;
       todos.value = sortTodos(Array.isArray(reordered) ? reordered : current);
-      writeRemoteLightAppCache({ todos: todos.value, projects: projects.value });
+      writeRemoteLightAppCache({ todos: todos.value, projects: projects.value }, owner);
       return;
     }
 
@@ -1026,15 +1036,22 @@ async function moveTodo(todoId, direction) {
 
 onMounted(() => {
   hydrate();
+  window.addEventListener('online', reconnect);
   window.addEventListener(TIMEPRISM_FOCUS_ITEM_EVENT, handleFocusItemEvent);
   window.addEventListener(TIMEPRISM_COMPLETE_ITEM_EVENT, handleCompleteFocusItemEvent);
 });
 
 onBeforeUnmount(() => {
+  window.removeEventListener('online', reconnect);
   ++devOverviewGeneration;
   window.removeEventListener(TIMEPRISM_FOCUS_ITEM_EVENT, handleFocusItemEvent);
   window.removeEventListener(TIMEPRISM_COMPLETE_ITEM_EVENT, handleCompleteFocusItemEvent);
 });
+
+function reconnect() {
+  hydrate();
+  refreshDevOverview(true);
+}
 
 function handleFocusItemEvent(event) {
   const moduleCode = String(event?.detail?.moduleCode || '').trim().toLowerCase();

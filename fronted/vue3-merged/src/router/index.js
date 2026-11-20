@@ -60,6 +60,8 @@ function normalizeRedirectPath(path) {
 }
 
 const routes = [
+  { path: '/todo/run/:todoId([1-9][0-9]{0,18})', alias: '/m/todo/run/:todoId([1-9][0-9]{0,18})', name: 'todo-run', component: () => import('../pages/TodoRunPage.vue'),
+    props: true, meta: { requiresAuth: true, scrollMode: RouteScrollMode.APP } },
   { path: '/', name: 'home', component: HomePage, meta: { scrollMode: RouteScrollMode.WORKSPACE } },
   { path: '/blog', name: 'blog', component: BlogListPage, meta: { scrollMode: RouteScrollMode.APP } },
   {

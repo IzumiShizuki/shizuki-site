@@ -7,7 +7,8 @@
     <p v-if="error" class="todo-dev-error" role="alert">{{ error }}</p>
     <p v-if="loading" role="status">加载研发进度…</p>
 
-    <form v-else-if="loaded && !context && !error" class="todo-dev-enable" @submit.prevent="enable">
+    <p v-if="linkedView && loaded && !context && !error">此任务不可用，或当前账号没有查看权限。</p>
+    <form v-else-if="!linkedView && loaded && !context && !error" class="todo-dev-enable" @submit.prevent="enable">
       <template v-if="projectId">
         <label>
           代码仓库
@@ -23,6 +24,8 @@
     </form>
 
     <template v-if="context">
+      <h3 v-if="linkedView">{{ context.title }}</h3>
+      <TodoRunBoard :context="context" />
       <dl class="todo-dev-facts">
         <dt>仓库</dt><dd>{{ context.repository }}</dd>
         <dt>阶段</dt><dd>{{ stageLabel(context.stage) }} · {{ statusLabel(context.status) }}</dd>
@@ -38,6 +41,7 @@
         <button type="button" :disabled="busy || !loaded" @click="approve">通过{{ stageLabel(context.stage) }}</button>
       </div>
 
+      <TodoLocalNote v-if="accountId" :account-id="accountId" :todo-id="String(todoId)" :title="context.title" />
       <div v-if="context.events?.length" class="todo-dev-history">
         <h5>阶段记录</h5>
         <ol>
@@ -61,6 +65,8 @@
 
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import TodoLocalNote from './TodoLocalNote.vue';
+import TodoRunBoard from './TodoRunBoard.vue';
 import {
   approveTodoDevelopment,
   enableTodoDevelopment,
@@ -72,6 +78,8 @@ import {
 const props = defineProps({
   todoId: { type: [Number, String], required: true },
   projectId: { type: [Number, String], default: null },
+  accountId: { type: String, default: '' },
+  linkedView: Boolean,
   authorizedFetch: { type: Function, required: true }
 });
 const emit = defineEmits(['updated']);
@@ -84,6 +92,8 @@ const error = ref('');
 const context = ref(null);
 const pendingApproval = ref(null);
 let active = true;
+let poll;
+let reading = false;
 
 const busy = computed(() => loading.value || submitting.value);
 const validRepository = computed(() => /^[a-z0-9][a-z0-9_.-]{0,99}\/[a-z0-9][a-z0-9_.-]{0,99}$/i.test(repository.value));
@@ -140,25 +150,29 @@ function applyContext(value) {
   emit('updated', props.todoId, value);
 }
 
-async function load() {
-  if (busy.value) return;
-  loading.value = true;
-  loaded.value = false;
-  error.value = '';
+async function load(quiet = false) {
+  if (busy.value || reading) return;
+  reading = true;
+  if (quiet !== true) loading.value = true;
   try {
     const value = await readTodoDevelopment(props.todoId, props.authorizedFetch);
     if (!active) return;
     applyContext(value);
     loaded.value = true;
-  } catch {
+    error.value = '';
+  } catch (failure) {
+    if (!active) return;
+    loaded.value = false;
+    if ([401, 403].includes(failure?.status)) applyContext(null);
     error.value = '无法读取研发进度，请刷新重试。';
   } finally {
+    reading = false;
     loading.value = false;
   }
 }
 
 async function enable() {
-  if (busy.value || !loaded.value || context.value || !props.projectId || !validRepository.value) return;
+  if (reading || busy.value || !loaded.value || context.value || !props.projectId || !validRepository.value) return;
   submitting.value = true;
   error.value = '';
   try {
@@ -182,7 +196,7 @@ async function enable() {
 }
 
 async function approve() {
-  if (busy.value || !loaded.value || context.value?.status !== 'AWAITING_APPROVAL') return;
+  if (reading || busy.value || !loaded.value || context.value?.status !== 'AWAITING_APPROVAL') return;
   submitting.value = true;
   error.value = '';
   try {
@@ -208,8 +222,17 @@ async function approve() {
   }
 }
 
-onMounted(load);
-onBeforeUnmount(() => { active = false; });
+const refresh = () => load(true);
+onMounted(() => {
+  load();
+  window.addEventListener('online', refresh);
+  poll = setInterval(() => { if (!document.hidden) refresh(); }, 15000);
+});
+onBeforeUnmount(() => {
+  active = false;
+  clearInterval(poll);
+  window.removeEventListener('online', refresh);
+});
 </script>
 
 <style scoped>

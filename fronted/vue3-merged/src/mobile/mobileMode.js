@@ -62,6 +62,7 @@ export function isMobileShellPath(path) {
  */
 export function mapDesktopPathToMobile(path) {
   const normalized = String(path || '');
+  if (/^\/todo\/run\/[1-9]\d{0,18}$/.test(normalized)) return '/m' + normalized;
   if (isMobileShellPath(normalized)) return '';
   if (normalized === '/music-library' || normalized === '/music-library/' || normalized === '/music-library/music') {
     return '/m/music';
@@ -83,6 +84,7 @@ export function mapDesktopPathToMobile(path) {
  */
 export function mapMobilePathToDesktop(path) {
   const normalized = String(path || '');
+  if (/^\/m\/todo\/run\/[1-9]\d{0,18}$/.test(normalized)) return normalized.slice(2);
   if (!isMobileShellPath(normalized)) return '';
   if (normalized === '/m' || normalized === '/m/' || normalized === '/m/music') {
     return '/music-library/music';

@@ -1,5 +1,7 @@
 # Shizuki Todo 研发 MCP
 
+任务详情、Obsidian 双向链接和本地阶段执行命令见[运行看板指南](RUNBOARD.md)。
+
 Codex 在本机启动此 stdio 适配器；适配器只访问 Shizuki Site 的
 `/api/v1/light-apps/todos/dev`，不监听端口、不读取 Todo 数据库、不启动 Agent。
 网站始终是任务进度的来源。生产地址必须使用 HTTPS；HTTP 仅允许回环地址用于本地测试，不跟随重定向。

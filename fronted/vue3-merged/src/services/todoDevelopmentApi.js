@@ -13,6 +13,7 @@ export const TODO_DEV_STATUSES = Object.freeze({
   READY: '待开始',
   IN_PROGRESS: '进行中',
   BLOCKED: '阻塞',
+  FAILED: '失败',
   AWAITING_APPROVAL: '待确认',
   COMPLETE: '已完成'
 });
