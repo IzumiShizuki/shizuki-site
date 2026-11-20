@@ -1,6 +1,7 @@
 <template>
   <transition name="m-mini">
-    <div v-if="track" class="m-mini m-press" role="button" tabindex="0" @click="$emit('expand')" @keydown.enter="$emit('expand')">
+    <div v-if="track" class="m-mini">
+      <button type="button" class="mini-expand" aria-label="展开播放器" @click="$emit('expand')"></button>
       <div class="mini-progress" aria-hidden="true">
         <span :style="{ width: `${progressPercent}%` }"></span>
       </div>
@@ -9,10 +10,15 @@
       </div>
       <div class="mini-main">
         <p class="mini-title">{{ track.title }}</p>
-        <p class="mini-sub">{{ lyricLine || track.artist }}</p>
+        <MusicNextStatus class="mini-next-status" v-if="nextTarget || nextError"
+          :target="nextTarget"
+          :failed-track="nextError"
+          @retry="$emit('retry-next')"
+        />
+        <p v-else class="mini-sub">{{ lyricLine || track.artist }}</p>
       </div>
-      <button type="button" class="mini-btn" :aria-label="isPlaying ? '暂停' : '播放'" @click.stop="$emit('toggle-play')">
-        <i :class="isPlaying ? 'fa-solid fa-pause' : 'fa-solid fa-play'" aria-hidden="true"></i>
+      <button type="button" class="mini-btn" :aria-label="isPlaying ? '暂停' : nextTarget ? '取消切歌' : '播放'" @click.stop="$emit('toggle-play')">
+        <i :class="isPlaying || nextTarget ? 'fa-solid fa-pause' : 'fa-solid fa-play'" aria-hidden="true"></i>
       </button>
       <button type="button" class="mini-btn subtle" aria-label="下一首" @click.stop="$emit('next')">
         <i class="fa-solid fa-forward-step" aria-hidden="true"></i>
@@ -23,8 +29,11 @@
 
 <script setup>
 import { computed } from 'vue';
+import MusicNextStatus from '../../components/music/MusicNextStatus.vue';
 
 const props = defineProps({
+  nextTarget: { type: Object, default: null },
+  nextError: { type: Object, default: null },
   track: {
     type: Object,
     default: null
@@ -47,7 +56,7 @@ const props = defineProps({
   }
 });
 
-defineEmits(['expand', 'toggle-play', 'next']);
+defineEmits(['expand', 'toggle-play', 'next', 'retry-next']);
 
 const progressPercent = computed(() => {
   if (!Number.isFinite(props.duration) || props.duration <= 0) return 0;
@@ -76,6 +85,17 @@ const progressPercent = computed(() => {
   cursor: pointer;
   overflow: hidden;
 }
+
+.mini-expand {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  z-index: 1;
+}
+
+.mini-expand:focus-visible { outline-offset: -3px; }
 
 .mini-progress {
   position: absolute;
@@ -146,10 +166,16 @@ const progressPercent = computed(() => {
   text-overflow: ellipsis;
 }
 
+.mini-next-status {
+  --next-retry-z-index: 2;
+}
+
 .mini-btn {
+  position: relative;
+  z-index: 2;
   flex-shrink: 0;
-  width: 38px;
-  height: 38px;
+  width: 44px;
+  height: 44px;
   display: grid;
   place-items: center;
   border: none;

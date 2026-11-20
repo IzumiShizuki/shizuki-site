@@ -1,14 +1,19 @@
 <template>
   <section ref="viewRootRef" class="music-center-view voice-home-view">
-    <section class="voice-toolbar liquid-material">
+    <form class="voice-toolbar liquid-material" role="search" @submit.prevent="submitSearch">
       <div class="voice-search-box">
-        <i class="fas fa-wave-square"></i>
+        <i class="fas fa-wave-square" aria-hidden="true"></i>
         <input
           v-model="keywordDraft"
           type="search"
-          placeholder="搜索音声作品（留空默认榜单）"
-          @keyup.enter="submitSearch"
+          aria-label="搜索音声作品"
+          maxlength="200"
+          placeholder="输入作品名或关键词"
         />
+        <button class="toolbar-btn ripple-trigger" type="submit">
+          <i class="fas fa-magnifying-glass" aria-hidden="true"></i>
+          搜索
+        </button>
       </div>
 
       <div class="voice-toolbar-actions">
@@ -30,14 +35,20 @@
           </select>
         </label>
 
-        <button class="toolbar-btn ripple-trigger" type="button" :disabled="loading" @click="submitSearch">
-          <i class="fas fa-magnifying-glass"></i>
-          查询
-        </button>
       </div>
+    </form>
+
+    <section v-if="committedKeyword || selectedTags.length" class="voice-active-filters" aria-label="已应用筛选">
+      <strong>已应用</strong>
+      <button v-if="committedKeyword" class="tag-chip active" type="button" @click="clearKeyword">关键词：{{ committedKeyword }} <span aria-hidden="true">×</span></button>
+      <button v-for="tag in selectedTags" :key="`selected-${tag.tagId}`" class="tag-chip active" type="button"
+        :aria-label="`移除标签 ${voiceTagLabel(tag)}`" @click="toggleTag(tag.tagId)">{{ voiceTagLabel(tag) }} <span aria-hidden="true">×</span></button>
     </section>
 
-    <p v-if="errorText" class="state-text error">{{ errorText }}</p>
+    <div v-if="errorText" class="voice-error" role="alert">
+      <p class="state-text error">{{ errorText }}</p>
+      <button class="toolbar-btn ripple-trigger" type="button" @click="retrySearch">重试</button>
+    </div>
 
     <section class="voice-age-panel liquid-material" :class="{ collapsed: !ageFiltersExpanded }">
       <header>
@@ -80,12 +91,15 @@
     </section>
 
     <section
-      v-if="availableTags.length"
+      v-if="availableTags.length || selectedTags.length"
       class="voice-tag-panel liquid-material"
       :class="{ collapsed: !tagFiltersExpanded }"
     >
       <header>
-        <h3>标签筛选（多选 AND）</h3>
+        <div>
+          <h3>标签筛选</h3>
+          <p class="state-text">可多选，作品须同时匹配所选标签。标签来自最近一批结果。</p>
+        </div>
         <div class="filter-panel-actions">
           <button v-if="selectedTagIds.length" class="clear-btn ripple-trigger" type="button" @click="clearTags">清空</button>
           <button
@@ -101,27 +115,41 @@
           </button>
         </div>
       </header>
-      <div v-show="tagFiltersExpanded" id="voice-tag-filter-body" class="tag-chip-list filter-panel-body">
+      <div v-show="tagFiltersExpanded" id="voice-tag-filter-body" class="filter-panel-body">
+        <input v-if="availableTags.length >= 8" v-model.trim="tagKeyword" class="voice-tag-search"
+          type="search" aria-label="查找当前结果的标签" placeholder="查找当前结果的标签" />
+        <div class="tag-chip-list" role="group" aria-label="当前结果的标签">
         <button
-          v-for="tag in availableTags"
-          :key="`tag-${tag.tagId || tag.name}`"
+          v-for="tag in visibleTags"
+          :key="`tag-${tag.tagId}`"
           class="tag-chip ripple-trigger"
           :class="{ active: selectedTagSet.has(tag.tagId) }"
           type="button"
+          :aria-pressed="selectedTagSet.has(tag.tagId)"
+          :title="tag.sourceName ? `原始标签：${tag.sourceName}` : undefined"
+          :disabled="selectedTagIds.length >= 20 && !selectedTagSet.has(tag.tagId)"
           @click="toggleTag(tag.tagId)"
         >
-          {{ tag.name || `Tag ${tag.tagId}` }}
+          {{ voiceTagLabel(tag) }}
         </button>
+        <button v-if="matchingTags.length > TAG_PREVIEW_LIMIT" class="clear-btn" type="button" @click="showAllTags = !showAllTags">
+          {{ showAllTags ? '显示更少' : `显示全部 ${matchingTags.length} 个标签` }}
+        </button>
+        </div>
+        <p v-if="tagKeyword && !matchingTags.length" class="state-text">当前结果中没有这个标签。</p>
       </div>
     </section>
 
     <section class="voice-card-panel liquid-material">
       <header class="voice-card-header">
         <h2>音声作品</h2>
-        <span>{{ works.length }} 条</span>
+        <span role="status">已加载 {{ works.length }} 项</span>
       </header>
 
-      <div v-if="!works.length && !loading" class="empty-state">暂无匹配作品</div>
+      <div v-if="!works.length && !loading && !errorText" class="empty-state">
+        <span>暂无匹配作品</span>
+        <button v-if="committedKeyword || selectedTagIds.length" class="toolbar-btn" type="button" @click="resetSearch">清除关键词和标签</button>
+      </div>
 
       <div class="voice-card-grid">
         <article
@@ -130,7 +158,8 @@
           class="voice-work-card ripple-trigger"
           @click="openWork(item)"
         >
-          <div class="cover" :style="coverStyle(item.cover)">
+          <div class="cover">
+            <img v-if="item.cover" :src="item.cover" alt="" loading="lazy" decoding="async">
             <span
               class="voice-age-badge"
               :class="`age-${normalizeVoiceAgeCategory(item.ageCategory, item.nsfw)}`"
@@ -139,7 +168,7 @@
             </span>
           </div>
           <div class="meta">
-            <p class="title">{{ item.title || '未命名作品' }}</p>
+            <p class="title"><RouterLink :to="workLocation(item)" @click.stop="handleTitleClick">{{ item.title || '未命名作品' }}</RouterLink></p>
             <p class="circle">{{ item.circle || '未知社团' }}</p>
             <p class="stats">
               <span>{{ item.releaseDate || '-' }}</span>
@@ -156,7 +185,7 @@
           <i class="fas fa-spinner fa-spin"></i>
           加载中...
         </p>
-        <span v-else class="pager-sentinel" aria-hidden="true"></span>
+        <button v-else-if="!errorText" class="toolbar-btn ripple-trigger" type="button" @click="loadMore">加载更多</button>
       </footer>
     </section>
   </section>
@@ -164,10 +193,13 @@
 
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { useAuthSession } from '../../composables/useAuthSession';
 import * as musicApi from '../../services/musicApi';
-import { safeCssUrl } from '../../utils/url';
+import {
+  normalizeVoiceTags, readVoiceCatalogueQuery, resolveVoiceCover, voiceTagId,
+  voiceTagLabel, writeVoiceCatalogueQuery
+} from '../../utils/voiceCatalogue';
 import {
   DEFAULT_VOICE_AGE_FILTER,
   VOICE_AGE_FILTER_OPTIONS,
@@ -177,7 +209,9 @@ import {
 } from '../../utils/voiceAgeCategory';
 
 const router = useRouter();
+const route = useRoute();
 const auth = useAuthSession();
+const initialSearch = readVoiceCatalogueQuery(route.query);
 
 const loading = ref(false);
 const errorText = ref('');
@@ -187,38 +221,49 @@ const hasMore = ref(false);
 const viewRootRef = ref(null);
 const nextAppendPage = ref(3);
 
-const keywordDraft = ref('');
-const committedKeyword = ref('');
-const order = ref('release');
-const sort = ref('desc');
-const selectedTagIds = ref([]);
-const ageFilter = ref(DEFAULT_VOICE_AGE_FILTER);
+const keywordDraft = ref(initialSearch.keyword);
+const committedKeyword = ref(initialSearch.keyword);
+const order = ref(initialSearch.order);
+const sort = ref(initialSearch.sort);
+const selectedTagIds = ref(initialSearch.tagIds);
+const selectedTagNames = ref(new Map());
+const ageFilter = ref(initialSearch.ageFilter || DEFAULT_VOICE_AGE_FILTER);
 const ageFiltersExpanded = ref(true);
 const tagFiltersExpanded = ref(true);
+const tagKeyword = ref('');
+const showAllTags = ref(false);
 
 const INITIAL_PAGE_LIMIT = 20;
 const APPEND_PAGE_LIMIT = 10;
 const FIRST_APPEND_PAGE = Math.floor(INITIAL_PAGE_LIMIT / APPEND_PAGE_LIMIT) + 1;
 const AUTO_LOAD_SCROLL_RATIO = 0.75;
+const TAG_PREVIEW_LIMIT = 12;
 let scrollHost = null;
+let activeRequest = null;
+let activeRequestKey = '';
+let retryAppend = false;
 const selectedTagSet = computed(() => new Set(selectedTagIds.value));
 const selectedAgeCategories = computed(() => resolveVoiceAgeFilterCategories(ageFilter.value));
+const selectedTags = computed(() => selectedTagIds.value.map((tagId) => ({
+  tagId, name: selectedTagNames.value.get(tagId)
+})));
+const matchingTags = computed(() => {
+  const q = tagKeyword.value.normalize('NFKC').toLocaleLowerCase();
+  const tags = availableTags.value;
+  return q ? tags.filter((tag) => [voiceTagLabel(tag), tag.sourceName]
+    .some((name) => name?.normalize('NFKC').toLocaleLowerCase().includes(q))) : tags;
+});
+const visibleTags = computed(() => showAllTags.value
+  ? matchingTags.value : matchingTags.value.slice(0, TAG_PREVIEW_LIMIT));
 
-function normalizeTag(raw) {
-  const tagId = Number(raw?.tagId ?? raw?.tag_id ?? 0);
+function normalizeWork(raw) {
+  const id = voiceTagId(raw?.workId ?? raw?.work_id ?? raw?.id);
+  if (!id) return null;
   return {
-    tagId: Number.isFinite(tagId) ? tagId : 0,
-    name: String(raw?.name || '').trim()
-  };
-}
-
-function normalizeWork(raw, index = 0) {
-  const id = Number(raw?.workId ?? raw?.work_id ?? raw?.id ?? 0);
-  return {
-    workId: Number.isFinite(id) ? id : index + 1,
+    workId: id,
     title: String(raw?.title || '').trim(),
     circle: String(raw?.circle || raw?.artist || '').trim(),
-    cover: String(raw?.cover || '').trim(),
+    cover: resolveVoiceCover(raw?.cover),
     releaseDate: String(raw?.releaseDate || raw?.release_date || '').trim(),
     durationSec: Number.isFinite(Number(raw?.durationSec ?? raw?.duration_sec))
       ? Number(raw.durationSec ?? raw.duration_sec)
@@ -235,27 +280,20 @@ function normalizeWork(raw, index = 0) {
     ageCategory: String(raw?.ageCategory || raw?.age_category || '').trim(),
     sourceId: String(raw?.sourceId || raw?.source_id || '').trim(),
     sourceUrl: String(raw?.sourceUrl || raw?.source_url || '').trim(),
-    tags: Array.isArray(raw?.tags) ? raw.tags.map((item) => normalizeTag(item)) : [],
+    tags: normalizeVoiceTags(raw?.tags),
     vas: Array.isArray(raw?.vas) ? raw.vas.map((item) => String(item || '').trim()).filter(Boolean) : []
   };
 }
 
-function coverStyle(rawUrl) {
-  const url = safeCssUrl(rawUrl);
-  return {
-    backgroundImage: url ? `url('${url}')` : 'none'
-  };
-}
-
 function scoreText(value) {
-  if (!Number.isFinite(Number(value))) return '-';
+  if (value == null || value === '' || !Number.isFinite(Number(value))) return '-';
   return Number(value).toFixed(1);
 }
 
 function renderTags(tags) {
   const list = Array.isArray(tags) ? tags : [];
   if (!list.length) return '无标签';
-  return list.slice(0, 4).map((item) => item.name || `Tag ${item.tagId}`).join(' / ');
+  return list.slice(0, 4).map(voiceTagLabel).join(' · ');
 }
 
 function parseErrorMessage(error, fallback = '音声查询失败，请稍后重试') {
@@ -274,34 +312,28 @@ async function requestVoiceWorks(requestOptions, authorizedFetch) {
   try {
     return await musicApi.searchVoiceWorks(requestOptions, authorizedFetch);
   } catch (error) {
-    if (!isAsmrUpstreamTimeout(error)) throw error;
+    if (requestOptions.signal.aborted || !isAsmrUpstreamTimeout(error)) throw error;
     return musicApi.searchVoiceWorks(requestOptions, authorizedFetch);
   }
-}
-
-function normalizeAvailableTags(payload) {
-  const list = Array.isArray(payload) ? payload : [];
-  const mapById = new Map();
-  list.forEach((item) => {
-    const normalized = normalizeTag(item);
-    if (!normalized.tagId) return;
-    if (!mapById.has(normalized.tagId)) {
-      mapById.set(normalized.tagId, normalized);
-    }
-  });
-  return [...mapById.values()];
 }
 
 async function fetchVoiceWorks(options = {}) {
   const append = Boolean(options?.append);
   const nextPage = append ? nextAppendPage.value : 1;
   const requestLimit = append ? APPEND_PAGE_LIMIT : INITIAL_PAGE_LIMIT;
-  if (loading.value) return;
-  if (append && !hasMore.value) return;
-
+  if (append && (loading.value || !hasMore.value)) return;
+  const requestKey = JSON.stringify([append, nextPage, committedKeyword.value,
+    order.value, sort.value, selectedTagIds.value, selectedAgeCategories.value]);
+  if (activeRequest && activeRequestKey === requestKey) return;
+  activeRequest?.abort();
+  const request = new AbortController();
+  activeRequest = request;
+  activeRequestKey = requestKey;
   loading.value = true;
+  errorText.value = '';
   if (!append) {
-    errorText.value = '';
+    works.value = [];
+    hasMore.value = false;
   }
   let requestSucceeded = false;
   try {
@@ -313,27 +345,36 @@ async function fetchVoiceWorks(options = {}) {
         order: order.value,
         sort: sort.value,
         tagIds: selectedTagIds.value,
-        ageCategories: selectedAgeCategories.value
+        ageCategories: selectedAgeCategories.value,
+        signal: request.signal
       },
       auth.isAuthenticated.value ? auth.authorizedFetch : undefined
     );
-    const rows = Array.isArray(payload?.items) ? payload.items.map((item, index) => normalizeWork(item, index)) : [];
-    works.value = append
-      ? [...works.value, ...rows.filter((item) => !works.value.some((old) => old.workId === item.workId))]
-      : rows;
-    availableTags.value = normalizeAvailableTags(payload?.availableTags || payload?.available_tags);
+    if (activeRequest !== request) return;
+    const rows = Array.isArray(payload?.items) ? payload.items.map(normalizeWork).filter(Boolean) : [];
+    const previousCount = works.value.length;
+    const unique = new Map((append ? works.value : []).map((item) => [item.workId, item]));
+    for (const row of rows) if (!unique.has(row.workId)) unique.set(row.workId, row);
+    works.value = [...unique.values()];
+    const incomingTags = payload?.availableTags ?? payload?.available_tags;
+    availableTags.value = normalizeVoiceTags(
+      [...(append ? availableTags.value : []), ...(Array.isArray(incomingTags) ? incomingTags : [])],
+      { requireId: true }
+    );
+    rememberSelectedTags([...availableTags.value, ...rows.flatMap((row) => row.tags)]);
     hasMore.value = Boolean(payload?.hasMore ?? payload?.has_more);
     nextAppendPage.value = append ? nextPage + 1 : FIRST_APPEND_PAGE;
-    requestSucceeded = true;
+    requestSucceeded = !append || unique.size > previousCount;
   } catch (error) {
-    if (!append) {
-      works.value = [];
-    }
+    if (activeRequest !== request) return;
+    retryAppend = append;
     errorText.value = parseErrorMessage(error);
   } finally {
-    loading.value = false;
-    if (requestSucceeded) {
-      scheduleAutoLoadCheck();
+    if (activeRequest === request) {
+      activeRequest = null;
+      activeRequestKey = '';
+      loading.value = false;
+      if (requestSucceeded) scheduleAutoLoadCheck();
     }
   }
 }
@@ -343,11 +384,11 @@ function resetPagination() {
 }
 
 function hasReachedAutoLoadThreshold() {
-  if (!scrollHost || loading.value || !hasMore.value) return false;
+  if (!scrollHost || loading.value || !hasMore.value || errorText.value) return false;
   const scrollHeight = Number(scrollHost.scrollHeight || 0);
   const clientHeight = Number(scrollHost.clientHeight || 0);
   if (scrollHeight <= 0 || clientHeight <= 0) return false;
-  if (scrollHeight <= clientHeight) return works.value.length > 0;
+  if (scrollHeight <= clientHeight) return false;
   return (Number(scrollHost.scrollTop || 0) + clientHeight) / scrollHeight >= AUTO_LOAD_SCROLL_RATIO;
 }
 
@@ -364,42 +405,77 @@ function scheduleAutoLoadCheck() {
 }
 
 async function submitSearch() {
-  const nextKeyword = String(keywordDraft.value || '').trim();
-  if (nextKeyword && nextKeyword !== committedKeyword.value) {
-    selectedTagIds.value = [];
-  }
-  committedKeyword.value = nextKeyword;
-  resetPagination();
-  await fetchVoiceWorks({ append: false });
+  committedKeyword.value = String(keywordDraft.value || '').trim().slice(0, 200);
+  await applyFilters();
 }
 
 async function applySortChange() {
-  resetPagination();
-  await fetchVoiceWorks({ append: false });
+  await applyFilters();
 }
 
 async function applyAgeFilter(filterKey) {
   if (ageFilter.value === filterKey) return;
   ageFilter.value = filterKey;
-  resetPagination();
-  await fetchVoiceWorks({ append: false });
+  availableTags.value = [];
+  await applyFilters();
 }
 
 async function toggleTag(tagId) {
-  const id = Number(tagId || 0);
-  if (!Number.isFinite(id) || id <= 0) return;
+  const id = voiceTagId(tagId);
+  if (!id) return;
   const next = new Set(selectedTagIds.value);
   if (next.has(id)) next.delete(id);
-  else next.add(id);
+  else if (next.size < 20) next.add(id);
+  else return;
   selectedTagIds.value = [...next];
-  resetPagination();
-  await fetchVoiceWorks({ append: false });
+  rememberSelectedTags(availableTags.value);
+  await applyFilters();
 }
 
 async function clearTags() {
   selectedTagIds.value = [];
+  rememberSelectedTags([]);
+  await applyFilters();
+}
+
+function rememberSelectedTags(tags) {
+  const names = new Map(selectedTagIds.value.map((id) => [id, selectedTagNames.value.get(id)]));
+  for (const tag of tags) if (names.has(tag.tagId) && tag.name) names.set(tag.tagId, tag.name);
+  selectedTagNames.value = names;
+}
+
+function catalogueQuery() {
+  return writeVoiceCatalogueQuery({
+    keyword: committedKeyword.value, order: order.value, sort: sort.value,
+    ageFilter: ageFilter.value, tagIds: selectedTagIds.value
+  });
+}
+
+async function applyFilters() {
+  const query = catalogueQuery();
+  if (router.resolve({ name: 'music-library-voice', query }).fullPath !== route.fullPath) {
+    void router.replace({ name: 'music-library-voice', query });
+  }
   resetPagination();
-  await fetchVoiceWorks({ append: false });
+  tagKeyword.value = '';
+  showAllTags.value = false;
+  if (scrollHost) scrollHost.scrollTop = 0;
+  await fetchVoiceWorks();
+}
+
+async function clearKeyword() {
+  keywordDraft.value = '';
+  await submitSearch();
+}
+
+async function resetSearch() {
+  selectedTagIds.value = [];
+  rememberSelectedTags([]);
+  await clearKeyword();
+}
+
+async function retrySearch() {
+  await fetchVoiceWorks({ append: retryAppend });
 }
 
 async function loadMore() {
@@ -408,12 +484,19 @@ async function loadMore() {
 
 function openWork(item) {
   if (hasActiveTextSelection()) return;
-  const workId = Number(item?.workId || 0);
-  if (!Number.isFinite(workId) || workId <= 0) return;
-  router.push({
+  router.push(workLocation(item));
+}
+
+function workLocation(item) {
+  return {
     name: 'music-library-voice-work',
-    params: { workId: String(workId) }
-  });
+    params: { workId: String(item.workId) },
+    query: catalogueQuery()
+  };
+}
+
+function handleTitleClick(event) {
+  if (hasActiveTextSelection()) event.preventDefault();
 }
 
 function hasActiveTextSelection() {
@@ -424,10 +507,12 @@ function hasActiveTextSelection() {
 onMounted(async () => {
   scrollHost = viewRootRef.value?.closest('.music-center-pane') || null;
   scrollHost?.addEventListener('scroll', handleVoiceScroll, { passive: true });
-  await submitSearch();
+  await fetchVoiceWorks();
 });
 
 onBeforeUnmount(() => {
+  activeRequest?.abort();
+  activeRequest = null;
   scrollHost?.removeEventListener('scroll', handleVoiceScroll);
   scrollHost = null;
 });
@@ -485,12 +570,38 @@ onBeforeUnmount(() => {
 
 .voice-search-box input {
   width: 100%;
+  min-width: 0;
   border: 0;
   outline: none;
   background: transparent;
   color: var(--theme-text-primary);
   user-select: text;
   -webkit-user-select: text;
+}
+
+.voice-search-box .toolbar-btn { flex: none; margin-block: 4px; }
+.voice-search-box:focus-within { border-color: var(--accent-mode-border); }
+
+.voice-active-filters, .voice-error {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.voice-active-filters strong { font-size: 12px; }
+.voice-active-filters button { max-width: 100%; overflow-wrap: anywhere; }
+.voice-error { justify-content: space-between; }
+.voice-tag-search {
+  min-height: 36px;
+  width: min(100%, 240px);
+  margin-bottom: 8px;
+  padding-inline: 8px;
+  border-radius: 8px;
+  border: 1px solid var(--theme-border);
+  background: var(--theme-surface-soft);
+  color: var(--theme-text-primary);
 }
 
 .voice-toolbar-actions {
@@ -699,6 +810,16 @@ onBeforeUnmount(() => {
   background-color: var(--theme-surface-soft);
 }
 
+.voice-work-card .cover img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.voice-work-card .title a { color: inherit; overflow-wrap: anywhere; }
+.voice-work-card .title a:focus-visible { outline: 2px solid var(--accent-mode-border); }
+
 .voice-age-badge {
   position: absolute;
   top: 8px;
@@ -777,6 +898,8 @@ onBeforeUnmount(() => {
   border: 1px dashed var(--theme-border);
   display: grid;
   place-items: center;
+  align-content: center;
+  gap: 8px;
   color: var(--theme-text-tertiary);
 }
 

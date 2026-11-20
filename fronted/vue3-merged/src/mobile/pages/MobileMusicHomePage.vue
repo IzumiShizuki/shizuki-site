@@ -20,7 +20,14 @@
       <span>搜索歌曲、歌单、歌手…</span>
     </button>
 
-    <section v-if="player.currentTrack.value" class="now-card m-card m-press" role="button" tabindex="0" @click="shell.openPlayer()">
+    <RouterLink v-if="voiceVisible" class="search-entry voice-entry m-card m-press" to="/music-library/voice">
+      <i class="fa-solid fa-headphones" aria-hidden="true"></i>
+      <span>找音声 · 按作品、声优或标签筛选</span>
+      <i class="fa-solid fa-chevron-right voice-entry-arrow" aria-hidden="true"></i>
+    </RouterLink>
+
+    <section v-if="player.currentTrack.value" class="now-card m-card m-press" role="button" tabindex="0"
+      @click="shell.openPlayer()" @keydown.enter.prevent="shell.openPlayer()" @keydown.space.prevent="shell.openPlayer()">
       <div class="now-cover" :class="{ playing: player.isPlaying.value }">
         <img :src="player.currentTrack.value.cover" alt="" />
       </div>
@@ -80,13 +87,23 @@
 
 <script setup>
 import UserAvatar from '../../components/UserAvatar.vue';
-import { computed, onMounted } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { useMobileShell } from '../mobileShellContext';
+import { resolveVoiceRouteVisible, voiceRouteAccountKey } from '../../router/voiceRouteAccess';
 
 const router = useRouter();
 const shell = useMobileShell();
 const { auth, player, library } = shell;
+const voiceVisible = ref(false);
+watch(() => voiceRouteAccountKey(auth), (_key, _previous, onCleanup) => {
+  let current = true;
+  voiceVisible.value = false;
+  onCleanup(() => { current = false; });
+  void resolveVoiceRouteVisible(auth).then((allowed) => {
+    if (current) voiceVisible.value = allowed;
+  });
+}, { immediate: true });
 
 const sections = computed(() => library.sections.value || []);
 
@@ -126,6 +143,12 @@ onMounted(() => {
 </script>
 
 <style scoped>
+.voice-entry { text-decoration: none; }
+.voice-entry-arrow { margin-inline-start: auto; font-size: 0.75em; }
+.voice-entry:focus-visible, .now-card:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
 .m-music-home {
   display: flex;
   flex-direction: column;

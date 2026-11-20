@@ -10,6 +10,7 @@ export function shouldHideGlobalLyricBarOnRoute(routePath) {
 export function shouldShowGlobalLyricBar({
   subtitleVisible,
   hasCurrentTrack,
+  isPlaying,
   routePath,
   isMusicLibraryRoute,
   isFocusActive,
@@ -18,6 +19,7 @@ export function shouldShowGlobalLyricBar({
   return Boolean(
     subtitleVisible
     && hasCurrentTrack
+    && isPlaying
     && (!isMusicLibraryRoute || isFocusActive)
     && !shouldHideGlobalLyricBarOnRoute(routePath)
     && !isDesktopHomeSurface

@@ -78,6 +78,11 @@
         </div>
 
         <footer class="player-foot">
+          <MusicNextStatus v-if="nextTarget || nextError"
+            :target="nextTarget"
+            :failed-track="nextError"
+            @retry="$emit('retry-next')"
+          />
           <div class="seek-row">
             <span class="time-label">{{ formatTime(displayTime) }}</span>
             <input
@@ -106,8 +111,8 @@
             <button type="button" class="ctrl-btn" aria-label="上一首" @click="$emit('prev')">
               <i class="fa-solid fa-backward-step" aria-hidden="true"></i>
             </button>
-            <button type="button" class="ctrl-btn primary" :aria-label="isPlaying ? '暂停' : '播放'" @click="$emit('toggle-play')">
-              <i :class="isPlaying ? 'fa-solid fa-pause' : 'fa-solid fa-play'" aria-hidden="true"></i>
+            <button type="button" class="ctrl-btn primary" :aria-label="isPlaying ? '暂停' : nextTarget ? '取消切歌' : '播放'" @click="$emit('toggle-play')">
+              <i :class="isPlaying || nextTarget ? 'fa-solid fa-pause' : 'fa-solid fa-play'" aria-hidden="true"></i>
             </button>
             <button type="button" class="ctrl-btn" aria-label="下一首" @click="$emit('next')">
               <i class="fa-solid fa-forward-step" aria-hidden="true"></i>
@@ -149,9 +154,12 @@
 import { computed, nextTick, ref, watch } from 'vue';
 import { formatMediaTime } from '../../utils/mediaTime';
 import MobileSheet from './MobileSheet.vue';
+import MusicNextStatus from '../../components/music/MusicNextStatus.vue';
 import MobileTrackRow from './MobileTrackRow.vue';
 
 const props = defineProps({
+  nextTarget: { type: Object, default: null },
+  nextError: { type: Object, default: null },
   visible: { type: Boolean, default: false },
   track: { type: Object, default: null },
   tracks: { type: Array, default: () => [] },
@@ -173,6 +181,7 @@ const emit = defineEmits([
   'toggle-play',
   'prev',
   'next',
+  'retry-next',
   'cycle-mode',
   'seek-percent',
   'seek-time',

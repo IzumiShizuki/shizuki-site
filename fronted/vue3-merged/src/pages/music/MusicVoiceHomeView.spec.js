@@ -1,12 +1,19 @@
-import { flushPromises, mount } from '@vue/test-utils';
+import { flushPromises, mount as mountComponent, RouterLinkStub } from '@vue/test-utils';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import MusicVoiceHomeView from './MusicVoiceHomeView.vue';
 import * as musicApi from '../../services/musicApi';
 
+const mount = (component, options) => mountComponent(component, {
+  ...options,
+  global: { stubs: { RouterLink: RouterLinkStub } }
+});
+
 const push = vi.fn();
+const replace = vi.fn();
 
 vi.mock('vue-router', () => ({
-  useRouter: () => ({ push })
+  useRoute: () => ({ query: {}, fullPath: '/music-library/voice' }),
+  useRouter: () => ({ push, replace, resolve: (location) => ({ fullPath: JSON.stringify(location.query) }) })
 }));
 
 vi.mock('../../composables/useAuthSession', () => ({
@@ -47,24 +54,54 @@ describe('MusicVoiceHomeView', () => {
     );
   });
 
-  it('starts a typed keyword search without retaining a stale tag-only filter', async () => {
+  it('combines keyword and tag filters and retains the clear control after facets change', async () => {
     const wrapper = mount(MusicVoiceHomeView);
     await flushPromises();
 
     await wrapper.get('.tag-chip').trigger('click');
     await flushPromises();
+    vi.mocked(musicApi.searchVoiceWorks).mockResolvedValueOnce(
+      voicePayload([{ workId: 2, title: 'Matched work', ageCategory: 'general' }])
+    );
     await wrapper.get('.voice-search-box input').setValue('school');
-    await wrapper.get('.toolbar-btn').trigger('click');
+    await wrapper.get('form').trigger('submit');
     await flushPromises();
 
     expect(musicApi.searchVoiceWorks).toHaveBeenLastCalledWith(
       expect.objectContaining({
         q: 'school',
-        tagIds: []
+        tagIds: [11]
       }),
       undefined
     );
-    expect(wrapper.find('.tag-chip.active').exists()).toBe(false);
+    expect(wrapper.get('.voice-active-filters [aria-label="移除标签 Campus"]').exists()).toBe(true);
+    expect(replace).toHaveBeenLastCalledWith({
+      name: 'music-library-voice', query: { q: 'school', voiceTags: '11' }
+    });
+  });
+
+  it('cancels a previous search and ignores a response that completes out of order', async () => {
+    const wrapper = mount(MusicVoiceHomeView);
+    await flushPromises();
+    let resolveOld;
+    vi.mocked(musicApi.searchVoiceWorks).mockImplementationOnce(
+      () => new Promise((resolve) => { resolveOld = resolve; })
+    );
+    vi.mocked(musicApi.searchVoiceWorks).mockResolvedValueOnce(voicePayload([
+      { workId: 3, title: 'Newest', ageCategory: 'general' }
+    ]));
+    await wrapper.get('.voice-search-box input').setValue('slow');
+    await wrapper.get('form').trigger('submit');
+    const oldSignal = vi.mocked(musicApi.searchVoiceWorks).mock.lastCall[0].signal;
+    await wrapper.get('.voice-search-box input').setValue('fast');
+    await wrapper.get('form').trigger('submit');
+    await flushPromises();
+    expect(oldSignal.aborted).toBe(true);
+    resolveOld(voicePayload([{ workId: 4, title: 'Stale', ageCategory: 'general' }]));
+    await flushPromises();
+    expect(wrapper.text()).toContain('Newest');
+    expect(wrapper.text()).not.toContain('Stale');
+    wrapper.unmount();
   });
 
   it('defaults to general and R15 works and can switch to R18', async () => {
@@ -180,6 +217,15 @@ describe('MusicVoiceHomeView', () => {
 
     expect(musicApi.searchVoiceWorks).toHaveBeenCalledTimes(2);
     expect(wrapper.get('.state-text.error').text()).toContain('upstream unavailable');
+    scrollHost.dispatchEvent(new Event('scroll'));
+    await flushPromises();
+    expect(musicApi.searchVoiceWorks).toHaveBeenCalledTimes(2);
+    vi.mocked(musicApi.searchVoiceWorks).mockResolvedValueOnce(voicePayload());
+    await wrapper.get('.voice-error button').trigger('click');
+    await flushPromises();
+    expect(musicApi.searchVoiceWorks).toHaveBeenLastCalledWith(
+      expect.objectContaining({ page: 3, limit: 10 }), undefined
+    );
 
     wrapper.unmount();
     scrollHost.remove();

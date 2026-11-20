@@ -1,8 +1,8 @@
 <template>
   <section class="music-center-view voice-detail-view">
     <header class="voice-hero liquid-material">
-      <button class="back-btn ripple-trigger" type="button" @click="backToVoiceList">
-        <i class="fas fa-arrow-left"></i>
+      <button class="back-btn ripple-trigger" type="button" aria-label="返回音声列表" @click="backToVoiceList">
+        <i class="fas fa-arrow-left" aria-hidden="true"></i>
       </button>
 
       <div class="cover" :style="coverStyle"></div>
@@ -181,6 +181,7 @@ import * as musicApi from '../../services/musicApi';
 import { formatMediaTime } from '../../utils/mediaTime';
 import { safeCssUrl } from '../../utils/url';
 import { normalizeVoiceAgeCategory, voiceAgeCategoryLabel } from '../../utils/voiceAgeCategory';
+import { normalizeVoiceTags, readVoiceCatalogueQuery, voiceTagLabel, writeVoiceCatalogueQuery } from '../../utils/voiceCatalogue';
 
 const route = useRoute();
 const router = useRouter();
@@ -236,14 +237,6 @@ function createEmptyWork() {
   };
 }
 
-function normalizeTag(raw) {
-  const tagId = Number(raw?.tagId ?? raw?.tag_id ?? 0);
-  return {
-    tagId: Number.isFinite(tagId) ? tagId : 0,
-    name: String(raw?.name || '').trim()
-  };
-}
-
 function normalizeWork(raw) {
   const source = raw && typeof raw === 'object' ? raw : {};
   return {
@@ -264,7 +257,7 @@ function normalizeWork(raw) {
       ? Number(source.rateAverage ?? source.rate_average)
       : null,
     rank: source?.rank && typeof source.rank === 'object' ? source.rank : {},
-    tags: Array.isArray(source?.tags) ? source.tags.map((item) => normalizeTag(item)) : [],
+    tags: normalizeVoiceTags(source?.tags),
     vas: Array.isArray(source?.vas) ? source.vas.map((item) => String(item || '').trim()).filter(Boolean) : [],
     languageEditions: Array.isArray(source?.languageEditions || source?.language_editions)
       ? (source.languageEditions || source.language_editions)
@@ -335,14 +328,14 @@ function formatDuration(durationSec) {
 }
 
 function scoreText(value) {
-  if (!Number.isFinite(Number(value))) return '-';
+  if (value == null || value === '' || !Number.isFinite(Number(value))) return '-';
   return Number(value).toFixed(1);
 }
 
 function renderTagText(tags) {
   const list = Array.isArray(tags) ? tags : [];
   if (!list.length) return '无';
-  return list.map((item) => item.name || `Tag ${item.tagId}`).join(' / ');
+  return list.map(voiceTagLabel).join(' · ');
 }
 
 function renderActorText(actors) {
@@ -587,7 +580,12 @@ async function loadBundle() {
 }
 
 function backToVoiceList() {
-  router.push({ name: 'music-library-voice' });
+  const location = {
+    name: 'music-library-voice',
+    query: writeVoiceCatalogueQuery(readVoiceCatalogueQuery(route.query))
+  };
+  if (router.options.history.state.back === router.resolve(location).fullPath) router.back();
+  else router.replace(location);
 }
 
 watch(
