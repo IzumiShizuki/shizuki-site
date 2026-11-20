@@ -454,6 +454,35 @@ describe('MusicLibraryPage stored Folia account entry integration', () => {
     }
   });
 
+  it.each(['featured-trio', 'different-list'])('uses the host playlist on the player page only if its profile matches the queue (%s)', async (profileCode) => {
+    resetMocks({ authenticated: false });
+    mocked.player.playlistProfile.value = { playlistCode: profileCode, name: 'Featured trio' };
+    mocked.player.queueSourceContext.value = { kind: 'queue', sitePlaylistCode: 'featured-trio' };
+    const track = { id: 'one', trackId: 'one', title: 'One', provider: 'local', queueEntryId: 'one:1' };
+    mocked.player.tracks.value = [track];
+    mocked.player.currentTrack.value = track;
+    const entry = '/music/assets/featured-profile-' + profileCode + '.js';
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = vi.fn().mockResolvedValue({ ok: true, text: async () => `<script type="module" src="${entry}"></script>` });
+    const wrapper = await mountPage({ teleport: true });
+    const post = vi.spyOn(window, 'postMessage');
+    try {
+      await completeColdFoliaMount(entry);
+      const { session } = post.mock.calls.map(([message]) => message).find(message => message?.type === 'shizuki:follow-playback');
+      if (profileCode === 'featured-trio') {
+        expect(session.playlist).toMatchObject({ code: profileCode, name: 'Featured trio' });
+        expect(session.sourceContext.sitePlaylistCode).toBe(profileCode);
+      } else {
+        expect(session.playlist).toBeNull();
+        expect(session.sourceContext.sitePlaylistCode).toBeUndefined();
+      }
+    } finally {
+      post.mockRestore();
+      wrapper.unmount();
+      globalThis.fetch = originalFetch;
+    }
+  });
+
   it('does not activate Folia when a cold entry finishes after the page unmounts', async () => {
     const originalFetch = globalThis.fetch;
     globalThis.fetch = vi.fn().mockResolvedValue({

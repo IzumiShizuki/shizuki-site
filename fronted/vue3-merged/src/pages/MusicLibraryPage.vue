@@ -760,12 +760,20 @@ const foliaPlaylistOptions = computed(() => {
   return options.filter((item) => (seen.has(item.playlistCode) ? false : (seen.add(item.playlistCode), true)));
 });
 
+function isKnownFoliaSitePlaylist(code) {
+  if (!code) return false;
+  const active = player.queueSourceContext?.value;
+  return code === currentPlaylistCodeFromRoute.value
+    || foliaPlaylistOptions.value.some((item) => item.playlistCode === code)
+    || (active?.kind === 'queue' && active.sitePlaylistCode === code
+      && player.playlistProfile?.value?.playlistCode === code);
+}
+
 function createFoliaSourceContext(profile = player.playlistProfile?.value || currentPlaylistProfile.value) {
   if (player.queueSourceContext?.value) return normalizeFoliaSourceContext(player.queueSourceContext.value);
   if (foliaSourceContext.value) return normalizeFoliaSourceContext(foliaSourceContext.value);
   const code = String(profile?.playlistCode || profile?.playlist_code || currentPlaylistCodeFromRoute.value || '').trim();
-  const isKnownSitePlaylist = foliaPlaylistOptions.value.some((item) => item.playlistCode === code);
-  if (code && isKnownSitePlaylist) return { kind: 'queue', sitePlaylistCode: code };
+  if (isKnownFoliaSitePlaylist(code)) return { kind: 'queue', sitePlaylistCode: code };
   return { kind: Array.isArray(player.tracks?.value) && player.tracks.value.length ? 'queue' : 'single' };
 }
 
@@ -1369,8 +1377,7 @@ async function mirrorFoliaPlaybackIntent(data) {
 function normalizeFoliaSourceContext(context) {
   if (!context || typeof context !== 'object') return createFoliaSourceContext();
   const sitePlaylistCode = String(context.sitePlaylistCode || '').trim();
-  const knownSitePlaylist = sitePlaylistCode === currentPlaylistCodeFromRoute.value
-    || foliaPlaylistOptions.value.some((item) => item.playlistCode === sitePlaylistCode);
+  const knownSitePlaylist = isKnownFoliaSitePlaylist(sitePlaylistCode);
   return {
     kind: ['collection', 'queue', 'single'].includes(context.kind) ? context.kind : 'queue',
     ...(context.collection && typeof context.collection === 'object' ? {
@@ -4160,7 +4167,7 @@ async function returnToMusicLibrary() {
   }
 
   const code = source.sitePlaylistCode;
-  if (code && (code === currentPlaylistCodeFromRoute.value || foliaPlaylistOptions.value.some((item) => item.playlistCode === code))) {
+  if (isKnownFoliaSitePlaylist(code)) {
     router.push({ name: 'music-library-playlist', params: { playlistCode: code } });
   } else {
     router.push({ name: 'music-library-queue' });
