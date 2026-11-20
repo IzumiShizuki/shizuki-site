@@ -444,7 +444,7 @@ export function usePlayerEngine(options = {}) {
   let failedNextAnchor = null;
   const pendingNextEntryId = ref(null);
   const nextTransitionError = ref(null);
-  const nextTransitionPhases = ['click', 'resolved', 'loadstart', 'buffer-hit', 'playing', 'failed'];
+  const nextTransitionPhases = ['click', 'resolved', 'loadstart', 'buffer-hit', 'inflight-reuse', 'playing', 'failed'];
 
   // Bounded, local Performance Timeline diagnostic; no track IDs, URLs or user data.
   function markNextTransition(phase) {
@@ -527,10 +527,12 @@ export function usePlayerEngine(options = {}) {
     element.load();
   }
 
-  function takeReadyStandby(key, track) {
+  function takeStandby(key, track, manualNext) {
     const slot = standby;
     if (!slot || slot.key !== key || slot.source !== track.audio
-      || slot.element.error || slot.element.readyState < 3) return null;
+      || slot.element.error) return null;
+    // An explicit Next can continue the same live request before its first media bytes arrive.
+    if (slot.element.readyState < 3 && !(manualNext && slot.element.networkState === 2)) return null;
     // A suspended metadata preload may report an empty TimeRanges in Chromium
     // even though the decoder has startup data (HAVE_FUTURE_DATA or above).
     clearTimeout(slot.timer);
@@ -1390,24 +1392,24 @@ export function usePlayerEngine(options = {}) {
       pendingAutoplaySelection.mediaCommitted = true;
       mediaCommitted = true;
     }
-    const buffered = bufferedKey ? takeReadyStandby(bufferedKey, track) : null;
+    const promoted = bufferedKey ? takeStandby(bufferedKey, track, options.manualNext === true) : null;
     discardStandby();
-    if (buffered) {
+    if (promoted) {
       const old = audioElement;
-      audioElement = buffered;
+      audioElement = promoted;
       spareAudio = old;
       // Change ownership before clearing the old source. Any queued old events are stale.
       old.pause();
       clearAudioSource(old);
-      configureAudioElement(buffered);
+      configureAudioElement(promoted);
       // Visualization is optional and must never prevent playback.
-      try { engineOptions.onPlaybackElementPromoted?.(buffered); } catch { /* native playback */ }
-      if (options.manualNext) markNextTransition('buffer-hit');
+      try { engineOptions.onPlaybackElementPromoted?.(promoted); } catch { /* native playback */ }
+      if (options.manualNext) markNextTransition(promoted.readyState >= 3 ? 'buffer-hit' : 'inflight-reuse');
     }
     if (preservePlayingMedia) switchVisibleTrack(track, false);
     currentTrackId.value = track.id;
     currentQueueEntryId.value = queueEntryId;
-    if (buffered) {
+    if (promoted) {
       syncDuration();
     } else {
       setActiveAudioSource(track.audio);

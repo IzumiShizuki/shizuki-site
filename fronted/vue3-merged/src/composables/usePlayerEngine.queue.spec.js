@@ -129,7 +129,19 @@ describe('usePlayerEngine queue identity', () => {
     expect(resolvePlaybackTrack.mock.calls.filter(([request]) => request.trackId === 'next')).toHaveLength(1);
   });
 
-  it('falls back to native foreground loading when the preload has not buffered enough', async () => {
+  it('takes over an in-flight standby request on manual Next without another load', async () => {
+    const { engine, first, prepared } = await prepareGatewayBuffer({}, false);
+    prepared.readyState = 0;
+    prepared.networkState = 2;
+    const loads = prepared.loads;
+    await expect(engine.playNext()).resolves.toBe(true);
+    expect(engine.audioElement).toBe(prepared);
+    expect(prepared.loads).toBe(loads);
+    expect(first.paused).toBe(true);
+    expect(first.src).toBe('');
+  });
+
+  it('falls back to native foreground loading when the preload is neither ready nor loading', async () => {
     const { engine, first, prepared } = await prepareGatewayBuffer({}, false);
     await expect(engine.playNext()).resolves.toBe(true);
     expect(engine.audioElement).toBe(first);
