@@ -21,7 +21,11 @@ export function boardRows(context, now) {
     const clock = clocks?.find(e => e.stage === key);
     const skipped = key === 'RESEARCH' && current > 0 && (clocks
       ? !clock : events.some(e => e.event_type === 'ENABLE' && e.stage === 'DESIGN'));
-    const status = skipped ? 'SKIPPED' : index < current ? 'COMPLETE' : index > current ? 'READY' : context.status;
+    const latest = history[0];
+    const failed = context.status === 'BLOCKED' && latest?.event_type === 'PROGRESS'
+      && latest.source === 'MCP' && latest.summary?.startsWith('[RUN_FAILED] ');
+    const currentStatus = failed ? 'FAILED' : context.status;
+    const status = skipped ? 'SKIPPED' : index < current ? 'COMPLETE' : index > current ? 'READY' : currentStatus;
     const start = utc(clock?.started_at || history.findLast(e => e.status === 'IN_PROGRESS')?.created_at);
     const end = status === 'IN_PROGRESS' ? now : utc(clock?.last_event_at || history[0]?.created_at);
     const seconds = Number.isFinite(end - start) ? Math.max(0, Math.floor((end - start) / 1000)) : null;

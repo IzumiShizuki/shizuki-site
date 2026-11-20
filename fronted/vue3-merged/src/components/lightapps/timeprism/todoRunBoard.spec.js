@@ -11,6 +11,10 @@ it('distinguishes skipped, running, failed, pending and completed using persiste
   expect(boardRows(ctx, now).map(r => r.label)).toEqual(['跳过','运行中','未开始','未开始']);
   expect(boardRows(ctx, now)[1].elapsed).toBe('2 分 3 秒');
   expect(boardRows({...ctx,status:'FAILED'}, now)[1]).toMatchObject({label:'失败',elapsed:'1 分 0 秒'});
+  const blocked = {...ctx,status:'BLOCKED', events:[
+    {stage:'DESIGN',source:'MCP',event_type:'PROGRESS',summary:'[RUN_FAILED] local worker stopped'}]};
+  expect(boardRows(blocked,now)[1].label).toBe('失败');
+  expect(boardRows({...blocked,events:[]},now)[1].label).toBe('阻塞');
   expect(boardRows({...ctx,stage:'VERIFICATION',status:'COMPLETE'}, now).map(r => r.label)).toEqual(['跳过','完成','完成','完成']);
 });
 

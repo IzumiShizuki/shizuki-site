@@ -152,8 +152,15 @@ public class TodoDevService {
             if (status != Status.IN_PROGRESS && status != Status.BLOCKED && status != Status.FAILED) {
                 throw bad("Invalid progress status");
             }
+            // Older Todo readers parse the persisted status as a closed enum.
+            // Keep the existing blocked state and mark failures in the event.
+            String summary = body.summary();
+            if (status == Status.FAILED) {
+                status = Status.BLOCKED;
+                summary = "[RUN_FAILED] " + summary;
+            }
             return apply(todo, workflow, body.requestId(), hash, type, actor, stage, stage, status,
-                nextStep, body.summary(), artifacts);
+                nextStep, summary, artifacts);
         }
         if (body.status() != null) {
             throw bad("The server determines the submission status");

@@ -79,7 +79,7 @@ export async function stageAction({ api, action, id, stage, artifact, fixture = 
   try {
     return perform(fixture ? 'fixture' : 'run', stage, stageMaterials(context, stage));
   } catch (error) {
-    await api.progress(id, { ...body(version, prefix + '执行失败，请检查本机输出'), status:'FAILED' });
+    await api.progress(id, { ...body(version, '[RUN_FAILED] ' + prefix + '执行失败，请检查本机输出'), status:'BLOCKED' });
     throw error;
   }
 }

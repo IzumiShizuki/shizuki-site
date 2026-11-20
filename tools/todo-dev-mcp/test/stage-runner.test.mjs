@@ -24,7 +24,8 @@ test('login preflight precedes the first write; execution errors are safe to rep
   await assert.rejects(run('run',{ perform:()=>{throw Error('no login');} }));
   assert.equal(writes.length,0);
   await assert.rejects(run('run',{ perform:a=>{if(a==='run')throw Error('private provider error');} }));
-  assert.equal(state.status,'FAILED');
+  assert.equal(state.status,'BLOCKED');
+  assert.match(writes.at(-1).summary,/^\[RUN_FAILED\] /);
   assert.equal(await run('run'),'private local output');
   assert.equal(state.status,'IN_PROGRESS');
   assert.doesNotMatch(JSON.stringify(writes),/private/);

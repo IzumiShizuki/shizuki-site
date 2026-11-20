@@ -94,7 +94,9 @@ class TodoDevServiceTest {
             if (stage == Stage.IMPLEMENTATION) {
                 var failed = service.progress(agent, 42L, new Write(running.version(), "failure-dev",
                     "Local worker failed", null, Status.FAILED, null));
-                assertThat(service.context(agent, 42L).status()).isEqualTo(Status.FAILED);
+                assertThat(service.context(agent, 42L).status()).isEqualTo(Status.BLOCKED);
+                verify(events).insert(argThat((LightAppTodoDevEventEntity e) ->
+                    "BLOCKED".equals(e.getStatusCode()) && e.getSummary().startsWith("[RUN_FAILED] ")));
                 running = service.progress(agent, 42L, new Write(failed.version(), "retry-dev",
                     "Restarted", null, Status.IN_PROGRESS, null));
             }
