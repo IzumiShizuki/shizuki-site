@@ -1,6 +1,14 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { stageAction } from '../src/stage-runner.mjs';
+import { stageAction, workerEnvironment } from '../src/stage-runner.mjs';
+
+test('worker inherits Windows runtime settings without caller account or Python startup settings', () => {
+  assert.deepEqual(workerEnvironment({
+    Path:'test-bin', SystemRoot:'test-windows', TEMP:'test-tmp',
+    SHIZUKI_MCP_TOKEN:'test-only', AUTHORIZATION:'test-only', HTTP_COOKIE:'test-only',
+    CODEX_HOME:'test-profile', PYTHONPATH:'test-import-hook'
+  }), { Path:'test-bin', SystemRoot:'test-windows', TEMP:'test-tmp' });
+});
 
 function setup() {
   const state = { todo_id:'31', title:'private task title', repository:'owner/repo', stage:'DESIGN', status:'READY', version:2 };

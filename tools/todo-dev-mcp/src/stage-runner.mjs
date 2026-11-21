@@ -9,12 +9,25 @@ const stages = ['RESEARCH', 'DESIGN', 'IMPLEMENTATION', 'VERIFICATION'];
 const actions = ['run', 'resume', 'submit'];
 const workerPath = fileURLToPath(new URL('../stage_worker.py', import.meta.url));
 
+// Match the starter's Windows runtime and transport settings. The web/MCP
+// session, Python startup overrides and the caller's CLI home stay in Node.
+const workerEnvironmentKeys = new Set([
+  'ALLUSERSPROFILE', 'APPDATA', 'COMMONPROGRAMFILES', 'COMPUTERNAME', 'HOME',
+  'HOMEDRIVE', 'HOMEPATH', 'LANG', 'LC_ALL', 'LOCALAPPDATA', 'OS', 'PATH',
+  'PATHEXT', 'PROCESSOR_ARCHITECTURE', 'PROGRAMDATA', 'PROGRAMFILES',
+  'PROGRAMFILES(X86)', 'SYSTEMDRIVE', 'SYSTEMROOT', 'TEMP', 'TMP', 'TMPDIR',
+  'USERPROFILE', 'WINDIR', 'HTTPS_PROXY', 'HTTP_PROXY', 'NO_PROXY',
+  'SSL_CERT_FILE', 'SSL_CERT_DIR'
+]);
+
+export function workerEnvironment(environment) {
+  return Object.fromEntries(Object.entries(environment)
+    .filter(([name]) => workerEnvironmentKeys.has(name.toUpperCase())));
+}
+
 function runPython(action, stage, materials = {}) {
   const python = join(homedir(), 'openai-agents-starter', '.venv', 'Scripts', 'python.exe');
-  const childEnv = { ...process.env };
-  for (const key of Object.keys(childEnv)) {
-    if (/TOKEN|API_KEY|SECRET|PASSWORD/i.test(key)) delete childEnv[key];
-  }
+  const childEnv = workerEnvironment(process.env);
   const p = spawnSync(python, ['-B', '-X', 'utf8', workerPath, action, stage], {
     input: JSON.stringify(materials), encoding: 'utf8', env: childEnv, timeout: 150000, windowsHide: true
   });

@@ -36,6 +36,18 @@ CONTENT_REQUIRED = tuple(SITE + "content/" + n + ".class" for n in (
     "tododev/TodoDevService",
 ))
 FILTER_CLASS = re.compile(re.escape(FILTER) + r"(?:\$[\w$]+)?\.class")
+PG_MIGRATION = re.compile(r"V(\d+(?:[._]\d+)*)__.+\.sql")
+
+
+def check_rollback_migrations(paths):
+    # The old package must see both added versions as "future" after rollback.
+    directory, first = MIGRATIONS[0].rsplit("/", 1)
+    limit = tuple(map(int, PG_MIGRATION.fullmatch(first)[1].split(".")))
+    prefix = BOOT_CLASSES + directory + "/"
+    for path in sorted(paths):
+        match = PG_MIGRATION.fullmatch(path.rsplit("/", 1)[-1]) if path.startswith(prefix) else None
+        if match and tuple(map(int, re.split(r"[._]", match[1]))) >= limit:
+            raise ValueError(f"Base migration conflicts with image rollback: {path}")
 
 
 def sha(data):
@@ -134,6 +146,7 @@ def overlay(base, expected_sha, candidate, output, proof):
     outer.update({BOOT_CLASSES + name: data for name, data in filters.items()})
     with ZipFile(base) as old:
         base_names = names(old)
+        check_rollback_migrations(base_names)
         filter_paths = {BOOT_CLASSES + name for name in filters}
         old_filter_paths = {name for name in base_names if name.startswith(BOOT_CLASSES)
                             and FILTER_CLASS.fullmatch(name.removeprefix(BOOT_CLASSES))}

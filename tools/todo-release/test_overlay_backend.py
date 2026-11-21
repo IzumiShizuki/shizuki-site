@@ -80,3 +80,14 @@ class OverlayTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "narrow overlay"):
             tool.overlay(self.base, tool.file_sha(self.base), self.candidate, self.output, self.proof)
         self.assertFalse(self.output.exists())
+
+    def test_rejects_release_with_later_or_overlapping_pg_version_before_writing(self):
+        for version in ("1107", "1106_1", "1106.1.0"):
+            with self.subTest(version=version):
+                self.make_base()
+                with ZipFile(self.base, "a") as archive:
+                    archive.writestr(tool.BOOT_CLASSES + f"monolith/db/migration-pg/V{version}__other.sql", "SELECT 1;")
+                with self.assertRaisesRegex(ValueError, "conflicts with image rollback"):
+                    tool.overlay(self.base, tool.file_sha(self.base), self.candidate, self.output, self.proof)
+                self.assertFalse(self.output.exists())
+                self.assertFalse(self.proof.exists())

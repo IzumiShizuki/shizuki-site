@@ -47,3 +47,7 @@ node $worker submit $id $stage $artifact
 两名合成测试用户在隔离的 Edge 会话中使用真实 Vue 组件、路由和登录客户端。回环 HTTP 服务提供测试数据与身份，全流程从现有 Python SDK 离线角色产物，经本机执行器和 MCP HTTP 客户端写回，再由网页审批。验收覆盖四阶段、开发失败与重试、跳过调研、断线恢复、换号、中文笔记返回链接以及缺少本机关联。Java 的 Todo 服务、控制器与 MCP 授权另行运行测试，阶段计时查询在独立内存 PostgreSQL 上核对。查看[运行中的阶段](../../docs/todo-stage-board/board-running.png)及[跳过调研和未关联笔记](../../docs/todo-stage-board/board-skipped.png)。
 
 本次运行时 starter 专用登录尚未完成，真实模型四阶段链路仍待专用账号验证。浏览器验收核对了 Obsidian 跳转地址和实际返回 Todo 的链接，未打开用户的笔记库。
+
+## 本机验收记录
+
+数据库升级、旧代码回退、账号隔离、SDK trace 计数及真机验收范围见[本机补验与复现步骤](qa/ACCEPTANCE.md)。
